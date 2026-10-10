@@ -1,0 +1,43 @@
+# Local, personal config — never commit
+.env
+.env.*
+!.env.example
+
+# Signing certificates / keystores / profiles
+*.p12
+*.pfx
+*.pem
+*.key
+*.crt
+*.cer
+*.csr
+author.xml
+distributor.xml
+profiles.xml
+SamsungCertificate/
+certs/
+
+# Build output
+*.wgt
+build/
+dist/
+.buildResult/
+.sign/
+.tproject
+
+# Tizen Studio / IDE workspace junk
+.metadata/
+.settings/
+.project
+.vscode/
+.idea/
+
+# Node
+node_modules/
+npm-debug.log*
+
+# OS
+.DS_Store
+
+# Promo material (videos, graphics, drafts); final README media goes in docs/media/
+marketing/
