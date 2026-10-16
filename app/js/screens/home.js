@@ -12,6 +12,7 @@ import { openItem, playItem, openLibrary, openSearch, openSettings } from '../na
 import { error, log } from '../util/log.js';
 
 const ROWS_TOP = 600;
+const NAV_PAD = 80; // wider than the 64px edge fade in app.css
 
 function slimHub(hub) {
   // Keep the cache small: only fields the home screen renders.
@@ -50,7 +51,9 @@ export function HomeScreen() {
   const brandText = h('div', 'brand-text', brand);
   h('img', 'brand-wordmark', brandText).src = 'img/wordmark.png';
   h('div', 'brand-by', brandText).textContent = 'by rfaile313';
+  // The nav is a clip with a sliding track, so any number of libraries fits.
   const navEl = h('nav', 'nav', top);
+  const navTrack = h('div', 'nav-track', navEl);
   const who = h('div', 'topbar-who', top);
   setText(who, session.server ? session.server.name : '');
 
@@ -71,26 +74,47 @@ export function HomeScreen() {
   let zone = 'rows';
   let navItems = [];
   let navIndex = 0;
+  let navScroll = 0;
   let loadedAt = 0;
   let heroTimer = 0;
   let artTimer = 0;
   let reportedPaint = false;
 
   function buildNav(sections) {
-    navEl.innerHTML = '';
+    navTrack.innerHTML = '';
     navItems = [{ label: 'Home', id: 'home' }]
       .concat(sections.map(s => ({ label: s.title, id: 'section', section: s })))
       .concat([{ label: 'Search', id: 'search', icon: icons.search }, { label: 'Settings', id: 'settings', icon: icons.gear }]);
+    navIndex = Math.min(navIndex, navItems.length - 1);
     navItems.forEach((n, i) => {
-      if (n.icon && !navItems[i - 1].icon) h('i', 'nav-sep', navEl);
-      n.el = h('div', 'nav-item' + (n.icon ? ' nav-icon' : ''), navEl);
+      if (n.icon && !navItems[i - 1].icon) h('i', 'nav-sep', navTrack);
+      n.el = h('div', 'nav-item' + (n.icon ? ' nav-icon' : ''), navTrack);
       if (n.icon) n.el.innerHTML = n.icon;
       else h('span', '', n.el).textContent = n.label;
     });
     renderNav();
   }
 
+  // Slide the track just enough to keep the focused item clear of the edge fades.
+  function scrollNav() {
+    const room = navEl.clientWidth;
+    if (!room) return; // hidden screen: nothing to measure
+    const max = Math.max(0, navTrack.offsetWidth - room);
+    const n = navItems[navIndex];
+    if (zone === 'nav' && n) {
+      const left = n.el.offsetLeft;
+      const right = left + n.el.offsetWidth;
+      if (left - NAV_PAD < navScroll) navScroll = left - NAV_PAD;
+      else if (right + NAV_PAD > navScroll + room) navScroll = right + NAV_PAD - room;
+    }
+    navScroll = Math.round(Math.max(0, Math.min(max, navScroll)));
+    setTransform(navTrack, 'translateX(' + (-navScroll) + 'px)');
+    toggleClass(navEl, 'more-left', navScroll > 0);
+    toggleClass(navEl, 'more-right', navScroll < max - 1);
+  }
+
   function renderNav() {
+    scrollNav(); // measure before the class writes below dirty the style
     navItems.forEach((n, i) => {
       toggleClass(n.el, 'focus', zone === 'nav' && i === navIndex);
       toggleClass(n.el, 'current', n.id === 'home');
@@ -194,6 +218,8 @@ export function HomeScreen() {
   } else {
     buildNav([]);
   }
+  // Inter swaps in after first paint and changes the label widths.
+  if (document.fonts) document.fonts.ready.then(renderNav);
   load();
 
   function activateNav(n) {
@@ -207,6 +233,7 @@ export function HomeScreen() {
     name: 'home',
     onShow() {
       ambience.restore();
+      renderNav(); // widths can't be measured while the screen was hidden
       // Coming back from playback: progress and Continue Watching changed.
       if (Date.now() - loadedAt > 5000) load();
     },
