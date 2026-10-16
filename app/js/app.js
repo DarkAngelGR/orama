@@ -1,7 +1,7 @@
 // Boot: restore the session and go straight to Home when we can; otherwise sign in.
 import { DEV, DEV_HOST, DEV_PLEX_URL, VERSION } from './config.js';
 import * as router from './router.js';
-import { registerKeys } from './platform/tizen.js';
+import { isTizen, registerKeys } from './platform/tizen.js';
 import { session, reconnect, signOut } from './session.js';
 import { HomeScreen } from './screens/home.js';
 import { LoginScreen } from './screens/login.js';
@@ -34,6 +34,18 @@ async function verify() {
   }
 }
 
+// The UI is laid out for the TV's fixed 1920×1080 viewport. In a desktop
+// browser, zoom it to fit the window and center it. zoom (not a transform)
+// re-renders text and images at the window's real resolution.
+function fitWindow() {
+  const root = document.documentElement;
+  const s = Math.min(innerWidth / 1920, innerHeight / 1080);
+  root.style.position = 'relative'; // so the margins below move #app too
+  root.style.zoom = s;
+  root.style.marginLeft = Math.max(0, (innerWidth - 1920 * s) / 2 / s) + 'px';
+  root.style.marginTop = Math.max(0, (innerHeight - 1080 * s) / 2 / s) + 'px';
+}
+
 function start() {
   // A release build installed over a dev build must not inherit its LAN shortcut.
   if (!DEV && session.token === 'lan-dev') {
@@ -60,6 +72,10 @@ export function boot() {
   if (DEV) window.__ss = { router, session, nav };
   log('boot', VERSION, navigator.userAgent);
   registerKeys();
+  if (!isTizen) {
+    fitWindow();
+    window.addEventListener('resize', fitWindow);
+  }
   router.init(document.getElementById('app'));
   initHud(() => (router.top() && router.top().name) || '');
   window.addEventListener('samsucks:restart', start);
