@@ -13,7 +13,7 @@ export function LoginScreen({ onDone }) {
   const ambience = useAmbience({ topLeft: '3a1518', topRight: '161922', bottomLeft: '1b1f2b', bottomRight: '2a1012' });
   const left = h('div', 'login-art', el);
   const art = h('img', '', left);
-  art.src = 'img/mascot-512.png';
+  art.src = 'img/logo-560.png';
   const panel = h('div', 'login-panel', el);
   h('h1', 'login-title', panel).textContent = 'Sign in to Plex';
   const steps = h('ol', 'login-steps', panel);
