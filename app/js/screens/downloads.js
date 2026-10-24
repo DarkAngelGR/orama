@@ -1,5 +1,5 @@
-// Settings › Downloads: the watchlist-sync connection Lucky Draw uses to
-// suggest and request movies you don't have.
+// Settings › Downloads: the watchlist-sync connection. Adding a title to your
+// Watchlist from search asks it to sync right away.
 import { h, toggleClass } from '../util/dom.js';
 import { useAmbience } from '../ui/backdrop.js';
 import * as router from '../router.js';
@@ -12,14 +12,23 @@ export function DownloadsScreen() {
   h('h1', 'settings-title', el).textContent = 'Downloads';
   const list = h('div', 'settings-list', el);
   const foot = h('div', 'settings-foot downloads-foot', el);
-  foot.textContent = 'Lucky Draw can suggest movies you don\'t have and add them to Radarr through '
-    + 'watchlist-sync. It\'s found automatically when it runs on the same machine as Plex (port '
-    + watchlist.DEFAULT_PORT + ').';
+  foot.textContent = 'Titles you add to your Watchlist from search go to Sonarr/Radarr through '
+    + 'watchlist-sync. FlexPlex asks it to sync right away. It\'s found automatically when it runs '
+    + 'on the same machine as Plex (port ' + watchlist.DEFAULT_PORT + ').';
 
   let index = 0;
   let items = [];
   let status = 'Checking…';
   let generation = 0;
+
+  // "· Sonarr ✓ · Radarr can't be reached": watchlist-sync is only useful when it
+  // can reach them (an unreachable address is the usual problem).
+  function arrStatus(i) {
+    if (!i.radarr && !i.sonarr) return ', but Sonarr/Radarr aren\'t set up in it';
+    if (i.signed_in === false) return ', but it isn\'t signed in to Plex';
+    const part = (name, on, ok) => !on ? '' : ok === false ? '  ·  ' + name + ' can\'t be reached' : '  ·  ' + name + ' ✓';
+    return part('Sonarr', i.sonarr, i.sonarr_ok) + part('Radarr', i.radarr, i.radarr_ok);
+  }
 
   async function check() {
     const gen = ++generation;
@@ -34,19 +43,7 @@ export function DownloadsScreen() {
     try {
       const i = await watchlist.info();
       if (gen !== generation) return;
-      status = 'Connected' + (i.radarr ? '' : ', but Radarr isn\'t set up in it') + (i.dry_run ? ' (dry run)' : '');
-      if (!i.radarr) { build(); return; }
-      // Connected isn't enough: check watchlist-sync can get movies from Radarr.
-      status += ' · asking Radarr…';
-      build();
-      try {
-        const s = await watchlist.suggestions();
-        if (gen !== generation) return;
-        status = status.replace(' · asking Radarr…', ' · ' + (s.items.length ? s.items.length + ' movies to suggest' : 'Radarr had no suggestions'));
-      } catch (e) {
-        if (gen !== generation) return;
-        status = e.message;
-      }
+      status = 'Connected' + (i.dry_run ? ' (dry run)' : '') + arrStatus(i);
     } catch (e) {
       if (gen !== generation) return;
       status = e.message;

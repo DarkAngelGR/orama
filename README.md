@@ -39,13 +39,12 @@ FlexPlex is a from-scratch Plex client for Samsung's Tizen TVs, built for speed:
 
 FlexPlex adds:
 
-- **Lucky Draw.** A tab that learns your taste from what you've watched (genres, directors,
-  actors, decades, your ratings) and draws an unwatched movie or show that fits, with the
-  reasons shown. Now and then it deals a well-rated wildcard. With
-  [watchlist-sync](https://github.com/DarkAngelGR/watchlist-sync) running, it also suggests
-  movies you don't have yet (Radarr's recommendations) and adds one to Radarr when you press
-  **Download it**. watchlist-sync is found automatically when it runs on the same machine as
-  Plex; see Settings › Downloads.
+- **Search beyond your server.** Search also looks in Plex's movie and TV catalog and lists what
+  you don't have under "Not on your server". **Add to Watchlist** puts it on your Plex Watchlist;
+  with [watchlist-sync](https://github.com/DarkAngelGR/watchlist-sync) running, FlexPlex asks it
+  to sync right away, so shows go to Sonarr and movies to Radarr within seconds. watchlist-sync is
+  found automatically when it runs on the same machine as Plex; see Settings › Downloads.
+- **IMDb, Rotten Tomatoes and TMDB ratings** on the detail page and in lists.
 - **Choose before you play.** Quality (or which version), audio and subtitles on the detail page.
 - **Player extras.** Skip intro/credits, subtitle timing, size and background, a green-button
   subtitle toggle, and the next episode keeps your languages.

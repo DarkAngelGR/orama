@@ -85,6 +85,17 @@ export class Server {
     return (mc.Hub || []).filter(h => h.size > 0 && SUPPORTED_HUB_TYPES[h.type] && h.Metadata);
   }
 
+  // Which of these plex:// guids does this server hold? (type 1 = movie,
+  // 2 = show; at most 40 guids per request, as verified by plx-native.)
+  async ownedGuids(guids, type) {
+    const owned = new Set();
+    for (let i = 0; i < guids.length; i += 40) {
+      const mc = await this.get('/library/all', { type, guid: guids.slice(i, i + 40).join(',') });
+      (mc.Metadata || []).forEach(m => m.guid && owned.add(m.guid));
+    }
+    return owned;
+  }
+
   timeline(params) {
     return request(this.uri + '/:/timeline', { token: this.token, params, timeout: 8000 }).catch(() => {});
   }

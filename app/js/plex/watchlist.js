@@ -1,7 +1,8 @@
-// Talks to watchlist-sync (github.com/DarkAngelGR/watchlist-sync), which can
-// suggest movies you don't have (Radarr's Discover list) and add one to Radarr
-// on request. Its Sonarr/Radarr keys stay on the server; the TV only needs its
-// address, found automatically when it runs on the same machine as Plex.
+// Talks to watchlist-sync (github.com/DarkAngelGR/watchlist-sync), which sends
+// what's on your Plex Watchlist to Sonarr/Radarr. FlexPlex only asks it to
+// sync right after you add something; its Sonarr/Radarr keys stay on the
+// server. The TV needs its address, found automatically when it runs on the
+// same machine as Plex.
 import * as store from '../util/store.js';
 import { session } from '../session.js';
 
@@ -95,44 +96,15 @@ async function call(path, { method = 'GET', body, timeout = 8000 } = {}) {
   return data;
 }
 
-// { product, radarr, sonarr, dry_run }
+// { product, radarr, sonarr, radarr_ok, sonarr_ok, dry_run, signed_in }
 export async function info() {
-  const data = await call('/api/tv', { timeout: 4000 });
+  const data = await call('/api/tv', { timeout: 10000 }); // it pings Sonarr/Radarr (3 s each)
   if (data.product !== 'watchlist-sync') throw new WatchlistError('That address isn\'t watchlist-sync', 0);
   return data;
 }
 
-// Movies you don't have, shaped like Plex metadata so plex/taste.js can score
-// them alongside your library.
-export async function suggestions() {
-  const data = await call('/api/tv/suggestions', { timeout: 45000 });
-  return {
-    dryRun: !!data.dry_run,
-    items: (data.movies || []).map(m => ({
-      ratingKey: 'tmdb:' + m.tmdbId,
-      tmdbId: m.tmdbId,
-      external: true,
-      type: 'movie',
-      title: m.title,
-      year: m.year || undefined,
-      Genre: (m.genres || []).map(tag => ({ tag })),
-      audienceRating: m.rating || undefined,
-      // Radarr's scores in Plex's shape, so ratings.js labels them the same way.
-      Rating: [
-        m.imdb && { image: 'imdb://image.rating', value: m.imdb },
-        m.rt && { image: 'rottentomatoes://image.rating.ripe', value: m.rt / 10 },
-        m.tmdb && { image: 'themoviedb://image.rating', value: m.tmdb },
-      ].filter(Boolean),
-      duration: m.runtime ? m.runtime * 60000 : undefined,
-      contentRating: m.certification || undefined,
-      summary: m.overview || '',
-      thumbUrl: m.poster || '',
-      artUrl: m.backdrop || '',
-    })),
-  };
-}
-
-// { ok, status: 'added' | 'already-present' | 'already-requested' | 'dry-run', title }
-export function requestMovie(tmdbId, title) {
-  return call('/api/tv/request', { method: 'POST', body: { tmdbId, title }, timeout: 30000 });
+// Ask watchlist-sync to sync now, so a title just added to the Plex Watchlist
+// reaches Sonarr/Radarr in seconds instead of on its next cycle.
+export async function syncNow() {
+  return call('/api/tv/sync', { method: 'POST', body: {}, timeout: 6000 });
 }

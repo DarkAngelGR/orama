@@ -3,11 +3,13 @@
 import { h, setText, setTransform } from '../util/dom.js';
 import { Row } from '../ui/row.js';
 import { session } from '../session.js';
-import { openItem, playItem } from '../nav.js';
-import { error } from '../util/log.js';
+import { openItem, playItem, openCatalog } from '../nav.js';
+import * as discover from '../plex/discover.js';
+import { error, warn } from '../util/log.js';
 import * as icons from '../ui/icons.js';
 import { useAmbience } from '../ui/backdrop.js';
 
+const CATALOG_MAX = 20;
 const IME_DONE = 65376;
 const IME_CANCEL = 65385;
 
@@ -19,7 +21,7 @@ export function SearchScreen() {
   icon.innerHTML = icons.search;
   const input = h('input', 'search-input', bar);
   input.type = 'text';
-  input.placeholder = 'Search movies and shows';
+  input.placeholder = 'Search movies and shows, on your server and beyond';
   input.setAttribute('autocomplete', 'off');
   const status = h('div', 'search-status', el);
   const clip = h('div', 'search-rows', el);
@@ -36,32 +38,73 @@ export function SearchScreen() {
     const gen = ++generation;
     if (q.length < 2) { setRows([]); setText(status, ''); return; }
     setText(status, 'Searching…');
+    // Plex's catalog is searched alongside your server; its row joins below
+    // your results when it arrives, so typing stays as quick as before.
+    const catalog = discover.search(q).catch(e => { warn('catalog search failed', e.message); return []; });
+    let hubs = [];
     try {
-      const hubs = await session.server.search(q);
+      hubs = await session.server.search(q);
       if (gen !== generation) return;
       setRows(hubs);
-      setText(status, hubs.length ? '' : 'Nothing found for “' + q + '”');
     } catch (e) {
       error('search failed', e);
-      setText(status, 'Search failed');
+      if (gen === generation) setText(status, 'Search failed');
     }
+    const elsewhere = await notOwned(await catalog, hubs);
+    if (gen !== generation) return;
+    if (elsewhere.length) {
+      addRow({ title: 'Not on your server', Metadata: elsewhere.slice(0, CATALOG_MAX), onSelect: openCatalog });
+    }
+    setText(status, hubs.length || elsewhere.length ? '' : 'Nothing found for “' + q + '”');
+  }
+
+  // Catalog results minus what this server already has (matched by plex://
+  // guid: first against the results above, then asking the server).
+  async function notOwned(items, hubs) {
+    if (!items.length) return [];
+    const local = new Set();
+    hubs.forEach(hub => hub.Metadata.forEach(m => m.guid && local.add(m.guid)));
+    let rest = items.filter(m => !local.has(m.guid));
+    try {
+      for (const [type, kind] of [[1, 'movie'], [2, 'show']]) {
+        const guids = rest.filter(m => m.type === kind && m.guid).map(m => m.guid);
+        if (!guids.length) continue;
+        const owned = await session.server.ownedGuids(guids, type);
+        rest = rest.filter(m => !owned.has(m.guid));
+      }
+    } catch (e) {
+      warn('owned check failed', e.message);
+    }
+    return rest;
+  }
+
+  function makeRow(hub, y) {
+    const row = new Row({
+      title: hub.title, kind: hub.type === 'episode' ? 'episode' : 'poster',
+      caption: true, items: hub.Metadata, onSelect: hub.onSelect || (item => openItem(item)),
+    });
+    setTransform(row.el, 'translateY(' + y + 'px)');
+    row.y = y;
+    track.appendChild(row.el);
+    return row;
   }
 
   function setRows(hubs) {
     track.innerHTML = '';
     let y = 0;
     rows = hubs.map(hub => {
-      const row = new Row({
-        title: hub.title, kind: hub.type === 'episode' ? 'episode' : 'poster',
-        caption: true, items: hub.Metadata, onSelect: item => openItem(item),
-      });
-      setTransform(row.el, 'translateY(' + y + 'px)');
-      row.y = y;
+      const row = makeRow(hub, y);
       y += row.height;
-      track.appendChild(row.el);
       return row;
     });
     if (rowIndex >= rows.length) rowIndex = rows.length - 1;
+    render();
+  }
+
+  // Append without rebuilding the rows above, so focus doesn't jump.
+  function addRow(hub) {
+    const last = rows[rows.length - 1];
+    rows.push(makeRow(hub, last ? last.y + last.height : 0));
     render();
   }
 
@@ -114,7 +157,11 @@ export function SearchScreen() {
         case 'up': if (rowIndex === 0) focusInput(); else { rowIndex--; render(); } return true;
         case 'down': if (rowIndex < rows.length - 1) { rowIndex++; render(); } return true;
         case 'enter': row.select(); return true;
-        case 'play': case 'playpause': if (row.current()) playItem(row.current()); return true;
+        case 'play': case 'playpause': {
+          const it = row.current();
+          if (it) { if (it.catalog) openCatalog(it); else playItem(it); } // nothing to play yet
+          return true;
+        }
         case 'back': focusInput(); return true;
       }
       return false;
