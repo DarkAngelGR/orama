@@ -1,6 +1,6 @@
 // Dev builds only: long-poll the devserver for key presses / snippets to run,
 // so the app can be driven and inspected from the Mac.
-import { DEV_HOST } from '../config.js';
+import { DEV_HOST, DEV_SECRET } from '../config.js';
 import { inject } from '../input.js';
 import { log, error } from '../util/log.js';
 
@@ -27,7 +27,10 @@ async function run(cmd) {
 export async function startDevRemote() {
   for (;;) {
     try {
-      const res = await fetch('http://' + DEV_HOST + '/cmd');
+      // The secret proves to the devserver that we're the build it made, and
+      // only that server can hand us code to run.
+      const res = await fetch('http://' + DEV_HOST + '/cmd', { headers: { 'X-Dev-Secret': DEV_SECRET } });
+      if (!res.ok) throw new Error('devserver ' + res.status + ' (rebuild with deploy.sh --dev?)');
       const cmds = await res.json();
       for (const c of cmds) await run(c);
     } catch (e) {

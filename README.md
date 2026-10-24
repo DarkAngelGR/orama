@@ -154,11 +154,16 @@ your computer instead. Put your computer's `host:port` in `.env` as `DEV_HOST`, 
 node tools/devserver.mjs          # receives logs and perf samples from the TV (build/tv.log)
 ./scripts/deploy.sh --dev         # dev build: performance overlay, logging, remote control
 
-curl 'localhost:8790/send?keys=down,right,right,enter'       # press buttons
+tools/tvsend.sh keys=down,right,right,enter                  # press buttons
 tools/tveval.sh 'document.title'                              # run JS on the TV, print the result
 tools/tveval.sh '__bench(["right","right","left","left"], 250)'   # frame stats while replaying keys
 tools/tveval.sh "__css('.hero-art{display:none}')"           # A/B test a CSS change live
 ```
+
+Commands run as code inside the app on the TV, so the dev server only accepts them with
+the random secret in `build/dev-secret` (created on first run and built into `--dev`
+builds), and only from command-line tools on your computer. Rebuild with `--dev` if you
+delete that file.
 
 With `DEV_SKIP_LOGIN=1` and `PLEX_SERVER_URL` in `.env`, dev builds skip sign-in and
 use a server that allows unauthenticated local-network access.
