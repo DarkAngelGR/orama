@@ -1,6 +1,6 @@
 // Account, server and diagnostics.
 import { DEV, VERSION } from '../config.js';
-import { h, toggleClass } from '../util/dom.js';
+import { h, toggleClass, setTransform } from '../util/dom.js';
 import { session, signOut, useServer } from '../session.js';
 import { getServers, connect } from '../plex/auth.js';
 import { setHud, hudEnabled } from '../ui/hud.js';
@@ -10,6 +10,11 @@ import { error } from '../util/log.js';
 import { useAmbience, setLegacyGradients, legacyGradients } from '../ui/backdrop.js';
 import { QUALITIES, qualityById, defaultQuality, setDefaultQuality } from '../player/options.js';
 import { subSize, subBackground, cycleSubSize, toggleSubBackground } from '../player/subprefs.js';
+import * as watchlist from '../plex/watchlist.js';
+import { DownloadsScreen } from './downloads.js';
+
+const ROW = 110;     // .setting height + margin
+const VISIBLE = 6;   // rows that fit above the footer
 
 // Cycles through the qualities; files smaller than the pick still play as Original.
 function nextDefaultQuality() {
@@ -21,7 +26,9 @@ export function SettingsScreen() {
   const el = h('div', 'screen settings');
   const ambience = useAmbience();
   h('h1', 'settings-title', el).textContent = 'Settings';
-  const list = h('div', 'settings-list', el);
+  // A clip with a sliding track, so the list can outgrow the screen.
+  const clip = h('div', 'settings-list settings-clip', el);
+  const list = h('div', 'settings-track', clip);
   const foot = h('div', 'settings-foot', el);
   foot.textContent = 'FlexPlex ' + VERSION + (DEV ? ' (dev)' : '') + ' · ' + (session.server ? session.server.uri.replace(/X-Plex-Token=.*/, '') : '');
 
@@ -36,6 +43,8 @@ export function SettingsScreen() {
       { label: 'Default quality', value: qualityById(defaultQuality()).label, run: () => { nextDefaultQuality(); build(); } },
       { label: 'Subtitle size', value: subSize().label, run: () => { cycleSubSize(); build(); } },
       { label: 'Subtitle background', value: subBackground() ? 'On' : 'Off', run: () => { toggleSubBackground(); build(); } },
+      { label: 'Downloads (watchlist-sync)', value: watchlist.mode() === 'off' ? 'Off' : watchlist.baseUrl() ? watchlist.baseUrl().replace(/^https?:\/\//, '') : 'Not set',
+        run: () => router.push(DownloadsScreen()) },
       { label: 'Performance overlay', value: hudEnabled() ? 'On' : 'Off', run: () => { setHud(!hudEnabled()); build(); } },
       // For before/after recordings: brings back the full-screen gradients that took ~2s per repaint.
       { label: 'Demo: original slow renderer', value: legacyGradients() ? 'On' : 'Off', run: () => { setLegacyGradients(!legacyGradients()); build(); } },
@@ -50,6 +59,8 @@ export function SettingsScreen() {
 
   function render() {
     items.forEach((it, i) => toggleClass(it.el, 'focus', i === index));
+    const first = Math.max(0, Math.min(index - (VISIBLE - 2), items.length - VISIBLE));
+    setTransform(list, 'translateY(' + (-first * ROW) + 'px)');
   }
 
   async function switchServer() {
@@ -82,7 +93,7 @@ export function SettingsScreen() {
   return {
     el,
     name: 'settings',
-    onShow() { ambience.restore(); },
+    onShow() { ambience.restore(); build(); }, // Downloads may have changed
     onKey(action) {
       if (action === 'up') { index = Math.max(0, index - 1); render(); return true; }
       if (action === 'down') { index = Math.min(items.length - 1, index + 1); render(); return true; }

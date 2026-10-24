@@ -119,9 +119,18 @@ export function score(item, p) {
 // Weighted random pick among the best matches: usually a strong fit, now and
 // then a surprise. `avoid` holds ratingKeys drawn recently.
 export function draw(candidates, p, { kind = 'any', avoid = [], random = Math.random } = {}) {
-  const skip = new Set(avoid);
-  let pool = candidates.filter(c => (kind === 'any' || c.type === kind) && !skip.has(c.ratingKey));
-  if (!pool.length) pool = candidates.filter(c => kind === 'any' || c.type === kind);
+  // `avoid` is most recent first. When everything has been drawn lately,
+  // forget the oldest draws one by one, so small pools rotate instead of
+  // repeating their top match.
+  const fits = candidates.filter(c => kind === 'any' || c.type === kind);
+  let recent = avoid.slice();
+  let pool;
+  for (;;) {
+    const skip = new Set(recent);
+    pool = fits.filter(c => !skip.has(c.ratingKey));
+    if (pool.length || !recent.length) break;
+    recent.pop();
+  }
   if (!pool.length) return null;
   const all = pool.map(c => score(c, p)).sort((a, b) => b.value - a.value);
   const ranked = all.slice(0, SHORTLIST);

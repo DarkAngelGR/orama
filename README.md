@@ -41,7 +41,11 @@ FlexPlex adds:
 
 - **Lucky Draw.** A tab that learns your taste from what you've watched (genres, directors,
   actors, decades, your ratings) and draws an unwatched movie or show that fits, with the
-  reasons shown. Now and then it deals a well-rated wildcard.
+  reasons shown. Now and then it deals a well-rated wildcard. With
+  [watchlist-sync](https://github.com/DarkAngelGR/watchlist-sync) running, it also suggests
+  movies you don't have yet (Radarr's recommendations) and adds one to Radarr when you press
+  **Download it**. watchlist-sync is found automatically when it runs on the same machine as
+  Plex; see Settings › Downloads.
 - **Choose before you play.** Quality (or which version), audio and subtitles on the detail page.
 - **Player extras.** Skip intro/credits, subtitle timing, size and background, a green-button
   subtitle toggle, and the next episode keeps your languages.

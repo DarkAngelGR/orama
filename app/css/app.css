@@ -360,7 +360,9 @@ html.fast .row-track, html.fast .rows-track, html.fast .grid-track, html.fast .r
   font: 400 26px/1.5 var(--body); color: rgba(255, 247, 230, 0.82);
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
-.lucky-buttons { margin-top: 28px; height: 80px; white-space: nowrap; }
+.lucky-chip-new { background: var(--coral); color: #fff; font-weight: 600; }
+.lucky-note { margin-top: 10px; height: 32px; font: 500 24px/32px var(--body); color: var(--cream); }
+.lucky-buttons { margin-top: 18px; height: 80px; white-space: nowrap; }
 .lucky-buttons .btn:last-child { margin-right: 0; }
 
 /* ---------- player ---------- */
@@ -515,6 +517,11 @@ html.subs-bg .subs-text {
 .setting.focus { background: var(--cream); color: var(--bg); }
 .setting.focus .setting-value { color: rgba(11, 13, 18, 0.65); }
 .settings-foot { position: absolute; left: 160px; bottom: 64px; font: 500 20px var(--body); color: var(--dim); }
+.settings-clip { height: 676px; overflow: hidden; }
+.settings-track { will-change: transform; transition: transform 220ms var(--ease); }
+.downloads-foot { right: 160px; line-height: 1.5; }
+.prompt-bar { top: 230px; left: 160px; right: 160px; }
+.prompt-hint { position: absolute; top: 350px; left: 160px; font: 500 24px var(--body); color: var(--dim); }
 
 /* ---------- search ---------- */
 
