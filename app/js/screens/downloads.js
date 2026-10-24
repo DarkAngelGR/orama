@@ -35,6 +35,18 @@ export function DownloadsScreen() {
       const i = await watchlist.info();
       if (gen !== generation) return;
       status = 'Connected' + (i.radarr ? '' : ', but Radarr isn\'t set up in it') + (i.dry_run ? ' (dry run)' : '');
+      if (!i.radarr) { build(); return; }
+      // Connected isn't enough: check watchlist-sync can get movies from Radarr.
+      status += ' · asking Radarr…';
+      build();
+      try {
+        const s = await watchlist.suggestions();
+        if (gen !== generation) return;
+        status = status.replace(' · asking Radarr…', ' · ' + (s.items.length ? s.items.length + ' movies to suggest' : 'Radarr had no suggestions'));
+      } catch (e) {
+        if (gen !== generation) return;
+        status = e.message;
+      }
     } catch (e) {
       if (gen !== generation) return;
       status = e.message;

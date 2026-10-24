@@ -81,11 +81,14 @@ async function call(path, { method = 'GET', body, timeout = 8000 } = {}) {
       signal: ctrl ? ctrl.signal : undefined,
     });
   } catch (e) {
+    if (e && e.name === 'AbortError') throw new WatchlistError('watchlist-sync didn\'t answer in time', 0);
     throw new WatchlistError('Can\'t reach watchlist-sync at ' + base.replace(/^https?:\/\//, ''), 0);
   } finally {
     clearTimeout(timer);
   }
   if (res.status === 401) throw new WatchlistError('watchlist-sync needs its password (Settings › Downloads)', 401);
+  // An older watchlist-sync without the TV endpoints answers 404.
+  if (res.status === 404) throw new WatchlistError('watchlist-sync is out of date: update it on the server', 404);
   let data = {};
   try { data = await res.json(); } catch (e) { /* empty or not JSON */ }
   if (!res.ok) throw new WatchlistError(data.error || ('watchlist-sync answered ' + res.status), res.status);

@@ -332,6 +332,10 @@ html.fast .row-track, html.fast .rows-track, html.fast .grid-track, html.fast .r
 .lucky-kinds { white-space: nowrap; }
 .lucky-kinds .pill:last-child { margin-right: 0; }
 .lucky-hint { position: absolute; bottom: 40px; right: 96px; font: 500 22px var(--body); color: var(--dim); }
+.lucky-status {
+  position: absolute; bottom: 40px; left: 96px; max-width: 1400px;
+  font: 500 22px var(--body); color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 
 /* The reel: one strip slid by a transform transition; slots are static. */
 .lucky-reel { position: absolute; top: 196px; left: 0; width: 1920px; height: 380px; overflow: hidden; }

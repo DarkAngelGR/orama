@@ -57,6 +57,7 @@ export function LuckyScreen() {
   const kindsEl = h('div', 'lucky-kinds', head);
   const hint = h('div', 'lucky-hint', el);
   hint.innerHTML = '<i class="key-yellow"></i> Draw again';
+  const statusEl = h('div', 'lucky-status', el);
 
   const reelClip = h('div', 'lucky-reel', el);
   const strip = h('div', 'lucky-strip', reelClip);
@@ -300,13 +301,20 @@ export function LuckyScreen() {
     renderButtons();
   }
 
+  // Movies you don't have, from watchlist-sync. When it's set up but gives
+  // none, say why at the bottom of the screen instead of failing silently.
   async function loadExternal() {
     if (!watchlist.baseUrl()) return [];
     try {
       const res = await watchlist.suggestions();
+      if (!res.items.length) setText(statusEl, 'New movies: Radarr had no suggestions');
       return res.items;
     } catch (e) {
       warn('watchlist-sync suggestions unavailable:', e.message);
+      // Automatic mode with nothing listening is the normal "not installed" case.
+      if (!(watchlist.mode() === 'auto' && e.status === 0 && /reach watchlist-sync/.test(e.message))) {
+        setText(statusEl, 'New movies unavailable: ' + e.message);
+      }
       return [];
     }
   }
