@@ -280,6 +280,28 @@ html.fast .row-track, html.fast .rows-track, html.fast .grid-track, html.fast .r
 .btn svg { width: 28px; height: 28px; margin-right: 14px; }
 .btn.focus { background: var(--cream); color: var(--bg); }
 
+/* Quality / audio / subtitle choices under the Play buttons */
+.detail-options { margin-top: 18px; height: 46px; white-space: nowrap; }
+.opt {
+  display: inline-flex; align-items: center; vertical-align: top;
+  height: 46px; padding: 0 22px; margin-right: 12px; border-radius: 23px;
+  background: var(--faint); color: var(--dim); font: 500 22px var(--body);
+}
+.opt svg { width: 22px; height: 22px; margin-right: 10px; flex: none; }
+.opt-name { margin-right: 10px; }
+.opt-value { color: var(--cream); font-weight: 600; max-width: 460px; overflow: hidden; text-overflow: ellipsis; }
+.opt.focus { background: var(--cream); color: rgba(11, 13, 18, 0.65); }
+.opt.focus .opt-value { color: var(--bg); }
+
+.choice-picker {
+  position: absolute; right: 0; top: 0; width: 760px; height: 1080px; padding: 110px 72px;
+  background: rgba(11, 13, 18, 0.96);
+}
+.choice-head { margin-bottom: 28px; font: 600 24px var(--body); color: var(--dim); letter-spacing: 0.08em; text-transform: uppercase; }
+.choice-list { height: 748px; overflow: hidden; }
+.choice-track { will-change: transform; transition: transform 200ms var(--ease); }
+.choice-picker .tracks-opt { height: 62px; line-height: 62px; padding: 0 22px; }
+
 .detail-seasons { margin-top: 60px; height: 56px; white-space: nowrap; }
 .pill {
   display: inline-block; height: 56px; line-height: 56px; padding: 0 28px; margin-right: 12px;
@@ -353,7 +375,7 @@ html.fast .row-track, html.fast .rows-track, html.fast .grid-track, html.fast .r
 .osd-on .subs { bottom: 340px; }
 
 .tracks {
-  position: absolute; right: 0; top: 0; width: 960px; height: 1080px;
+  position: absolute; right: 0; top: 0; width: 1320px; height: 1080px;
   padding: 110px 72px; display: flex;
   background: rgba(11, 13, 18, 0.94);
 }
