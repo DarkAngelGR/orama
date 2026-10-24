@@ -13,6 +13,9 @@ import * as router from '../router.js';
 import { log, warn, error } from '../util/log.js';
 import { request } from '../plex/client.js';
 import { parseSubtitles, CueTrack } from '../player/subtitles.js';
+import {
+  TEXT_SUBS, streamsOf, audioLabel, subtitleLabel, qualitiesFor, qualityById, effectiveQuality, defaultQuality,
+} from '../player/options.js';
 
 // What a 2022 Samsung (Tizen 6.5) decodes natively. No DTS on 2018+ models.
 const DIRECT = {
@@ -20,15 +23,9 @@ const DIRECT = {
   video: { h264: 1, hevc: 1, vp9: 1, av1: 1, mpeg4: 1, mpeg2video: 1, vc1: 1 },
   audio: { aac: 1, ac3: 1, eac3: 1, mp3: 1, mp2: 1, flac: 1, opus: 1, vorbis: 1, pcm: 1 },
 };
-const TEXT_SUBS = { srt: 1, subrip: 1, ass: 1, ssa: 1, mov_text: 1, vtt: 1, webvtt: 1, smi: 1 };
-
 const OSD_HIDE_MS = 4000;
 const SEEK_COMMIT_MS = 900;
 const TIMELINE_MS = 10000;
-
-function streamsOf(part, type) {
-  return (part && part.Stream || []).filter(s => s.streamType === type);
-}
 
 function isEmbeddedText(sub) {
   return !!sub && sub.index != null && !sub.key && !!TEXT_SUBS[sub.codec];
@@ -39,12 +36,6 @@ function isSidecarText(sub) {
   return !!sub && !!sub.key && !!TEXT_SUBS[sub.codec];
 }
 
-function subtitleLabel(s) {
-  const title = s.displayTitle && s.displayTitle !== 'Unknown' ? s.displayTitle : (s.language || '');
-  const kind = (s.codec || '').toUpperCase() + (s.key ? ' · external' : '');
-  return title ? title + (s.key ? ' · external' : '') : kind || 'Subtitle';
-}
-
 function cleanSubtitle(text) {
   return String(text || '')
     .replace(/\{\\[^}]*\}/g, '')        // ASS override tags
@@ -52,7 +43,10 @@ function cleanSubtitle(text) {
     .replace(/\\N/g, '\n');
 }
 
-export function PlayerScreen(initial, { offset = null } = {}) {
+// Options picked on the detail screen: quality id, which version (Media) to
+// play, and audio/subtitle stream ids (subtitleStreamID 0 = off). Anything
+// left out falls back to the server's selection and the default quality.
+export function PlayerScreen(initial, { offset = null, quality: qualityId, mediaIndex = 0, audioStreamID, subtitleStreamID } = {}) {
   const el = h('div', 'screen player');
   const stage = h('div', 'player-stage', el);
   const subs = h('div', 'subs', el);
@@ -74,7 +68,7 @@ export function PlayerScreen(initial, { offset = null } = {}) {
   const tInfo = h('span', 'osd-info', times);
   const tLeft = h('span', 'osd-left', times);
   const hintEl = h('div', 'osd-hint', osdBottom);
-  hintEl.innerHTML = '▼ Audio &amp; subtitles';
+  hintEl.innerHTML = '▼ Audio, subtitles &amp; quality';
 
   const panel = h('div', 'tracks hidden', el);
   const upnext = h('div', 'upnext hidden', el);
@@ -82,7 +76,11 @@ export function PlayerScreen(initial, { offset = null } = {}) {
 
   let item = initial;
   let media = null;
+  let mediaIdx = 0;
   let part = null;
+  let quality = qualityById(qualityId || defaultQuality());
+  let requestedQuality = quality.id; // carried to the next episode
+  let hlsStarted = false;   // a transcode session exists on the server
   let mode = 'direct';
   let triedFallback = false;
   let base = 0;             // HLS restarts at an offset; AVPlay time is relative to it
@@ -188,6 +186,8 @@ export function PlayerScreen(initial, { offset = null } = {}) {
   // --- Opening ----------------------------------------------------------
 
   function decideMode() {
+    // A lower quality than the file means Plex has to convert it.
+    if (quality.kbps) return 'hls';
     const directOk = DIRECT.container[media.container] && DIRECT.video[media.videoCodec] &&
       (!audioStream || DIRECT.audio[audioStream.codec]);
     const subsOk = !subStream || isEmbeddedText(subStream) || isSidecarText(subStream);
@@ -203,22 +203,28 @@ export function PlayerScreen(initial, { offset = null } = {}) {
     if (mode === 'direct') {
       base = 0;
       url = server.url(part.key);
+      // Switched back from a conversion (e.g. quality → Original): free it.
+      if (hlsStarted) { server.stopTranscode(playSession); hlsStarted = false; }
     } else {
       base = atMs;
       // Burn in only what we can't draw ourselves (image subs, embedded text).
       const burn = subStream && !isSidecarText(subStream);
       url = server.transcodeUrl(item, {
-        session: playSession, offsetMs: atMs,
+        session: playSession, offsetMs: atMs, mediaIndex: mediaIdx,
+        maxBitrate: quality.kbps || undefined,
+        resolution: quality.resolution || undefined,
         audioStreamID: audioStream && audioStream.id,
         subtitleStreamID: burn ? subStream.id : undefined,
       });
+      hlsStarted = true;
       // PMS 1.42+ rejects start.m3u8 unless a decision was made for the session first.
       const decision = await request(url.replace('/start.m3u8', '/decision'));
       const mc = decision.MediaContainer || {};
       if (mc.generalDecisionCode && mc.generalDecisionCode >= 2000) throw new Error(mc.generalDecisionText || 'Server refused to convert this file');
     }
-    log('play', mode, item.title, media.container + '/' + media.videoCodec + '/' + (audioStream && audioStream.codec), 'at', clock(atMs));
-    player.open(url, { uhd: media.videoResolution === '4k' && supports4K() });
+    log('play', mode, quality.id, item.title, media.container + '/' + media.videoCodec + '/' + (audioStream && audioStream.codec), 'at', clock(atMs));
+    const uhdOut = !quality.kbps || quality.height >= 2160;
+    player.open(url, { uhd: uhdOut && media.videoResolution === '4k' && supports4K() });
     await player.prepare();
     if (!alive) return;
     if (mode === 'direct') {
@@ -286,12 +292,18 @@ export function PlayerScreen(initial, { offset = null } = {}) {
       if (!alive) return;
       item = full;
       duration = item.duration || duration;
-      media = (item.Media || [])[0];
+      const medias = item.Media || [];
+      media = medias[mediaIndex] || medias[0];
+      mediaIdx = Math.max(0, medias.indexOf(media));
       part = media && media.Part && media.Part[0];
       if (!part) throw new Error('No playable media');
       const audios = streamsOf(part, 2);
-      audioStream = audios.find(s => s.selected) || audios[0] || null;
-      subStream = streamsOf(part, 3).find(s => s.selected) || null;
+      const texts = streamsOf(part, 3);
+      audioStream = (audioStreamID != null && audios.find(s => s.id === audioStreamID)) ||
+        audios.find(s => s.selected) || audios[0] || null;
+      subStream = subtitleStreamID === 0 ? null :
+        (subtitleStreamID != null && texts.find(s => s.id === subtitleStreamID)) || texts.find(s => s.selected) || null;
+      quality = effectiveQuality(quality.id, media);
       renderTitles();
       mode = decideMode();
       if (offset == null) offset = item.viewOffset || 0;
@@ -378,16 +390,22 @@ export function PlayerScreen(initial, { offset = null } = {}) {
 
   // --- Audio / subtitle picker ------------------------------------------
 
+  const PANEL_COLS = [
+    { name: 'Audio', icon: icons.audio },
+    { name: 'Subtitles', icon: icons.subtitles },
+    { name: 'Quality', icon: icons.quality },
+  ];
   let panelCol = 0;
-  let panelIndex = [0, 0];
-  let panelLists = [[], []];
+  let panelIndex = [0, 0, 0];
+  let panelLists = [[], [], []];
 
   function openPanel() {
     const audios = streamsOf(part, 2);
     const texts = streamsOf(part, 3);
     panelLists = [
-      audios.map(s => ({ label: s.displayTitle || s.language || 'Track', stream: s, on: s === audioStream })),
+      audios.map(s => ({ label: audioLabel(s), stream: s, on: s === audioStream })),
       [{ label: 'Off', stream: null, on: !subStream }].concat(texts.map(s => ({ label: subtitleLabel(s), stream: s, on: s === subStream }))),
+      qualitiesFor(media).map(q => ({ label: q.label, quality: q, on: q === quality })),
     ];
     panelIndex = panelLists.map(l => Math.max(0, l.findIndex(x => x.on)));
     panelCol = 0;
@@ -398,11 +416,11 @@ export function PlayerScreen(initial, { offset = null } = {}) {
 
   function renderPanel() {
     panel.innerHTML = '';
-    ['Audio', 'Subtitles'].forEach((name, c) => {
+    PANEL_COLS.forEach((spec, c) => {
       const col = h('div', 'tracks-col', panel);
       const head = h('div', 'tracks-head', col);
-      head.innerHTML = c === 0 ? icons.audio : icons.subtitles;
-      h('span', '', head).textContent = name;
+      head.innerHTML = spec.icon;
+      h('span', '', head).textContent = spec.name;
       panelLists[c].forEach((opt, i) => {
         const row = h('div', 'tracks-opt', col);
         row.textContent = opt.label;
@@ -414,6 +432,16 @@ export function PlayerScreen(initial, { offset = null } = {}) {
 
   async function choose(col, opt) {
     const server = session.server;
+    if (col === 2) {
+      panel.classList.add('hidden');
+      if (opt.quality === quality) return;
+      quality = opt.quality;
+      requestedQuality = quality.id;
+      mode = decideMode();
+      triedFallback = false;
+      await open(position).catch(e => failed(e.message));
+      return;
+    }
     if (col === 0) audioStream = opt.stream;
     else subStream = opt.stream;
     server.selectStreams(part.id, {
@@ -436,7 +464,8 @@ export function PlayerScreen(initial, { offset = null } = {}) {
 
   function panelKey(action) {
     if (action === 'back' || action === 'up' && panelIndex[panelCol] === 0) { panel.classList.add('hidden'); return true; }
-    if (action === 'left' || action === 'right') panelCol = action === 'left' ? 0 : 1;
+    if (action === 'left') panelCol = Math.max(0, panelCol - 1);
+    if (action === 'right') panelCol = Math.min(PANEL_COLS.length - 1, panelCol + 1);
     if (action === 'up') panelIndex[panelCol]--;
     if (action === 'down') panelIndex[panelCol] = Math.min(panelLists[panelCol].length - 1, panelIndex[panelCol] + 1);
     if (action === 'enter') {
@@ -488,7 +517,8 @@ export function PlayerScreen(initial, { offset = null } = {}) {
 
   function playNext() {
     clearInterval(upnextTimer);
-    router.replace(PlayerScreen(nextItem, { offset: 0 }));
+    // Keep the quality the user picked; tracks come from the server's selection.
+    router.replace(PlayerScreen(nextItem, { offset: 0, quality: requestedQuality }));
   }
 
   function exit() {
@@ -504,7 +534,7 @@ export function PlayerScreen(initial, { offset = null } = {}) {
     clearInterval(upnextTimer);
     clearInterval(cueTimer);
     player.destroy();
-    if (mode === 'hls') session.server.stopTranscode(playSession);
+    if (hlsStarted) session.server.stopTranscode(playSession);
     document.documentElement.classList.remove('playing');
     setScreenSaver(true);
     document.removeEventListener('visibilitychange', onVisibility);
