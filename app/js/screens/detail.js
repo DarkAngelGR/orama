@@ -9,6 +9,7 @@ import { clearLogo } from './home.js';
 import * as icons from '../ui/icons.js';
 import * as router from '../router.js';
 import { playItem } from '../nav.js';
+import { InfoScreen } from './info.js';
 import { error } from '../util/log.js';
 import {
   streamsOf, audioLabel, subtitleLabel, qualitiesFor, effectiveQuality, defaultQuality, versionLabel,
@@ -129,6 +130,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     if (item.type === 'episode' && item.grandparentRatingKey) {
       add(icons.tv, 'Go to show', () => router.push(DetailScreen({ ratingKey: item.grandparentRatingKey, type: 'show', title: item.grandparentTitle })));
     }
+    add(icons.info, 'More info', openInfo);
     buttonIndex = Math.min(buttonIndex, buttons.length - 1);
     renderFocus();
   }
@@ -343,6 +345,10 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     }
   }
 
+  function openInfo() {
+    router.push(InfoScreen(item));
+  }
+
   async function toggleWatched() {
     const server = session.server;
     const watched = isShowLike() ? item.viewedLeafCount >= item.leafCount : !!item.viewCount;
@@ -396,6 +402,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
         if (action === 'left') { buttonIndex = Math.max(0, buttonIndex - 1); renderFocus(); return true; }
         if (action === 'right') { buttonIndex = Math.min(buttons.length - 1, buttonIndex + 1); renderFocus(); return true; }
         if (action === 'enter' && buttons[buttonIndex]) { buttons[buttonIndex].run(); return true; }
+        if (action === 'info') { openInfo(); return true; }
       } else if (zone === 'options') {
         if (action === 'left') { optionIndex = Math.max(0, optionIndex - 1); renderFocus(); return true; }
         if (action === 'right') { optionIndex = Math.min(options.length - 1, optionIndex + 1); renderFocus(); return true; }

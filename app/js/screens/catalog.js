@@ -9,6 +9,8 @@ import * as icons from '../ui/icons.js';
 import * as discover from '../plex/discover.js';
 import * as watchlist from '../plex/watchlist.js';
 import { warn, log } from '../util/log.js';
+import * as router from '../router.js';
+import { InfoScreen } from './info.js';
 
 export function CatalogScreen(initial) {
   const el = h('div', 'screen detail catalog');
@@ -59,8 +61,13 @@ export function CatalogScreen(initial) {
     if (busy) add(icons.uncheck, 'One moment…', () => {});
     else if (listed) add(icons.check, 'On your Watchlist  ·  Remove', remove);
     else add(icons.download, 'Add to Watchlist', addIt);
+    add(icons.info, 'More info', openInfo);
     buttonIndex = Math.min(buttonIndex, buttons.length - 1);
     buttons.forEach((b, i) => toggleClass(b.el, 'focus', i === buttonIndex));
+  }
+
+  function openInfo() {
+    router.push(InfoScreen(item));
   }
 
   async function addIt() {
@@ -142,6 +149,7 @@ export function CatalogScreen(initial) {
       if (action === 'left') { buttonIndex = Math.max(0, buttonIndex - 1); renderButtons(); return true; }
       if (action === 'right') { buttonIndex = Math.min(buttons.length - 1, buttonIndex + 1); renderButtons(); return true; }
       if (action === 'enter' && buttons[buttonIndex]) { buttons[buttonIndex].run(); return true; }
+      if (action === 'info') { openInfo(); return true; }
       if (action === 'up' || action === 'down') return true;
       return false;
     },
