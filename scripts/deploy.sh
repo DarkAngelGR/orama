@@ -26,9 +26,16 @@ cp -R "$ROOT/app" "$OUT"
 VERSION=$(sed -n 's/.*widget.* version="\([^"]*\)".*/\1/p' "$ROOT/app/config.xml")
 if [ "$DEV" = 1 ]; then
   PLEX_URL=""; [ "${DEV_SKIP_LOGIN:-0}" = 1 ] && PLEX_URL="${PLEX_SERVER_URL:-}"
+  # Shared with tools/devserver.mjs, which only takes commands/logs carrying it.
+  SECRET_FILE="$ROOT/build/dev-secret"
+  if [ ! -s "$SECRET_FILE" ]; then
+    (umask 077; LC_ALL=C tr -dc 'a-f0-9' < /dev/urandom | head -c 32 > "$SECRET_FILE"; echo >> "$SECRET_FILE")
+  fi
+  DEV_SECRET=$(tr -dc 'a-f0-9' < "$SECRET_FILE")
   cat > "$OUT/js/config.js" <<EOF
 export const DEV = true;
 export const DEV_HOST = '${DEV_HOST:-}';
+export const DEV_SECRET = '$DEV_SECRET';
 export const DEV_PLEX_URL = '$PLEX_URL';
 export const VERSION = '$VERSION';
 EOF

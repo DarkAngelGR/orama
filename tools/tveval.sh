@@ -3,8 +3,9 @@
 #   tools/tveval.sh '__bench(["right","right"], 200)' [timeout-seconds]
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LOG="$ROOT/build/tv.log"
+touch "$LOG"
 n=$(wc -l < "$LOG")
-curl -s --get --data-urlencode "eval=$1" "localhost:${PORT:-8790}/send" >/dev/null
+"$ROOT/tools/tvsend.sh" "eval=$1" >/dev/null || exit 1
 for _ in $(seq 1 $(( ${2:-30} * 4 ))); do
   sleep 0.25
   tail -n +$((n + 1)) "$LOG" | grep -m1 -E 'eval (→|failed)' && exit 0

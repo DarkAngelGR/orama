@@ -1,4 +1,4 @@
-import { DEV, DEV_HOST } from '../config.js';
+import { DEV, DEV_HOST, DEV_SECRET } from '../config.js';
 // Logging. In dev builds every line is also batched to the devserver on the Mac,
 // since the TV gives us no usable console.
 const queue = [];
@@ -17,7 +17,9 @@ function flush() {
   if (!queue.length) return;
   const body = JSON.stringify(queue.splice(0));
   try {
-    fetch('http://' + DEV_HOST + '/log', { method: 'POST', body, headers: { 'Content-Type': 'text/plain' } }).catch(() => {});
+    fetch('http://' + DEV_HOST + '/log', {
+      method: 'POST', body, headers: { 'Content-Type': 'text/plain', 'X-Dev-Secret': DEV_SECRET },
+    }).catch(() => {});
   } catch (e) { /* devserver not running */ }
 }
 
