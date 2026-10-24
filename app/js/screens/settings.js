@@ -30,7 +30,7 @@ export function SettingsScreen() {
   const clip = h('div', 'settings-list settings-clip', el);
   const list = h('div', 'settings-track', clip);
   const foot = h('div', 'settings-foot', el);
-  foot.textContent = 'FlexPlex ' + VERSION + (DEV ? ' (dev)' : '') + ' · ' + (session.server ? session.server.uri.replace(/X-Plex-Token=.*/, '') : '');
+  foot.textContent = 'FlexPlex ' + VERSION + (DEV ? ' (dev)' : '') + ' by Aggelos (DarkAngelGR) · ' + (session.server ? session.server.uri.replace(/X-Plex-Token=.*/, '') : '');
 
   let index = 0;
   let items = [];

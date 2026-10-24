@@ -10,7 +10,7 @@
   Smooth scrolling, hardware playback, zero dependencies.
 </p>
 
-<p align="center"><sub>A fork of <a href="https://github.com/rfaile313/samsucks">SamSUCKS</a> by rfaile313.</sub></p>
+<p align="center"><sub>By <a href="https://github.com/DarkAngelGR">Aggelos (DarkAngelGR)</a>. Based on <a href="https://github.com/rfaile313/samsucks">SamSUCKS</a> by rfaile313.</sub></p>
 
 <p align="center">
   <img src="assets/readme/home.png" alt="FlexPlex home screen" width="880">
@@ -19,7 +19,7 @@
 The official Plex app on Samsung TVs is painfully slow. The same library flies on a
 Fire TV or an Apple TV, so the TV isn't the problem; the app is.
 
-On my 75" Samsung Q60B (2022, Tizen 6.5):
+On a 75" Samsung Q60B (2022, Tizen 6.5), as measured by the original SamSUCKS author:
 
 | | Official Plex app | FlexPlex |
 | --- | --- | --- |
