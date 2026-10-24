@@ -45,6 +45,9 @@ FlexPlex adds:
   to sync right away, so shows go to Sonarr and movies to Radarr within seconds. watchlist-sync is
   found automatically when it runs on the same machine as Plex; see Settings › Downloads.
 - **IMDb, Rotten Tomatoes and TMDB ratings** on the detail page and in lists.
+- **More info.** A full page per title (button on the detail page, or the Info key): the whole
+  description, director, writers, cast with characters, studio, release date and all ratings, plus
+  the version, size, bitrate, audio tracks and subtitles of your own files.
 - **Choose before you play.** Quality (or which version), audio and subtitles on the detail page.
 - **Player extras.** Skip intro/credits, subtitle timing, size and background, a green-button
   subtitle toggle, and the next episode keeps your languages.
