@@ -245,6 +245,7 @@ html.fast .row-track, html.fast .rows-track, html.fast .grid-track, html.fast .r
 }
 .lib-hint { position: absolute; top: 150px; right: 96px; font: 500 22px var(--body); color: var(--dim); }
 .key-yellow { display: inline-block; width: 18px; height: 18px; border-radius: 4px; background: #F5C518; vertical-align: -2px; }
+.key-green { display: inline-block; width: 18px; height: 18px; border-radius: 4px; background: #2EB872; vertical-align: -2px; }
 
 .grid { position: absolute; left: 88px; width: 1776px; overflow: hidden; }
 .grid-track {
@@ -373,6 +374,30 @@ html.fast .row-track, html.fast .rows-track, html.fast .grid-track, html.fast .r
   text-shadow: 0 2px 6px #000, 0 0 3px #000, 0 0 3px #000;
 }
 .osd-on .subs { bottom: 340px; }
+/* Subtitle size / background (Settings), as classes on <html> */
+html.subs-s .subs { font-size: 38px; }
+html.subs-l .subs { font-size: 56px; }
+html.subs-bg .subs-text {
+  padding: 2px 16px; border-radius: 8px; background: rgba(0, 0, 0, 0.72); text-shadow: none;
+  -webkit-box-decoration-break: clone; box-decoration-break: clone;
+}
+.subs-text:empty { display: none; }
+
+/* Skip intro / credits: takes OK while visible */
+.skip {
+  position: absolute; right: 96px; bottom: 140px; height: 72px; padding: 0 36px; border-radius: 36px;
+  background: var(--cream); color: var(--bg); font: 700 28px/72px var(--body); white-space: nowrap;
+}
+.osd-on .skip { bottom: 300px; }
+
+/* Short confirmations, e.g. "Subtitles off" */
+.toast {
+  position: absolute; top: 64px; left: 660px; width: 600px; text-align: center;
+  padding: 18px 28px; border-radius: 16px; background: rgba(11, 13, 18, 0.85); color: var(--cream);
+  font: 600 28px var(--body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  opacity: 0; transition: opacity 200ms ease; will-change: opacity;
+}
+.toast.on { opacity: 1; }
 
 .tracks {
   position: absolute; right: 0; top: 0; width: 1320px; height: 1080px;

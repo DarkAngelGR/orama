@@ -9,6 +9,7 @@ import { initHud } from './ui/hud.js';
 import { log, warn } from './util/log.js';
 import * as nav from './nav.js';
 import * as store from './util/store.js';
+import { applySubtitleStyle } from './player/subprefs.js';
 
 function goHome() {
   router.reset(HomeScreen());
@@ -72,6 +73,7 @@ export function boot() {
   if (DEV) window.__ss = { router, session, nav };
   log('boot', VERSION, navigator.userAgent);
   registerKeys();
+  applySubtitleStyle();
   if (!isTizen) {
     fitWindow();
     window.addEventListener('resize', fitWindow);

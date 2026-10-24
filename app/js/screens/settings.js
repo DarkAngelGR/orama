@@ -9,6 +9,7 @@ import { ServerPicker } from './login.js';
 import { error } from '../util/log.js';
 import { useAmbience, setLegacyGradients, legacyGradients } from '../ui/backdrop.js';
 import { QUALITIES, qualityById, defaultQuality, setDefaultQuality } from '../player/options.js';
+import { subSize, subBackground, cycleSubSize, toggleSubBackground } from '../player/subprefs.js';
 
 // Cycles through the qualities; files smaller than the pick still play as Original.
 function nextDefaultQuality() {
@@ -33,6 +34,8 @@ export function SettingsScreen() {
       { label: 'Server', value: session.server ? session.server.name : '—', run: switchServer },
       { label: 'Signed in as', value: session.user ? session.user.title : '—', run: doSignOut, action: 'Sign out' },
       { label: 'Default quality', value: qualityById(defaultQuality()).label, run: () => { nextDefaultQuality(); build(); } },
+      { label: 'Subtitle size', value: subSize().label, run: () => { cycleSubSize(); build(); } },
+      { label: 'Subtitle background', value: subBackground() ? 'On' : 'Off', run: () => { toggleSubBackground(); build(); } },
       { label: 'Performance overlay', value: hudEnabled() ? 'On' : 'Off', run: () => { setHud(!hudEnabled()); build(); } },
       // For before/after recordings: brings back the full-screen gradients that took ~2s per repaint.
       { label: 'Demo: original slow renderer', value: legacyGradients() ? 'On' : 'Off', run: () => { setLegacyGradients(!legacyGradients()); build(); } },

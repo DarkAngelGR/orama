@@ -16,6 +16,7 @@ import { parseSubtitles, CueTrack } from '../player/subtitles.js';
 import {
   TEXT_SUBS, streamsOf, audioLabel, subtitleLabel, qualitiesFor, qualityById, effectiveQuality, defaultQuality,
 } from '../player/options.js';
+import { subOffset, setSubOffset, offsetLabel } from '../player/subprefs.js';
 
 // What a 2022 Samsung (Tizen 6.5) decodes natively. No DTS on 2018+ models.
 const DIRECT = {
@@ -26,6 +27,14 @@ const DIRECT = {
 const OSD_HIDE_MS = 4000;
 const SEEK_COMMIT_MS = 900;
 const TIMELINE_MS = 10000;
+const TOAST_MS = 1800;
+const SUB_OFFSET_STEP = 250;
+const SUB_OFFSET_MAX = 10000;
+
+// Language of a stream, for carrying the user's track choice to the next episode.
+function langOf(s) {
+  return (s && (s.languageCode || s.language)) || '';
+}
 
 function isEmbeddedText(sub) {
   return !!sub && sub.index != null && !sub.key && !!TEXT_SUBS[sub.codec];
@@ -46,10 +55,13 @@ function cleanSubtitle(text) {
 // Options picked on the detail screen: quality id, which version (Media) to
 // play, and audio/subtitle stream ids (subtitleStreamID 0 = off). Anything
 // left out falls back to the server's selection and the default quality.
-export function PlayerScreen(initial, { offset = null, quality: qualityId, mediaIndex = 0, audioStreamID, subtitleStreamID } = {}) {
+// `langs` ({ audio, sub, subForced }) comes from the previous episode: pick
+// tracks in the same languages when no explicit ids are given.
+export function PlayerScreen(initial, { offset = null, quality: qualityId, mediaIndex = 0, audioStreamID, subtitleStreamID, langs } = {}) {
   const el = h('div', 'screen player');
   const stage = h('div', 'player-stage', el);
   const subs = h('div', 'subs', el);
+  const subsText = h('span', 'subs-text', subs); // inline, so the optional background hugs the text
   const spinner = h('div', 'spinner', el);
   const pauseBig = h('div', 'pause-big', el);
   pauseBig.innerHTML = icons.pause;
@@ -68,8 +80,10 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   const tInfo = h('span', 'osd-info', times);
   const tLeft = h('span', 'osd-left', times);
   const hintEl = h('div', 'osd-hint', osdBottom);
-  hintEl.innerHTML = '▼ Audio, subtitles &amp; quality';
+  hintEl.innerHTML = '▼ Audio, subtitles &amp; quality &nbsp;&nbsp; <i class="key-green"></i> Subtitles on/off';
 
+  const skipBtn = h('div', 'skip hidden', el);
+  const toastEl = h('div', 'toast', el);
   const panel = h('div', 'tracks hidden', el);
   const upnext = h('div', 'upnext hidden', el);
   const errorEl = h('div', 'player-error hidden', el);
@@ -104,21 +118,29 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   let cueTrack = null;
   let cueTimer = 0;
   let cueFor = null;
+  let subOff = 0;           // timing offset for the current external subtitle file
+  let lastSub = null;       // what the green button turns back on
+  let markers = [];         // intro / credits ranges from Plex
+  let activeMarker = null;
+  let toastTimer = 0;
   const playSession = uuid();
 
   const player = createPlayer(stage, {
     onTime(ms) {
       if (!started) return;
       position = base + ms;
-      if (seekTarget == null) renderProgress(position);
+      if (seekTarget == null) {
+        renderProgress(position);
+        updateSkip(position);
+      }
     },
     onBuffering(on) { toggleClass(spinner, 'on', on); },
     onEnd() { finished(); },
     onError(msg) { failed(msg); },
     onSubtitle(text, ms) {
       clearTimeout(subTimer);
-      setText(subs, cleanSubtitle(text));
-      if (ms > 0) subTimer = setTimeout(() => setText(subs, ''), ms);
+      setText(subsText, cleanSubtitle(text));
+      if (ms > 0) subTimer = setTimeout(() => setText(subsText, ''), ms);
     },
   });
 
@@ -161,6 +183,49 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       setText(osdTitle, item.title);
       setText(osdSub, item.year || '');
     }
+  }
+
+  function toast(text) {
+    setText(toastEl, text);
+    toggleClass(toastEl, 'on', true);
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toggleClass(toastEl, 'on', false), TOAST_MS);
+  }
+
+  // --- Skip intro / credits ---------------------------------------------
+
+  // The last credits marker (Plex flags it `final`, or it runs to the end)
+  // means "done": skipping it ends playback, which offers the next episode.
+  function isFinalCredits(m) {
+    return m.type === 'credits' && (m.final || m.endTimeOffset >= duration - 15000);
+  }
+
+  // Called from onTime: a scan of at most a few markers, and DOM writes only
+  // when entering or leaving one.
+  function updateSkip(ms) {
+    let m = null;
+    for (let i = 0; i < markers.length; i++) {
+      const x = markers[i];
+      if (ms >= x.startTimeOffset && ms < x.endTimeOffset - 1000) { m = x; break; }
+    }
+    if (m === activeMarker) return;
+    activeMarker = m;
+    toggleClass(skipBtn, 'hidden', !m);
+    if (m) {
+      setText(skipBtn, m.type === 'intro' ? 'Skip intro'
+        : isFinalCredits(m) && item.type === 'episode' ? 'Next episode' : 'Skip credits');
+    }
+  }
+
+  function skipMarker() {
+    const m = activeMarker;
+    if (!m) return;
+    activeMarker = null;
+    toggleClass(skipBtn, 'hidden', true);
+    log('skip', m.type, clock(m.startTimeOffset), '→', clock(m.endTimeOffset));
+    if (isFinalCredits(m)) { finished(); return; }
+    seekTarget = Math.min(m.endTimeOffset, duration - 3000);
+    commitSeek();
   }
 
   // --- Timeline ---------------------------------------------------------
@@ -255,7 +320,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       if (pos >= 0 && t.text[pos] != null) player.selectText(t.text[pos]);
     } else {
       player.selectText(null);
-      setText(subs, '');
+      setText(subsText, '');
     }
   }
 
@@ -265,13 +330,14 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       cueTrack = null;
       cueFor = null;
       clearInterval(cueTimer);
-      if (!isEmbeddedText(subStream)) setText(subs, '');
+      if (!isEmbeddedText(subStream)) setText(subsText, '');
       return;
     }
     if (cueFor === subStream) return;
     cueFor = subStream;
     const stream = subStream;
     cueTrack = null;
+    subOff = subOffset(stream.id);
     fetch(session.server.url(stream.key, { encoding: 'utf-8' }))
       .then(r => r.text())
       .then(text => {
@@ -282,7 +348,8 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       .catch(e => warn('subtitle fetch failed', e.message));
     clearInterval(cueTimer);
     cueTimer = setInterval(() => {
-      if (cueTrack && started) setText(subs, cueTrack.at(base + player.time()));
+      // Positive offset = show each line later, so look up an earlier time.
+      if (cueTrack && started) setText(subsText, cueTrack.at(base + player.time() - subOff));
     }, 120);
   }
 
@@ -303,7 +370,20 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
         audios.find(s => s.selected) || audios[0] || null;
       subStream = subtitleStreamID === 0 ? null :
         (subtitleStreamID != null && texts.find(s => s.id === subtitleStreamID)) || texts.find(s => s.selected) || null;
+      // Next episode: same languages as the one before, when available.
+      if (langs && audioStreamID == null && langs.audio) {
+        audioStream = audios.find(s => langOf(s) === langs.audio) || audioStream;
+      }
+      if (langs && subtitleStreamID == null) {
+        if (langs.sub === null) subStream = null; // they were off
+        else if (langs.sub) {
+          const same = texts.filter(s => langOf(s) === langs.sub);
+          subStream = same.find(s => !!s.forced === !!langs.subForced) || same[0] || subStream;
+        }
+      }
       quality = effectiveQuality(quality.id, media);
+      markers = (item.Marker || []).filter(m => (m.type === 'intro' || m.type === 'credits') &&
+        m.endTimeOffset > m.startTimeOffset);
       renderTitles();
       mode = decideMode();
       if (offset == null) offset = item.viewOffset || 0;
@@ -407,6 +487,8 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       [{ label: 'Off', stream: null, on: !subStream }].concat(texts.map(s => ({ label: subtitleLabel(s), stream: s, on: s === subStream }))),
       qualitiesFor(media).map(q => ({ label: q.label, quality: q, on: q === quality })),
     ];
+    // External subtitle files are drawn by us, so their timing can be nudged.
+    if (isSidecarText(subStream)) panelLists[1].push({ offset: true, label: timingLabel() });
     panelIndex = panelLists.map(l => Math.max(0, l.findIndex(x => x.on)));
     panelCol = 0;
     renderPanel();
@@ -422,7 +504,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       head.innerHTML = spec.icon;
       h('span', '', head).textContent = spec.name;
       panelLists[c].forEach((opt, i) => {
-        const row = h('div', 'tracks-opt', col);
+        const row = h('div', 'tracks-opt' + (opt.offset ? ' tracks-adjust' : ''), col);
         row.textContent = opt.label;
         toggleClass(row, 'on', opt.on);
         toggleClass(row, 'focus', c === panelCol && i === panelIndex[c]);
@@ -462,8 +544,37 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     }
   }
 
+  // Green button: subtitles off, or back on with the last track used (else
+  // the server's pick, else the first one).
+  function toggleSubtitles() {
+    const texts = streamsOf(part, 3);
+    if (!texts.length) { toast('No subtitles for this video'); return; }
+    let next = null;
+    if (subStream) lastSub = subStream;
+    else next = (lastSub && texts.indexOf(lastSub) >= 0 && lastSub) || texts.find(s => s.selected) || texts[0];
+    toast(next ? 'Subtitles: ' + subtitleLabel(next) : 'Subtitles off');
+    choose(1, { stream: next });
+  }
+
+  function timingLabel() {
+    return '‹  Timing ' + offsetLabel(subOff) + '  ›';
+  }
+
   function panelKey(action) {
     if (action === 'back' || action === 'up' && panelIndex[panelCol] === 0) { panel.classList.add('hidden'); return true; }
+    const cur = panelLists[panelCol][panelIndex[panelCol]];
+    if (cur && cur.offset) {
+      // On the timing row, left/right adjust instead of switching columns.
+      if (action === 'left' || action === 'right') {
+        const step = action === 'right' ? SUB_OFFSET_STEP : -SUB_OFFSET_STEP;
+        subOff = Math.max(-SUB_OFFSET_MAX, Math.min(SUB_OFFSET_MAX, subOff + step));
+        setSubOffset(subStream.id, subOff);
+        cur.label = timingLabel();
+        renderPanel();
+        return true;
+      }
+      if (action === 'enter') { panel.classList.add('hidden'); return true; }
+    }
     if (action === 'left') panelCol = Math.max(0, panelCol - 1);
     if (action === 'right') panelCol = Math.min(PANEL_COLS.length - 1, panelCol + 1);
     if (action === 'up') panelIndex[panelCol]--;
@@ -492,6 +603,8 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
 
   async function finished() {
     position = duration;
+    activeMarker = null;
+    toggleClass(skipBtn, 'hidden', true);
     report('stopped');
     clearInterval(timelineTimer);
     player.close();
@@ -517,8 +630,13 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
 
   function playNext() {
     clearInterval(upnextTimer);
-    // Keep the quality the user picked; tracks come from the server's selection.
-    router.replace(PlayerScreen(nextItem, { offset: 0, quality: requestedQuality }));
+    // Keep the quality and the track languages the user was watching with.
+    const langs = {
+      audio: langOf(audioStream),
+      sub: subStream ? langOf(subStream) : null,
+      subForced: !!(subStream && subStream.forced),
+    };
+    router.replace(PlayerScreen(nextItem, { offset: 0, quality: requestedQuality, langs }));
   }
 
   function exit() {
@@ -529,7 +647,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     if (!alive) return;
     alive = false;
     if (started && position < duration) report('stopped');
-    [seekTimer, osdTimer, subTimer].forEach(clearTimeout);
+    [seekTimer, osdTimer, subTimer, toastTimer].forEach(clearTimeout);
     clearInterval(timelineTimer);
     clearInterval(upnextTimer);
     clearInterval(cueTimer);
@@ -569,6 +687,9 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       switch (action) {
         case 'enter':
           if (seekTarget != null) commitSeek();
+          // The skip button takes OK while it's showing, like other players
+          // (Play/Pause still pauses).
+          else if (activeMarker && !paused) skipMarker();
           else if (el.classList.contains('osd-on') || paused) togglePause();
           else showOsd();
           return true;
@@ -579,6 +700,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
         case 'right': case 'ff': seekBy(1); return true;
         case 'up': case 'info': showOsd(); return true;
         case 'down': if (part) openPanel(); return true;
+        case 'green': if (part) toggleSubtitles(); return true;
         case 'stop': exit(); return true;
         case 'back':
           if (seekTarget != null) { seekTarget = null; toggleClass(el, 'seeking', false); renderProgress(position); showOsd(); return true; }
