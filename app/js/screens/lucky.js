@@ -270,6 +270,7 @@ export function LuckyScreen() {
     session.server.metadata(it.ratingKey).then(full => {
       if (!alive || id !== drawId || !full) return;
       setText(summaryEl, full.summary || '');
+      setText(metaEl, metaLine(full)); // full details name the scores (IMDb, RT, TMDB)
       if (full.UltraBlurColors) ambience.set(full.UltraBlurColors);
     }).catch(e => error('lucky details failed', e));
   }

@@ -19,6 +19,7 @@ function slimHub(hub) {
   const keep = ['ratingKey', 'key', 'type', 'title', 'grandparentTitle', 'parentTitle', 'year', 'thumb', 'art',
     'grandparentThumb', 'grandparentArt', 'parentThumb', 'index', 'parentIndex', 'duration', 'viewOffset',
     'viewCount', 'leafCount', 'viewedLeafCount', 'childCount', 'contentRating', 'audienceRating', 'summary',
+    'audienceRatingImage', 'rating', 'ratingImage',
     'originallyAvailableAt', 'UltraBlurColors', 'grandparentRatingKey', 'parentRatingKey', 'Image'];
   return {
     hubIdentifier: hub.hubIdentifier, title: hub.title, type: hub.type,

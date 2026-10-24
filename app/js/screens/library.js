@@ -37,10 +37,14 @@ export function LibraryScreen(section) {
 
   const type = section.type === 'show' ? 2 : 1;
 
-  const grid = new Grid({
+  // The Grid calls back while it's being built (before `grid` is assigned);
+  // those early calls are skipped, and reload() below loads the first page.
+  let grid = null;
+  grid = new Grid({
     top: 200, height: 880, total: 0,
     getItem: i => items[i],
     onFocus: (item, index) => {
+      if (!grid) return;
       // Warm posters for the row just past the recycled pool.
       if (!isFast()) {
         const start = (Math.floor(index / grid.cols) + grid.poolRows - 1) * grid.cols;
@@ -54,6 +58,7 @@ export function LibraryScreen(section) {
     },
     onSelect: item => openItem(item),
     onNeed: (start, end) => {
+      if (!grid) return;
       for (let p = Math.floor(start / PAGE); p <= Math.floor(end / PAGE); p++) loadPage(p);
     },
   });

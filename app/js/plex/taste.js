@@ -1,6 +1,7 @@
 // "Lucky Draw": learn the user's taste from what they've watched, then draw an
 // unwatched title that fits. Scoring is plain arithmetic over a few hundred
 // items, so it costs a few milliseconds even on a TV CPU.
+import { ratingOf, imdb } from '../util/ratings.js';
 
 const WATCHED_PER_SECTION = 150;   // most recent watches per library
 const POOL_PER_SECTION = 400;      // unwatched candidates per library
@@ -103,7 +104,7 @@ export function score(item, p) {
   const director = tags(item, 'Director', 2).find(d => p.directors.has(d));
   const actor = tags(item, 'Role', 3).find(a => p.actors.has(a));
   const era = share(p.decades, decade(item), p.total);
-  const rating = item.audienceRating || item.rating || 0;
+  const rating = ratingOf(item); // IMDb when Plex/Radarr give it
   const quality = rating ? Math.max(0, rating - 5) / 5 : 0.3; // 5→0, 10→1
   const value = (p.total ? 3 * genreFit : 0) + (director ? 1.5 : 0) + (actor ? 0.8 : 0) + 0.6 * era + 1.2 * quality;
   return {
@@ -112,6 +113,7 @@ export function score(item, p) {
       genres: genres.filter(x => x.s >= 0.12).slice(0, 2).map(x => x.g),
       director, actor,
       rating: rating >= 7.5 ? rating : 0,
+      imdb: imdb(item) >= 7.5,
     },
   };
 }
@@ -136,7 +138,7 @@ export function draw(candidates, p, { kind = 'any', avoid = [], random = Math.ra
   const ranked = all.slice(0, SHORTLIST);
   // Now and then, a wildcard: well rated, but outside the shortlist.
   if (p.count && random() < WILDCARD) {
-    const wild = all.slice(SHORTLIST).filter(r => (r.item.audienceRating || r.item.rating || 0) >= WILDCARD_RATING);
+    const wild = all.slice(SHORTLIST).filter(r => ratingOf(r.item) >= WILDCARD_RATING);
     if (wild.length) return Object.assign(wild[Math.floor(random() * wild.length)], { wildcard: true });
   }
   const top = ranked[0].value;
@@ -157,7 +159,10 @@ export function reasons(pick, p) {
   if (pick.why.genres.length) out.push('You watch a lot of ' + pick.why.genres.join(' & '));
   if (pick.why.director) out.push('From ' + pick.why.director + ', a director you watch');
   if (pick.why.actor) out.push('With ' + pick.why.actor);
-  if (pick.why.rating) out.push('★ ' + Number(pick.why.rating).toFixed(1) + ' audience rating');
+  if (pick.why.rating) {
+    out.push(pick.why.imdb ? 'IMDb ' + Number(pick.why.rating).toFixed(1)
+      : '★ ' + Number(pick.why.rating).toFixed(1) + ' audience rating');
+  }
   if (!out.length) out.push('Something different from your usual');
   return out.slice(0, 3);
 }

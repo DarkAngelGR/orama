@@ -1,3 +1,5 @@
+import { scoresText } from './ratings.js';
+
 export function duration(ms) {
   if (!ms) return '';
   const min = Math.round(ms / 60000);
@@ -31,7 +33,8 @@ export function metaLine(item) {
   if (item.contentRating) parts.push(item.contentRating);
   if (item.type === 'show' && item.childCount) parts.push(item.childCount + (item.childCount === 1 ? ' season' : ' seasons'));
   else if (item.duration) parts.push(duration(item.duration));
-  if (item.audienceRating) parts.push('★ ' + Number(item.audienceRating).toFixed(1));
+  const score = scoresText(item); // IMDb / Rotten Tomatoes / TMDB when Plex names them
+  if (score) parts.push(score);
   return parts.join('  ·  ');
 }
 

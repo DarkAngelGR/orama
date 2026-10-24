@@ -117,6 +117,12 @@ export async function suggestions() {
       year: m.year || undefined,
       Genre: (m.genres || []).map(tag => ({ tag })),
       audienceRating: m.rating || undefined,
+      // Radarr's scores in Plex's shape, so ratings.js labels them the same way.
+      Rating: [
+        m.imdb && { image: 'imdb://image.rating', value: m.imdb },
+        m.rt && { image: 'rottentomatoes://image.rating.ripe', value: m.rt / 10 },
+        m.tmdb && { image: 'themoviedb://image.rating', value: m.tmdb },
+      ].filter(Boolean),
       duration: m.runtime ? m.runtime * 60000 : undefined,
       contentRating: m.certification || undefined,
       summary: m.overview || '',
