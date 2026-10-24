@@ -11,7 +11,7 @@ const envPath = path.join(root, '.env');
 const env = Object.fromEntries(readFileSync(envPath, 'utf8').split('\n')
   .filter(l => l.includes('=')).map(l => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]));
 
-const name = Buffer.from('samsucks-dev').toString('base64');
+const name = Buffer.from('flexplex-dev').toString('base64');
 const token = env.TV_REMOTE_TOKEN ? `&token=${env.TV_REMOTE_TOKEN}` : '';
 const url = `wss://${env.TV_IP}:8002/api/v2/channels/samsung.remote.control?name=${name}${token}`;
 const gap = Number(process.env.GAP || 120);

@@ -118,7 +118,7 @@ ok "Developer Mode is on and points at this computer"
 
 # --- 3. Signing certificate -----------------------------------------------------
 bold "3/4  Signing certificate"
-PROFILE="$(get_env TIZEN_SIGN_PROFILE)"; PROFILE="${PROFILE:-samsucks}"
+PROFILE="$(get_env TIZEN_SIGN_PROFILE)"; PROFILE="${PROFILE:-flexplex}"
 set_env TIZEN_SIGN_PROFILE "$PROFILE"
 if "$TIZEN" security-profiles list 2>/dev/null | grep -q "^$PROFILE "; then
   ok "profile '$PROFILE' already exists"
@@ -138,4 +138,4 @@ bold "4/4  Connecting to the TV"
 "$SDB" devices | grep -q "^$TV_IP:26101" || fail "The TV didn't accept the connection. Restart the TV and run this again."
 ok "connected"
 
-printf '\n\033[1mAll set.\033[0m Install SamSUCKS on your TV with:\n\n    ./scripts/deploy.sh\n\n'
+printf '\n\033[1mAll set.\033[0m Install FlexPlex on your TV with:\n\n    ./scripts/deploy.sh\n\n'

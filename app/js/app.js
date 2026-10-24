@@ -80,7 +80,7 @@ export function boot() {
   }
   router.init(document.getElementById('app'));
   initHud(() => (router.top() && router.top().name) || '');
-  window.addEventListener('samsucks:restart', start);
+  window.addEventListener('flexplex:restart', start);
   // Dev builds only; release builds don't ship js/dev/.
   if (DEV && DEV_HOST) import('./dev/remote.js').then(m => m.startDevRemote());
   start();

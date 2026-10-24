@@ -58,9 +58,9 @@ TARGET="$TV_IP:${TV_SDB_PORT:-26101}"
 APP_ID=$(sed -n 's/.*tizen:application id="\([^"]*\)".*/\1/p' "$ROOT/app/config.xml")
 
 rm -f "$ROOT"/build/*.wgt
-"$TIZEN" package -t wgt -s "${TIZEN_SIGN_PROFILE:-samsucks}" -o "$ROOT/build" -- "$OUT" >/dev/null
-# The package is named after the app ("SamSUCKS - Better Plex.wgt"); the installer chokes on spaces.
-WGT="$ROOT/build/samsucks.wgt"
+"$TIZEN" package -t wgt -s "${TIZEN_SIGN_PROFILE:-flexplex}" -o "$ROOT/build" -- "$OUT" >/dev/null
+# The package is named after the app ("FlexPlex.wgt"); the installer chokes on spaces.
+WGT="$ROOT/build/flexplex.wgt"
 mv "$(ls "$ROOT"/build/*.wgt | head -1)" "$WGT"
 
 "$SDB" connect "$TARGET" >/dev/null

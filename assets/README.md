@@ -1,4 +1,4 @@
-# SamSUCKS branding assets
+# FlexPlex branding assets (originally SamSUCKS)
 
 Production-ready PNG branding for the SamSUCKS Samsung Tizen TV app. The visual system uses a charcoal television mascot, angry face, coral pirate eye patch, warm cream highlights, and a condensed `SamSUCKS` wordmark.
 

@@ -23,7 +23,7 @@ export function SettingsScreen() {
   h('h1', 'settings-title', el).textContent = 'Settings';
   const list = h('div', 'settings-list', el);
   const foot = h('div', 'settings-foot', el);
-  foot.textContent = 'SamSUCKS ' + VERSION + (DEV ? ' (dev)' : '') + ' · ' + (session.server ? session.server.uri.replace(/X-Plex-Token=.*/, '') : '');
+  foot.textContent = 'FlexPlex ' + VERSION + (DEV ? ' (dev)' : '') + ' · ' + (session.server ? session.server.uri.replace(/X-Plex-Token=.*/, '') : '');
 
   let index = 0;
   let items = [];
@@ -74,7 +74,7 @@ export function SettingsScreen() {
 
   function restart() {
     // Rebuild from scratch: app.js decides between login and home.
-    window.dispatchEvent(new Event('samsucks:restart'));
+    window.dispatchEvent(new Event('flexplex:restart'));
   }
 
   build();
