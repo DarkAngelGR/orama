@@ -5,6 +5,7 @@ import { LibraryScreen } from './screens/library.js';
 import { PlayerScreen } from './screens/player.js';
 import { SearchScreen } from './screens/search.js';
 import { SettingsScreen } from './screens/settings.js';
+import { LuckyScreen } from './screens/lucky.js';
 
 export function openItem(item) {
   if (item.type === 'clip') { playItem(item); return; }
@@ -30,4 +31,8 @@ export function openSearch() {
 
 export function openSettings() {
   router.push(SettingsScreen());
+}
+
+export function openLucky() {
+  router.push(LuckyScreen());
 }

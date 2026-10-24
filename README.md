@@ -37,6 +37,15 @@ FlexPlex is a from-scratch Plex client for Samsung's Tizen TVs, built for speed:
 - **Quick to start.** Home appears in under a second, and video starts about a second after you press play.
 - **Tiny.** Plain JavaScript, no framework, no npm, no build step.
 
+FlexPlex adds:
+
+- **Lucky Draw.** A tab that learns your taste from what you've watched (genres, directors,
+  actors, decades, your ratings) and draws an unwatched movie or show that fits, with the
+  reasons shown. Now and then it deals a well-rated wildcard.
+- **Choose before you play.** Quality (or which version), audio and subtitles on the detail page.
+- **Player extras.** Skip intro/credits, subtitle timing, size and background, a green-button
+  subtitle toggle, and the next episode keeps your languages.
+
 ## Install
 
 You need:

@@ -312,6 +312,57 @@ html.fast .row-track, html.fast .rows-track, html.fast .grid-track, html.fast .r
 .pill.focus { background: var(--cream); color: var(--bg); }
 .detail-episodes { position: relative; margin: 24px 0 0 -96px; width: 1920px; height: 330px; }
 
+/* ---------- lucky draw ---------- */
+
+.lucky-art {
+  left: 0; top: 0; width: 1920px; height: 1080px; opacity: 0.4;
+  -webkit-mask-image: linear-gradient(to top, transparent 0%, #000 60%);
+  transition: opacity 400ms ease; will-change: opacity;
+}
+/* The backdrop belongs to the last pick: hide it while the reel spins, so
+   the compositor only has the moving strip to draw. */
+.lucky.spinning .lucky-art { opacity: 0; transition-duration: 150ms; }
+.lucky-art .hero-fade { background: linear-gradient(180deg, rgba(11, 13, 18, 0.6) 0%, transparent 30%); }
+.lucky-head {
+  position: absolute; top: 56px; left: 96px; right: 96px;
+  display: flex; align-items: flex-end; justify-content: space-between;
+}
+.lucky-title { font: 700 76px/1 var(--display); }
+.lucky-sub { margin-top: 10px; font: 500 24px var(--body); color: var(--dim); }
+.lucky-kinds { white-space: nowrap; }
+.lucky-kinds .pill:last-child { margin-right: 0; }
+.lucky-hint { position: absolute; bottom: 40px; right: 96px; font: 500 22px var(--body); color: var(--dim); }
+
+/* The reel: one strip slid by a transform transition; slots are static. */
+.lucky-reel { position: absolute; top: 196px; left: 0; width: 1920px; height: 380px; overflow: hidden; }
+.lucky-strip { position: absolute; top: 28px; left: 0; width: 3904px; height: 324px; will-change: transform; }
+.lucky-slot {
+  position: absolute; top: 0; width: 216px; height: 324px;
+  transition: transform 320ms var(--ease), opacity 320ms ease; will-change: transform, opacity;
+}
+.lucky-slot.win { transform: scale(1.1); z-index: 1; }
+.lucky-slot.win .tile-frame { box-shadow: 0 0 0 5px var(--coral); }
+.lucky-slot.dim { opacity: 0.3; }
+
+.lucky-info { position: absolute; top: 596px; left: 160px; right: 160px; text-align: center; }
+.lucky-name {
+  font: 700 72px/1 var(--display); min-height: 72px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.lucky-meta { margin-top: 14px; min-height: 32px; font: 500 26px var(--body); color: var(--dim); }
+.lucky-why { margin-top: 18px; height: 46px; display: flex; justify-content: center; gap: 12px; overflow: hidden; }
+.lucky-chip {
+  height: 46px; padding: 0 20px; border-radius: 23px; background: var(--faint);
+  font: 500 22px/46px var(--body); color: var(--cream); white-space: nowrap;
+}
+.lucky-summary {
+  margin: 20px auto 0; max-width: 1100px; height: 78px;
+  font: 400 26px/1.5 var(--body); color: rgba(255, 247, 230, 0.82);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.lucky-buttons { margin-top: 28px; height: 80px; white-space: nowrap; }
+.lucky-buttons .btn:last-child { margin-right: 0; }
+
 /* ---------- player ---------- */
 
 .player { background: transparent; }
