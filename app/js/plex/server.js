@@ -12,13 +12,13 @@ export class Server {
     this.cache = new Map();
   }
 
-  async get(path, params, { maxAge = 0 } = {}) {
+  async get(path, params, { maxAge = 0, timeout } = {}) {
     const key = withQuery(path, params);
     if (maxAge) {
       const hit = this.cache.get(key);
       if (hit && Date.now() - hit.t < maxAge) return hit.data;
     }
-    const json = await request(this.uri + path, { token: this.token, params });
+    const json = await request(this.uri + path, { token: this.token, params, timeout });
     const data = json.MediaContainer || json;
     if (maxAge) this.cache.set(key, { t: Date.now(), data });
     return data;
@@ -63,7 +63,7 @@ export class Server {
       'X-Plex-Container-Start': start,
       'X-Plex-Container-Size': size,
       excludeFields: 'summary,tagline',
-    });
+    }, { timeout: 40000 }); // a big library on a busy server can be slow
     return { total: mc.totalSize != null ? mc.totalSize : mc.size, items: mc.Metadata || [] };
   }
 

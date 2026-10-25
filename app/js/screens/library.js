@@ -67,16 +67,26 @@ export function LibraryScreen(section) {
   });
   el.appendChild(grid.el);
 
+  // What's going on while the first page isn't there yet.
+  let failures = 0;
+  let retryTimer = 0;
+  function status(text) {
+    setText(focusInfo, text);
+  }
+
   async function loadPage(p) {
     if (pages.has(p)) return;
     if (grid.total && p * PAGE >= grid.total) return;
     pages.set(p, 'loading');
     const gen = generation;
+    if (p === 0 && !items.length) status('Loading ' + section.title + '…');
     try {
       const res = await session.server.items(section.key, p * PAGE, PAGE, { sort: SORTS[sortIndex].id, type });
       if (gen !== generation) return;
       res.items.forEach((it, i) => { items[p * PAGE + i] = it; });
       pages.set(p, true);
+      failures = 0;
+      if (p === 0 && !res.items.length) status(section.title + ' is empty');
       if (grid.total !== res.total) {
         grid.setTotal(res.total);
         setText(count, res.total + (section.type === 'show' ? ' shows' : ' movies'));
@@ -87,6 +97,17 @@ export function LibraryScreen(section) {
     } catch (e) {
       pages.delete(p);
       error('library page failed', section.title, p, e);
+      if (gen !== generation) return;
+      // Try again by itself a few times (the server may be busy scanning).
+      failures++;
+      const why = /abort/i.test(e.name + e.message) ? 'the server took too long' : e.message;
+      clearTimeout(retryTimer);
+      if (failures <= 3) {
+        if (p === 0 && !items.length) status('Couldn\'t load ' + section.title + ' (' + why + '). Trying again…');
+        retryTimer = setTimeout(() => { if (gen === generation) loadPage(p); }, 2000 * failures);
+      } else if (p === 0 && !items.length) {
+        status('Couldn\'t load ' + section.title + ' (' + why + '). Press OK to try again.');
+      }
     }
   }
 
@@ -106,6 +127,8 @@ export function LibraryScreen(section) {
 
   function reload() {
     generation++;
+    failures = 0;
+    clearTimeout(retryTimer);
     pages = new Map();
     items = [];
     setText(sortEl, 'Sort: ' + SORTS[sortIndex].label);
@@ -144,6 +167,7 @@ export function LibraryScreen(section) {
     el,
     name: 'library',
     onShow() { ambience.restore(); },
+    destroy() { generation++; clearTimeout(retryTimer); },
     onKey(action) {
       if (onSort) {
         switch (action) {
@@ -165,7 +189,9 @@ export function LibraryScreen(section) {
         case 'down': grid.move(0, 1); return true;
         case 'pageup': jump(-1); return true;
         case 'pagedown': jump(1); return true;
-        case 'enter': grid.select(); return true;
+        case 'enter':
+          if (!items.length) { reload(); return true; } // nothing loaded: try again
+          grid.select(); return true;
         case 'play': case 'playpause': if (grid.current()) playItem(grid.current()); return true;
         case 'yellow': cycleSort(1); return true;
         case 'back':
