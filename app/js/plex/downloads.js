@@ -4,7 +4,7 @@
 import * as watchlist from './watchlist.js';
 import { warn } from '../util/log.js';
 
-const POLL_MS = 10000;
+const POLL_MS = 5000;
 const listeners = new Set();
 let timer = 0;
 let items = [];
