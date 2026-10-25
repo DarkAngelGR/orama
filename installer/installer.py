@@ -10,6 +10,7 @@ command-line tool (apps2samsung-cli), which comes with the Docker image.
 """
 import base64
 import hmac
+import ipaddress
 import json
 import os
 import re
@@ -25,7 +26,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
 PRODUCT = "flexplex-installer"
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 
 
 def env(name, default=""):
@@ -409,6 +410,46 @@ setInterval(refresh, 3000);
 """
 
 
+# --- request origin --------------------------------------------------------------
+# Browsers let any website send requests to addresses on your home network, so
+# commands are only accepted from this page, the TV app (file://) or another
+# device on your network, and only for local host names (a public domain
+# pointing at this server is how "DNS rebinding" works). ALLOWED_HOSTS adds names.
+LOCAL_SUFFIXES = (".local", ".lan", ".home", ".home.arpa", ".internal", ".localdomain", ".ts.net")
+
+
+def _extra_hosts():
+    return {h.strip().lower() for h in os.environ.get("ALLOWED_HOSTS", "").split(",") if h.strip()}
+
+
+def _is_ip(host):
+    try:
+        return ipaddress.ip_address(host)
+    except ValueError:
+        return None
+
+
+def host_allowed(host_header):
+    host = (urlparse("//" + (host_header or "")).hostname or "").lower()
+    return bool(host) and (bool(_is_ip(host)) or host == "localhost" or "." not in host
+                           or host.endswith(LOCAL_SUFFIXES) or host in _extra_hosts())
+
+
+def origin_allowed(origin, host_header):
+    if not origin or origin == "null":
+        return True
+    u = urlparse(origin)
+    if u.scheme not in ("http", "https"):
+        return True                      # the TV app runs from file://
+    host = (u.hostname or "").lower()
+    if host == (urlparse("//" + (host_header or "")).hostname or "").lower():
+        return True
+    ip = _is_ip(host)
+    if ip:
+        return ip.is_private or ip.is_loopback or ip.is_link_local
+    return host == "localhost" or "." not in host or host.endswith(LOCAL_SUFFIXES) or host in _extra_hosts()
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = f"{PRODUCT}/{VERSION}"
 
@@ -417,7 +458,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def _cors(self):
         origin = self.headers.get("Origin")
-        if origin:  # the TV app runs from file:// or a tizen origin
+        if origin and origin_allowed(origin, self.headers.get("Host")):  # the TV app runs from file://
             self.send_header("Access-Control-Allow-Origin", origin)
             self.send_header("Vary", "Origin")
             self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type")
@@ -455,7 +496,18 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(b'{"error": "password required"}')
         return False
 
+    def _guard(self, command=False):
+        if not host_allowed(self.headers.get("Host")):
+            self._send(403, {"error": "unknown host name: open this by its IP address, or add the name to ALLOWED_HOSTS"})
+            return False
+        if command and not origin_allowed(self.headers.get("Origin"), self.headers.get("Host")):
+            self._send(403, {"error": "request from another website refused"})
+            return False
+        return True
+
     def do_OPTIONS(self):
+        if not self._guard(command=True):
+            return
         self.send_response(204)
         self._cors()
         self.send_header("Content-Length", "0")
@@ -465,6 +517,8 @@ class Handler(BaseHTTPRequestHandler):
         url = urlparse(self.path)
         if url.path == "/health":
             return self._send(200, {"ok": True})
+        if not self._guard():
+            return
         if not self._authed():
             return
         if url.path in ("/", "/index.html"):
@@ -479,6 +533,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         url = urlparse(self.path)
+        if not self._guard(command=True):
+            return
         if not self._authed():
             return
         length = int(self.headers.get("Content-Length") or 0)

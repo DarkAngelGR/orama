@@ -56,6 +56,7 @@ Orama finds it automatically when it runs on the same machine as Plex.
 | `GITHUB_REPO` | `DarkAngelGR/FlexPlex` | Where releases come from |
 | `GITHUB_TOKEN` | (none) | Required if the repo is private (read-only token, see above) |
 | `PORT` | `8790` | Web page and API |
+| `ALLOWED_HOSTS` | (none) | Extra host names it answers to, comma-separated (IP addresses, `localhost`, bare machine names, `*.local` and Tailscale `*.ts.net` names always work) |
 
 To use a specific Apps2Samsung version, build with
 `docker compose build --build-arg A2S_VERSION=v3.0.0-beta` (default: the newest release that includes its command-line tool, which first shipped in v3.0.0-beta).
@@ -66,5 +67,6 @@ To use a specific Apps2Samsung version, build with
 - `POST /api/check`: look for a release now.
 - `POST /api/install` (`{"version": "0.9.0"}` optional): install the latest release.
 
-CORS is allowed so the TV app can call it. With `PASSWORD` set, calls need
-HTTP Basic auth (any user name).
+The TV app (and pages on other devices on your network) may call it cross-origin;
+other websites can't, so a page you visit can't trigger installs through your
+browser. With `PASSWORD` set, calls need HTTP Basic auth (any user name).
