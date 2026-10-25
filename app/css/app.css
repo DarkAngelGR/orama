@@ -535,3 +535,7 @@ html.subs-bg .subs-text {
 .info-fact { margin-bottom: 22px; }
 .info-value { margin-top: 6px; font: 500 24px/1.4 var(--body); white-space: pre-line; }
 .info-hint { position: absolute; right: 96px; bottom: 40px; font: 500 22px var(--body); color: var(--dim); }
+
+/* App-wide notice (e.g. "FlexPlex 0.9.0 is available") */
+.notice { left: 460px; width: 1000px; z-index: 50; }
+.updates-notes { right: 160px; max-height: 120px; overflow: hidden; white-space: pre-line; line-height: 1.5; }

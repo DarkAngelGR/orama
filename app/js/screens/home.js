@@ -10,6 +10,23 @@ import * as store from '../util/store.js';
 import * as icons from '../ui/icons.js';
 import { openItem, playItem, openLibrary, openSearch, openSettings } from '../nav.js';
 import { error, log } from '../util/log.js';
+import * as updates from '../plex/updates.js';
+import { notice } from '../ui/notice.js';
+
+// Once per app start, a few seconds after home appears: is there a newer
+// FlexPlex? Mentioned once per version.
+let updateChecked = false;
+function checkForUpdate() {
+  if (updateChecked) return;
+  updateChecked = true;
+  setTimeout(() => {
+    updates.latest().then(l => {
+      if (!l || !l.version) return;
+      store.set('upLatest', l.version);
+      if (updates.shouldNotify(l.version)) notice('FlexPlex ' + l.version + ' is available  ·  Settings › Updates');
+    }, () => {});
+  }, 6000);
+}
 
 const ROWS_TOP = 600;
 const NAV_PAD = 80; // wider than the 64px edge fade in app.css
@@ -234,6 +251,7 @@ export function HomeScreen() {
     name: 'home',
     onShow() {
       ambience.restore();
+      checkForUpdate();
       renderNav(); // widths can't be measured while the screen was hidden
       // Coming back from playback: progress and Continue Watching changed.
       if (Date.now() - loadedAt > 5000) load();

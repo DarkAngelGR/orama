@@ -12,6 +12,9 @@ import { QUALITIES, qualityById, defaultQuality, setDefaultQuality } from '../pl
 import { subSize, subBackground, cycleSubSize, toggleSubBackground } from '../player/subprefs.js';
 import * as watchlist from '../plex/watchlist.js';
 import { DownloadsScreen } from './downloads.js';
+import { UpdatesScreen } from './updates.js';
+import * as updates from '../plex/updates.js';
+import * as store from '../util/store.js';
 
 const ROW = 110;     // .setting height + margin
 const VISIBLE = 6;   // rows that fit above the footer
@@ -43,6 +46,8 @@ export function SettingsScreen() {
       { label: 'Default quality', value: qualityById(defaultQuality()).label, run: () => { nextDefaultQuality(); build(); } },
       { label: 'Subtitle size', value: subSize().label, run: () => { cycleSubSize(); build(); } },
       { label: 'Subtitle background', value: subBackground() ? 'On' : 'Off', run: () => { toggleSubBackground(); build(); } },
+      { label: 'Updates', value: updates.newer(store.get('upLatest'), VERSION) ? store.get('upLatest') + ' available' : 'FlexPlex ' + VERSION,
+        run: () => router.push(UpdatesScreen()) },
       { label: 'Downloads (watchlist-sync)', value: watchlist.mode() === 'off' ? 'Off' : watchlist.baseUrl() ? watchlist.baseUrl().replace(/^https?:\/\//, '') : 'Not set',
         run: () => router.push(DownloadsScreen()) },
       { label: 'Performance overlay', value: hudEnabled() ? 'On' : 'Off', run: () => { setHud(!hudEnabled()); build(); } },

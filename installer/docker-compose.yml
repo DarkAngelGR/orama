@@ -1,0 +1,16 @@
+services:
+  flexplex-installer:
+    build: .
+    container_name: flexplex-installer
+    restart: unless-stopped
+    # Host networking: the TV only accepts Samsung's tools from the IP set in
+    # its Developer Mode, which must be this server's own address.
+    network_mode: host
+    environment:
+      TV_IP: "192.168.1.50"          # your TV's IP address
+      # AUTO_INSTALL: "true"         # install new releases by itself (TV must be on)
+      # CHECK_HOURS: "6"
+      # PASSWORD: ""                 # protect the web page / API
+      # GITHUB_REPO: "DarkAngelGR/FlexPlex"
+    volumes:
+      - ./data:/data
