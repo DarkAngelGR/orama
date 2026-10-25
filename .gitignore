@@ -41,3 +41,4 @@ npm-debug.log*
 
 # Promo material (videos, graphics, drafts); final README media goes in docs/media/
 marketing/
+__pycache__/
