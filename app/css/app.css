@@ -310,7 +310,11 @@ html.fast .row-track, html.fast .rows-track, html.fast .grid-track, html.fast .r
 .choice-track { will-change: transform; transition: transform 200ms var(--ease); }
 .choice-picker .tracks-opt { height: 62px; line-height: 62px; padding: 0 22px; }
 
-.detail-seasons { margin-top: 60px; height: 56px; white-space: nowrap; }
+.detail-seasons { position: relative; margin-top: 60px; height: 56px; width: 1728px; overflow: hidden; }
+.detail-seasons-track {
+  position: absolute; left: 0; top: 0; white-space: nowrap;
+  will-change: transform; transition: transform 260ms var(--ease);
+}
 .pill {
   display: inline-block; height: 56px; line-height: 56px; padding: 0 28px; margin-right: 12px;
   border-radius: 28px; font: 600 24px/56px var(--body); color: var(--dim);

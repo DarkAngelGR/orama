@@ -32,6 +32,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
   const buttonsEl = h('div', 'detail-buttons', body);
   const optionsEl = h('div', 'detail-options', body);
   const seasonsEl = h('div', 'detail-seasons', body);
+  const seasonsTrack = h('div', 'detail-seasons-track', seasonsEl);
   const episodesWrap = h('div', 'detail-episodes', body);
   const picker = new Picker(el);
   optionsEl.style.display = 'none';
@@ -270,9 +271,31 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
   // --------------------------------------------------------------------------
 
   function renderSeasons() {
-    seasonsEl.innerHTML = '';
-    seasons.forEach(s => { s.el = h('div', 'pill', seasonsEl); s.el.textContent = s.title; });
+    seasonsTrack.innerHTML = '';
+    seasons.forEach(s => { s.el = h('div', 'pill', seasonsTrack); s.el.textContent = s.title; });
+    seasonsOffset = -1;
     renderFocus();
+  }
+
+  // Slide the season strip so the current season is always on screen, with
+  // a pill or two of context on the left. Layout is read only here.
+  let seasonsOffset = -1;
+  function scrollSeasons() {
+    const cur = seasons[seasonIndex];
+    if (!cur || !cur.el) return;
+    const viewW = seasonsEl.offsetWidth;
+    const trackW = seasonsTrack.scrollWidth;
+    if (!viewW) return; // not laid out yet (screen hidden)
+    const left = cur.el.offsetLeft;
+    const right = left + cur.el.offsetWidth;
+    let next = seasonsOffset < 0 ? 0 : seasonsOffset;
+    const pad = 240;
+    if (right > next + viewW - pad) next = right - viewW + pad;
+    if (left < next + pad) next = left - pad;
+    next = Math.max(0, Math.min(next, Math.max(0, trackW - viewW)));
+    if (next === seasonsOffset) return;
+    seasonsOffset = next;
+    setTransform(seasonsTrack, 'translate3d(' + (-next) + 'px,0,0)');
   }
 
   function renderFocus() {
@@ -282,6 +305,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
       toggleClass(s.el, 'focus', zone === 'seasons' && i === seasonIndex);
       toggleClass(s.el, 'current', i === seasonIndex);
     });
+    scrollSeasons();
     if (episodes) episodes.row.setActive(zone === 'episodes');
     const shifted = zone === 'seasons' || zone === 'episodes';
     const shift = SHIFT + (options.length ? OPTIONS_H : 0);
