@@ -14,7 +14,7 @@ import { log, warn, error } from '../util/log.js';
 import { request } from '../plex/client.js';
 import { parseSubtitles, CueTrack } from '../player/subtitles.js';
 import {
-  TEXT_SUBS, streamsOf, audioLabel, subtitleLabel, qualitiesFor, qualityById, effectiveQuality, defaultQuality,
+  TEXT_SUBS, streamsOf, audioLabel, subtitleLabel, qualitiesFor, qualityById, effectiveQuality, defaultQuality, forceDirect,
 } from '../player/options.js';
 import { subOffset, setSubOffset, offsetLabel } from '../player/subprefs.js';
 
@@ -70,6 +70,10 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   const osdTop = h('div', 'osd-top', osd);
   const osdTitle = h('div', 'osd-title', osdTop);
   const osdSub = h('div', 'osd-sub', osdTop);
+  // How it's playing: Direct Play / Direct Stream / Transcoding, and the details.
+  const osdPlay = h('div', 'osd-play', osdTop);
+  const osdPlayMode = h('span', 'osd-play-mode', osdPlay);
+  const osdPlayInfo = h('span', 'osd-play-info', osdPlay);
   const osdBottom = h('div', 'osd-bottom', osd);
   const bar = h('div', 'osd-bar', osdBottom);
   const barFill = h('div', 'osd-fill', bar);
@@ -175,6 +179,60 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     toggleClass(el, 'osd-on', false);
   }
 
+  // --- What's actually happening to the stream -------------------------------
+
+  function codecName(c) {
+    const n = { hevc: 'HEVC', h264: 'H.264', av1: 'AV1', vp9: 'VP9', mpeg2video: 'MPEG-2', vc1: 'VC-1', eac3: 'EAC3', ac3: 'AC3',
+      aac: 'AAC', dca: 'DTS', dts: 'DTS', truehd: 'TrueHD', flac: 'FLAC', opus: 'Opus', mp3: 'MP3', pcm: 'PCM' }[String(c || '').toLowerCase()];
+    return n || String(c || '').toUpperCase();
+  }
+
+  function resLabel(r) {
+    r = String(r || '').toLowerCase();
+    return r === '4k' ? '4K' : r === 'sd' ? 'SD' : /^\d+$/.test(r) ? r + 'p' : r.toUpperCase();
+  }
+
+  function videoOf(p) {
+    return ((p && p.Stream) || []).find(st => st.streamType === 1);
+  }
+
+  // mc: the server's transcode decision (null when playing the file directly).
+  function showPlayback(mc) {
+    const v = videoOf(part);
+    const hdr = v && /hdr|dolby vision|dovi/i.test(v.displayTitle || '') ? (/(dolby vision|dovi)/i.test(v.displayTitle) ? ' Dolby Vision' : ' HDR') : '';
+    const srcVideo = [resLabel(media.videoResolution), codecName(media.videoCodec) + hdr].filter(Boolean).join(' ');
+    const srcAudio = audioStream ? codecName(audioStream.codec) + (audioStream.audioChannelLayout ? ' ' + audioStream.audioChannelLayout.replace(/\(.*\)/, '') : audioStream.channels ? ' ' + (audioStream.channels === 6 ? '5.1' : audioStream.channels === 8 ? '7.1' : audioStream.channels + 'ch') : '') : '';
+    let modeText, info, kind;
+    if (!mc) {
+      kind = 'direct';
+      modeText = forceDirect() ? 'Direct Play (forced)' : 'Direct Play';
+      info = [srcVideo, srcAudio, media.bitrate ? Math.round(media.bitrate / 1000) + ' Mbps' : ''];
+    } else {
+      const m = (mc.Metadata && mc.Metadata[0] && mc.Metadata[0].Media && mc.Metadata[0].Media[0]) || {};
+      const streams = (m.Part && m.Part[0] && m.Part[0].Stream) || [];
+      const vd = streams.find(st => st.streamType === 1) || {};
+      const ad = streams.find(st => st.streamType === 2) || {};
+      const sd = streams.find(st => st.streamType === 3) || {};
+      const videoCopied = vd.decision === 'copy' || (!vd.decision && !quality.kbps);
+      const audioCopied = !ad.decision || ad.decision === 'copy';
+      if (videoCopied) {
+        kind = 'stream';
+        modeText = 'Direct Stream';
+        info = ['video untouched (' + srcVideo + ')',
+          audioCopied ? srcAudio : 'audio ' + (audioStream ? codecName(audioStream.codec) : '') + ' → ' + codecName(ad.codec || 'aac')];
+      } else {
+        kind = 'transcode';
+        modeText = 'Transcoding';
+        const why = sd.decision === 'burn' ? 'burning in subtitles' : quality.kbps ? 'lower quality picked' : srcVideo + ' → ' + codecName(vd.codec || 'h264');
+        info = [resLabel(m.videoResolution || (quality.height ? String(quality.height) : '')), m.bitrate ? Math.round(m.bitrate / 1000) + ' Mbps' : '', why,
+          audioCopied ? '' : 'audio → ' + codecName(ad.codec || 'aac')];
+      }
+    }
+    setText(osdPlayMode, modeText);
+    setText(osdPlayInfo, info.filter(Boolean).join('  ·  '));
+    ['direct', 'stream', 'transcode'].forEach(k => toggleClass(osdPlay, k, k === kind));
+  }
+
   function renderTitles() {
     if (item.type === 'episode') {
       setText(osdTitle, item.grandparentTitle);
@@ -253,6 +311,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   function decideMode() {
     // A lower quality than the file means Plex has to convert it.
     if (quality.kbps) return 'hls';
+    if (forceDirect()) return 'direct';
     const directOk = DIRECT.container[media.container] && DIRECT.video[media.videoCodec] &&
       (!audioStream || DIRECT.audio[audioStream.codec]);
     const subsOk = !subStream || isEmbeddedText(subStream) || isSidecarText(subStream);
@@ -286,7 +345,9 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       const decision = await request(url.replace('/start.m3u8', '/decision'));
       const mc = decision.MediaContainer || {};
       if (mc.generalDecisionCode && mc.generalDecisionCode >= 2000) throw new Error(mc.generalDecisionText || 'Server refused to convert this file');
+      showPlayback(mc);
     }
+    if (mode === 'direct') showPlayback(null);
     log('play', mode, quality.id, item.title, media.container + '/' + media.videoCodec + '/' + (audioStream && audioStream.codec), 'at', clock(atMs));
     const uhdOut = !quality.kbps || quality.height >= 2160;
     player.open(url, { uhd: uhdOut && media.videoResolution === '4k' && supports4K() });
@@ -398,6 +459,13 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
 
   function failed(msg) {
     if (!alive) return;
+    if (mode === 'direct' && forceDirect() && !quality.kbps) {
+      error('direct play failed (forced)', msg);
+      toggleClass(spinner, 'on', false);
+      errorEl.classList.remove('hidden');
+      setText(errorEl, 'The TV couldn\'t play this file directly (' + msg + '). Turn off Force direct play in Settings to let Plex convert it.');
+      return;
+    }
     if (mode === 'direct' && !triedFallback && media) {
       // The file looked direct-playable but the TV choked: let Plex convert it.
       warn('direct play failed (' + msg + '), falling back to HLS');

@@ -57,6 +57,8 @@ FlexPlex adds:
   description, director, writers, cast with characters, studio, release date and all ratings, plus
   the version, size, bitrate, audio tracks and subtitles of your own files.
 - **Choose before you play.** Quality (or which version), audio and subtitles on the detail page.
+- **See how it's playing.** The player's info bar says **Direct Play**, **Direct Stream** (e.g. only the audio
+  converted) or **Transcoding**, with the details. **Force direct play** in Settings never converts.
 - **Player extras.** Skip intro/credits, subtitle timing, size and background, a CH ▲▼ (or green-button)
   subtitle toggle, and the next episode keeps your languages.
 

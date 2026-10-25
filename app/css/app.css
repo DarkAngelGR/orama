@@ -571,3 +571,14 @@ html.subs-bg .subs-text {
 .catalog-dl-bar { display: none; margin-top: 14px; height: 8px; border-radius: 4px; background: var(--faint); overflow: hidden; }
 .catalog-dl-bar.on { display: block; }
 .catalog-dl-bar i { display: block; height: 100%; background: var(--accent); transform-origin: 0 0; transition: transform 600ms var(--ease); will-change: transform; }
+
+/* Player: how the video is playing */
+.osd-play { margin-top: 18px; display: flex; align-items: center; height: 40px; font: 500 22px var(--body); color: var(--dim); white-space: nowrap; }
+.osd-play-mode {
+  flex-shrink: 0; height: 36px; padding: 0 16px; margin-right: 16px; border-radius: 18px;
+  font: 600 20px/36px var(--body); background: var(--faint); color: var(--cream);
+}
+.osd-play.direct .osd-play-mode { background: var(--accent); color: #fff; }
+.osd-play.stream .osd-play-mode { background: rgba(244, 243, 255, 0.16); }
+.osd-play.transcode .osd-play-mode { background: #F2B544; color: #1A1306; }
+.osd-play-info { overflow: hidden; text-overflow: ellipsis; max-width: 1400px; color: rgba(244, 243, 255, 0.88); text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7); }

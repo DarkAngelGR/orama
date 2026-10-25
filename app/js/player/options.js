@@ -71,3 +71,14 @@ export function versionLabel(media) {
   if (media.bitrate) parts.push(Math.round(media.bitrate / 1000) + ' Mbps');
   return parts.filter(Boolean).join(' · ');
 }
+
+// Force direct play: always send the original file straight to the TV, never
+// ask Plex to convert it (even audio the TV may not decode, like DTS). A lower
+// quality picked on purpose still converts.
+export function forceDirect() {
+  return store.get('forceDirect', false) === true;
+}
+
+export function setForceDirect(on) {
+  store.set('forceDirect', on ? true : undefined);
+}
