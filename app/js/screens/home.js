@@ -11,6 +11,7 @@ import * as icons from '../ui/icons.js';
 import { openItem, playItem, openLibrary, openSearch, openSettings } from '../nav.js';
 import { error, log } from '../util/log.js';
 import * as updates from '../plex/updates.js';
+import * as notifications from '../plex/notifications.js';
 import { notice } from '../ui/notice.js';
 
 // Once per app start, a few seconds after home appears: is there a newer
@@ -72,6 +73,10 @@ export function HomeScreen() {
   // The nav is a clip with a sliding track, so any number of libraries fits.
   const navEl = h('nav', 'nav', top);
   const navTrack = h('div', 'nav-track', navEl);
+  // "Scanning Movies · 42%" while the server works on a library.
+  const libStatus = h('div', 'lib-status', top);
+  h('i', 'lib-status-spin', libStatus);
+  const libStatusText = h('span', '', libStatus);
   const who = h('div', 'topbar-who', top);
   setText(who, session.server ? session.server.name : '');
 
@@ -97,6 +102,8 @@ export function HomeScreen() {
   let heroTimer = 0;
   let artTimer = 0;
   let reportedPaint = false;
+  let visible = true;
+  let stale = false;       // the library changed while another screen was on top
 
   function buildNav(sections) {
     navTrack.innerHTML = '';
@@ -229,6 +236,27 @@ export function HomeScreen() {
     }
   }
 
+  function showStatus(list) {
+    if (!list.length) { toggleClass(libStatus, 'on', false); return; }
+    const a = list[0];
+    let text = a.title || 'Updating library';
+    if (a.progress >= 0) text += '  ·  ' + Math.round(a.progress) + '%';
+    if (list.length > 1) text += '  ·  +' + (list.length - 1);
+    setText(libStatusText, text);
+    toggleClass(libStatus, 'on', true);
+  }
+
+  // New or removed media shows up by itself: reload the rows (keeping focus)
+  // when the server says the library changed.
+  const unsubscribe = notifications.subscribe(ev => {
+    if (ev.activities) showStatus(ev.activities);
+    if (ev.changed) {
+      session.server.invalidate();
+      if (visible) load();
+      else stale = true;
+    }
+  });
+
   const cached = store.get('homeCache');
   if (cached && session.server && cached.server === session.server.id) {
     buildNav(cached.sections || []);
@@ -250,12 +278,15 @@ export function HomeScreen() {
     el,
     name: 'home',
     onShow() {
+      visible = true;
       ambience.restore();
       checkForUpdate();
       renderNav(); // widths can't be measured while the screen was hidden
       // Coming back from playback: progress and Continue Watching changed.
-      if (Date.now() - loadedAt > 5000) load();
+      if (stale || Date.now() - loadedAt > 5000) { stale = false; load(); }
     },
+    onHide() { visible = false; },
+    destroy() { unsubscribe(); },
     onKey(action) {
       if (zone === 'nav') {
         if (action === 'left') { navIndex = Math.max(0, navIndex - 1); renderNav(); return true; }

@@ -547,3 +547,18 @@ html.subs-bg .subs-text {
 /* App-wide notice (e.g. "FlexPlex 0.9.0 is available") */
 .notice { left: 460px; width: 1000px; z-index: 50; }
 .updates-notes { right: 160px; max-height: 120px; overflow: hidden; white-space: pre-line; line-height: 1.5; }
+
+/* Home: library scan status in the top bar */
+.lib-status {
+  display: none; align-items: center; margin-left: auto; flex-shrink: 0; height: 44px; padding: 0 20px 0 16px;
+  border-radius: 22px; background: var(--faint); box-shadow: inset 0 0 0 1px rgba(244, 243, 255, 0.12);
+  font: 500 21px var(--body); color: var(--cream); white-space: nowrap; max-width: 520px; overflow: hidden; text-overflow: ellipsis;
+}
+.lib-status.on { display: flex; }
+.lib-status.on + .topbar-who { margin-left: 28px; }
+.lib-status-spin {
+  width: 20px; height: 20px; margin-right: 12px; flex-shrink: 0; border-radius: 50%;
+  border: 3px solid rgba(139, 124, 255, 0.25); border-top-color: var(--accent);
+  animation: lib-spin 900ms linear infinite; will-change: transform;
+}
+@keyframes lib-spin { to { transform: rotate(360deg); } }

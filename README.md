@@ -49,6 +49,8 @@ FlexPlex adds:
   tells you when one is out, and the [FlexPlex installer](installer/) on your server installs it on
   the TV with Apps2Samsung's command-line tool, from **Settings › Updates** (or its web page, from
   your phone).
+- **Live library.** The home screen shows when Plex is scanning a library ("Scanning Movies · 42%")
+  and picks up new or removed media by itself, without restarting the app.
 - **More info.** A full page per title (button on the detail page, or the Info key): the whole
   description, director, writers, cast with characters, studio, release date and all ratings, plus
   the version, size, bitrate, audio tracks and subtitles of your own files.
