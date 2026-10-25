@@ -142,6 +142,7 @@ export function CatalogScreen(initial) {
     if (full) { item = Object.assign({}, initial, full); renderInfo(); showDownload(); }
     listed = state;
     renderButtons();
+    showDownload();
   }
 
   function showDownload() {
@@ -158,6 +159,10 @@ export function CatalogScreen(initial) {
       // Left the queue after importing: Plex picks it up on its next scan.
       setText(dlText, 'Downloaded  ·  it\'ll be in your library in a moment');
       toggleClass(dlBar, 'on', false);
+    } else if (listed && downloads.isSupported() === false) {
+      setText(dlText, 'Update watchlist-sync on your server to see download progress here');
+      toggleClass(dlBar, 'on', false);
+      toggleClass(dl, 'on', true);
     } else {
       toggleClass(dl, 'on', false);
     }

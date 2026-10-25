@@ -9,6 +9,12 @@ const listeners = new Set();
 let timer = 0;
 let items = [];
 let key = '';
+// false: watchlist-sync is there but too old to report downloads; null: unknown.
+let supported = null;
+
+export function isSupported() {
+  return supported;
+}
 
 export function current() {
   return items;
@@ -22,6 +28,9 @@ async function poll() {
   if (!watchlist.baseUrl()) { set([]); return; }
   try {
     const q = await watchlist.queue();
+    const was = supported;
+    supported = !!q;
+    if (was !== supported) key = ''; // let listeners know
     set(q && q.items ? q.items : []);
   } catch (e) {
     // Unreachable for a moment: keep showing the last known state.
@@ -56,9 +65,18 @@ export function find(item) {
     if (m) ids[m[1]] = m[2];
   });
   const kind = item.type === 'show' ? 'show' : 'movie';
-  return items.find(d => d.kind === kind && (
+  const byId = items.find(d => d.kind === kind && (
     (ids.tmdb && String(d.tmdb) === ids.tmdb) || (ids.tvdb && String(d.tvdb) === ids.tvdb) || (ids.imdb && d.imdb === ids.imdb)
-  )) || null;
+  ));
+  if (byId) return byId;
+  // No ids on this record: same title, same (or next) year.
+  const t = norm(item.title);
+  return items.find(d => d.kind === kind && norm(d.title) === t &&
+    (!item.year || !d.year || Math.abs(item.year - d.year) <= 1)) || null;
+}
+
+function norm(t) {
+  return String(t || '').toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9\u0370-\u03ff]+/g, '');
 }
 
 function eta(s) {
