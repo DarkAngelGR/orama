@@ -53,7 +53,7 @@ FlexPlex adds:
   description, director, writers, cast with characters, studio, release date and all ratings, plus
   the version, size, bitrate, audio tracks and subtitles of your own files.
 - **Choose before you play.** Quality (or which version), audio and subtitles on the detail page.
-- **Player extras.** Skip intro/credits, subtitle timing, size and background, a green-button
+- **Player extras.** Skip intro/credits, subtitle timing, size and background, a CH ▲▼ (or green-button)
   subtitle toggle, and the next episode keeps your languages.
 
 ## Install

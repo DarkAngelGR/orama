@@ -80,7 +80,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   const tInfo = h('span', 'osd-info', times);
   const tLeft = h('span', 'osd-left', times);
   const hintEl = h('div', 'osd-hint', osdBottom);
-  hintEl.innerHTML = '▼ Audio, subtitles &amp; quality &nbsp;&nbsp; <i class="key-green"></i> Subtitles on/off';
+  hintEl.innerHTML = '▼ Audio, subtitles &amp; quality &nbsp;&nbsp; CH ▲▼ Subtitles on/off';
 
   const skipBtn = h('div', 'skip hidden', el);
   const toastEl = h('div', 'toast', el);
@@ -700,7 +700,8 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
         case 'right': case 'ff': seekBy(1); return true;
         case 'up': case 'info': showOsd(); return true;
         case 'down': if (part) openPanel(); return true;
-        case 'green': if (part) toggleSubtitles(); return true;
+        // Green on remotes that have colour keys; CH ▲/▼ on the ones that don't.
+        case 'green': case 'pageup': case 'pagedown': if (part) toggleSubtitles(); return true;
         case 'stop': exit(); return true;
         case 'back':
           if (seekTarget != null) { seekTarget = null; toggleClass(el, 'seeking', false); renderProgress(position); showOsd(); return true; }

@@ -237,7 +237,11 @@ html.fast .row-track, html.fast .rows-track, html.fast .grid-track, html.fast .r
 .lib-head { position: absolute; top: 52px; left: 96px; right: 96px; display: flex; align-items: baseline; }
 .lib-title { font: 700 76px/1 var(--display); }
 .lib-count { margin-left: 24px; font: 500 26px var(--body); color: var(--dim); }
-.lib-sort { margin-left: auto; font: 500 24px var(--body); color: var(--dim); }
+.lib-sort {
+  margin-left: auto; height: 52px; padding: 0 26px; border-radius: 26px; align-self: center;
+  background: var(--faint); font: 600 24px/52px var(--body); color: var(--cream);
+}
+.lib-sort.focus { background: var(--cream); color: var(--bg); }
 .lib-focus {
   position: absolute; top: 146px; left: 96px; width: 1300px;
   font: 500 26px var(--body); color: var(--cream);

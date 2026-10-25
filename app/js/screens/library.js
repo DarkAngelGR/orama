@@ -1,6 +1,8 @@
 // A whole library as a virtualized poster grid, loaded page by page.
-// Yellow cycles the sort; CH▲/CH▼ jump by letter (title sort) or by page.
-import { h, setText } from '../util/dom.js';
+// Up from the top row reaches the sort button (OK / Left / Right change it; the
+// yellow button does too, on remotes that have one). CH▲/CH▼ jump by letter
+// (title sort) or by page.
+import { h, setText, toggleClass } from '../util/dom.js';
 import { Grid } from '../ui/grid.js';
 import { useAmbience } from '../ui/backdrop.js';
 import { session } from '../session.js';
@@ -27,9 +29,10 @@ export function LibraryScreen(section) {
   const sortEl = h('div', 'lib-sort', head);
   const focusInfo = h('div', 'lib-focus', el);
   const hint = h('div', 'lib-hint', el);
-  hint.innerHTML = '<i class="key-yellow"></i> Sort &nbsp;&nbsp; CH ▲▼ Jump';
+  hint.textContent = '▲ Sort   ·   CH ▲▼ Jump';
 
   let sortIndex = 0;
+  let onSort = false;        // focus on the sort button instead of the grid
   let pages = new Map();     // page -> 'loading' | true
   let items = [];
   let letters = [];          // [{ title: 'A', start: 0 }]
@@ -105,7 +108,7 @@ export function LibraryScreen(section) {
     generation++;
     pages = new Map();
     items = [];
-    setText(sortEl, 'Sorted by ' + SORTS[sortIndex].label);
+    setText(sortEl, 'Sort: ' + SORTS[sortIndex].label);
     grid.total = 0;
     grid.index = 0;
     grid.refresh();
@@ -113,6 +116,17 @@ export function LibraryScreen(section) {
     loadLetters();
   }
   reload();
+
+  function setSortFocus(on) {
+    onSort = on;
+    toggleClass(sortEl, 'focus', on);
+    toggleClass(grid.ring, 'on', !on);
+  }
+
+  function cycleSort(dir) {
+    sortIndex = (sortIndex + dir + SORTS.length) % SORTS.length;
+    reload();
+  }
 
   function jump(dir) {
     if (letters.length) {
@@ -131,16 +145,29 @@ export function LibraryScreen(section) {
     name: 'library',
     onShow() { ambience.restore(); },
     onKey(action) {
+      if (onSort) {
+        switch (action) {
+          case 'enter': case 'right': cycleSort(1); return true;
+          case 'left': cycleSort(-1); return true;
+          case 'yellow': cycleSort(1); return true;
+          case 'down': case 'back': setSortFocus(false); return true;
+          case 'up': return true;
+        }
+        return false;
+      }
       switch (action) {
         case 'left': grid.move(-1, 0); return true;
         case 'right': grid.move(1, 0); return true;
-        case 'up': grid.move(0, -1); return true;
+        case 'up':
+          if (grid.index < grid.cols) setSortFocus(true);
+          else grid.move(0, -1);
+          return true;
         case 'down': grid.move(0, 1); return true;
         case 'pageup': jump(-1); return true;
         case 'pagedown': jump(1); return true;
         case 'enter': grid.select(); return true;
         case 'play': case 'playpause': if (grid.current()) playItem(grid.current()); return true;
-        case 'yellow': sortIndex = (sortIndex + 1) % SORTS.length; reload(); return true;
+        case 'yellow': cycleSort(1); return true;
         case 'back':
           if (grid.index > grid.cols * 2) { grid.focusIndex(0); return true; }
           return false;
