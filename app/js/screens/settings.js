@@ -13,6 +13,8 @@ import { subSize, subBackground, cycleSubSize, toggleSubBackground, subLang, cyc
 import * as watchlist from '../plex/watchlist.js';
 import { DownloadsScreen } from './downloads.js';
 import { UpdatesScreen } from './updates.js';
+import { UsersScreen } from './users.js';
+import * as themeMusic from '../ui/theme-music.js';
 import * as updates from '../plex/updates.js';
 import * as store from '../util/store.js';
 
@@ -42,10 +44,13 @@ export function SettingsScreen() {
     list.innerHTML = '';
     items = [
       { label: 'Server', value: session.server ? session.server.name : '—', run: switchServer },
-      { label: 'Signed in as', value: session.user ? session.user.title : '—', run: doSignOut, action: 'Sign out' },
+      { label: 'Profile', value: session.user ? session.user.title : '—', run: () => router.push(UsersScreen()), action: 'Switch' },
+      { label: 'Who\'s watching at start', value: store.get('askProfile') ? 'Ask' : 'Last profile', run: () => { store.set('askProfile', store.get('askProfile') ? undefined : true); build(); } },
+      { label: 'Sign out', value: '', run: doSignOut },
       { label: 'Default quality', value: qualityById(defaultQuality()).label, run: () => { nextDefaultQuality(); build(); } },
       { label: 'Audio formats', value: audioExtras().label, run: () => { cycleAudioExtras(); build(); } },
       { label: 'Force direct play', value: forceDirect() ? 'On · never convert' : 'Off · convert only when needed', run: () => { setForceDirect(!forceDirect()); build(); } },
+      { label: 'Theme music', value: themeMusic.enabled() ? 'On' : 'Off', run: () => { themeMusic.setEnabled(!themeMusic.enabled()); build(); } },
       { label: 'Subtitle language', value: subLang().label, run: () => { cycleSubLang(); build(); } },
       { label: 'Subtitle size', value: subSize().label, run: () => { cycleSubSize(); build(); } },
       { label: 'Subtitle background', value: subBackground() ? 'On' : 'Off', run: () => { toggleSubBackground(); build(); } },

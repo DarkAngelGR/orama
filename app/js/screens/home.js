@@ -80,7 +80,7 @@ export function HomeScreen() {
   h('i', 'lib-status-spin', libStatus);
   const libStatusText = h('span', '', libStatus);
   const who = h('div', 'topbar-who', top);
-  setText(who, session.server ? session.server.name : '');
+  setText(who, (session.user && session.user.title ? session.user.title + '  ·  ' : '') + (session.server ? session.server.name : ''));
 
   const info = h('div', 'hero-info', el);
   const heroLogo = h('img', 'hero-logo', info);

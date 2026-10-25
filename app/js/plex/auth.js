@@ -27,6 +27,18 @@ export async function getUser(token) {
   return request(TV + '/user', { token });
 }
 
+// Plex Home: the household's profiles, and switching to one (with its PIN if
+// it has one). Endpoints as used by github.com/GLinnik21/plx-native.
+export async function homeUsers(token) {
+  const data = await request(TV + '/home/users', { token });
+  return (data && data.users) || [];
+}
+
+// Returns { authToken, uuid, title, thumb }; a wrong PIN is a 401.
+export async function switchHomeUser(token, uuid, pin) {
+  return request(TV + '/home/users/' + uuid + '/switch', { method: 'POST', token, params: pin ? { pin } : undefined });
+}
+
 export async function getServers(token) {
   const resources = await request(TV + '/resources', {
     token, params: { includeHttps: 1, includeRelay: 1, includeIPv6: 0 },

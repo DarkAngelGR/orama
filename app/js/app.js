@@ -3,6 +3,7 @@ import { DEV, DEV_HOST, DEV_PLEX_URL, VERSION } from './config.js';
 import * as router from './router.js';
 import { isTizen, registerKeys } from './platform/tizen.js';
 import { session, reconnect, signOut } from './session.js';
+import { UsersScreen } from './screens/users.js';
 import { HomeScreen } from './screens/home.js';
 import { LoginScreen } from './screens/login.js';
 import { initHud } from './ui/hud.js';
@@ -13,6 +14,17 @@ import { applySubtitleStyle } from './player/subprefs.js';
 
 function goHome() {
   router.reset(HomeScreen());
+}
+
+// "Who's watching?" first, when asked for in Settings (and not right after a
+// switch, which restarts the app as the new profile).
+function goHomeOrProfiles() {
+  if (store.get('askProfile') && session.accountToken && !session.skipProfileOnce) {
+    router.reset(UsersScreen({ onDone: goHome }));
+  } else {
+    goHome();
+  }
+  session.skipProfileOnce = false;
 }
 
 function goLogin() {
@@ -62,7 +74,7 @@ function start() {
     return;
   }
   if (session.token && session.server) {
-    goHome();
+    goHomeOrProfiles();
     verify();
   } else {
     goLogin();

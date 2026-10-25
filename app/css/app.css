@@ -608,3 +608,21 @@ html.subs-bg .subs-text {
 .person-name { font: 600 76px/1.05 var(--display); letter-spacing: -0.025em; }
 .person-sub { margin-top: 12px; font: 500 26px var(--body); color: var(--dim); }
 .person-rows { position: absolute; left: 0; width: 1920px; bottom: 0; overflow: hidden; }
+
+/* Who's watching? */
+.users-title { position: absolute; left: 0; right: 0; top: 230px; text-align: center; font: 600 72px/1 var(--display); letter-spacing: -0.025em; }
+.users-list { position: absolute; left: 0; right: 0; top: 400px; display: flex; justify-content: center; }
+.user { width: 240px; margin: 0 24px; text-align: center; }
+.user-face {
+  position: relative; width: 200px; height: 200px; margin: 0 auto; border-radius: 50%; overflow: hidden;
+  background: var(--raised); display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 0 4px transparent; transition: box-shadow 200ms ease, transform 200ms var(--ease); will-change: transform;
+}
+.user-face img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 250ms ease; }
+.user-initials { font: 600 64px var(--display); color: var(--dim); }
+.user.focus .user-face { box-shadow: 0 0 0 5px var(--accent), 0 0 40px rgba(139, 124, 255, 0.45); transform: scale(1.06); }
+.user-name { margin-top: 26px; font: 500 30px var(--body); color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.user.focus .user-name { color: var(--cream); }
+.user-lock svg { width: 22px; height: 22px; margin-left: 10px; vertical-align: -2px; color: var(--dim); }
+.user-current { margin-top: 8px; font: 500 20px var(--body); color: var(--accent); }
+.users-note { position: absolute; left: 0; right: 0; top: 760px; text-align: center; font: 500 26px var(--body); color: var(--cream); }

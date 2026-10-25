@@ -53,6 +53,9 @@ FlexPlex adds:
   are fetching (progress, time left, or "looking for a download"), and a title's page shows its progress live.
 - **Live library.** The home screen shows when Plex is scanning a library ("Scanning Movies · 42%")
   and picks up new or removed media by itself, without restarting the app.
+- **Plex Home profiles.** Switch profiles (with PIN) from Settings › Profile, or have FlexPlex ask
+  "Who's watching?" at start; each profile has its own Continue Watching and watched state.
+- **Theme music.** A title's theme plays quietly on its page, like Plex (Settings › Theme music).
 - **Cast.** Movie and show pages have a Cast row with photos; pick an actor to see everything on your
   server they're in.
 - **More info.** A full page per title (button on the detail page, or the Info key): the whole

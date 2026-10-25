@@ -11,6 +11,7 @@ import * as icons from '../ui/icons.js';
 import * as router from '../router.js';
 import { playItem, openPerson } from '../nav.js';
 import { InfoScreen } from './info.js';
+import * as themeMusic from '../ui/theme-music.js';
 import { error } from '../util/log.js';
 import {
   streamsOf, audioLabel, subtitleLabel, qualitiesFor, effectiveQuality, defaultQuality, versionLabel,
@@ -57,6 +58,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
   let zone = 'buttons';
   let alive = true;
   let shown = false;
+  let shownNow = true;   // on top (not behind the player or another page)
 
   // Pre-play choices. Quality applies to anything played from this screen;
   // version and tracks belong to one title (`choice.key`), the Play target.
@@ -308,6 +310,18 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     setTransform(seasonsTrack, 'translate3d(' + (-next) + 'px,0,0)');
   }
 
+  // The title's theme song (a show's for its seasons and episodes too).
+  function themeUrl() {
+    const path = item.theme || item.parentTheme || item.grandparentTheme;
+    return path ? session.server.url(path) : '';
+  }
+
+  function playTheme() {
+    // Nothing known yet (details still loading): leave a playing theme alone.
+    const url = themeUrl();
+    if (shownNow && url) themeMusic.play(url);
+  }
+
   function renderCast() {
     const roles = (item.Role || []).filter(r => r.tag).slice(0, 30);
     if (!roles.length) {
@@ -409,6 +423,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
       fullCache.clear();
       renderHeader();
       renderCast();
+      playTheme();
       if (isShowLike()) {
         seasons = (await session.server.children(item.ratingKey)).filter(s => s.type === 'season');
         if (!alive) return;
@@ -469,6 +484,8 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     el,
     name: 'detail',
     onShow() {
+      shownNow = true;
+      playTheme();
       ambience.restore();
       // Back from the player: refresh resume points and watched state.
       if (shown) {
@@ -519,6 +536,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
       if (action === 'back' && zone !== 'buttons') { zone = 'buttons'; renderFocus(); return true; }
       return false;
     },
-    destroy() { alive = false; },
+    onHide() { shownNow = false; themeMusic.stopSoon(); },
+    destroy() { alive = false; themeMusic.stopSoon(); },
   };
 }

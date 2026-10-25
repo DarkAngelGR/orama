@@ -7,13 +7,14 @@ import * as router from '../router.js';
 const IME_DONE = 65376;
 const IME_CANCEL = 65385;
 
-export function PromptScreen({ title, hint = '', value = '', placeholder = '', secret = false, onDone }) {
+export function PromptScreen({ title, hint = '', value = '', placeholder = '', secret = false, numeric = false, onDone }) {
   const el = h('div', 'screen prompt');
   const ambience = useAmbience();
   h('h1', 'settings-title', el).textContent = title;
   const bar = h('div', 'search-bar prompt-bar', el);
   const input = h('input', 'search-input prompt-input', bar);
   input.type = secret ? 'password' : 'text';
+  if (numeric) { input.inputMode = 'numeric'; input.setAttribute('pattern', '[0-9]*'); }
   input.value = value;
   input.placeholder = placeholder;
   input.setAttribute('autocomplete', 'off');
