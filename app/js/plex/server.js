@@ -75,6 +75,11 @@ export class Server {
     return item;
   }
 
+  // Ask Plex to re-read a title's files (e.g. a subtitle file Bazarr replaced).
+  refresh(ratingKey) {
+    return request(this.uri + '/library/metadata/' + ratingKey + '/refresh', { method: 'PUT', token: this.token, raw: true }).catch(() => {});
+  }
+
   async children(ratingKey) {
     const mc = await this.get('/library/metadata/' + ratingKey + '/children', { excludeAllLeaves: 1 });
     return mc.Metadata || [];

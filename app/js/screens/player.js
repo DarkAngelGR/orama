@@ -143,6 +143,9 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     onEnd() { finished(); },
     onError(msg) { failed(msg); },
     onSubtitle(text, ms) {
+      // The TV can keep sending its default track's lines; only an embedded
+      // subtitle that's actually selected should show.
+      if (mode !== 'direct' || !isEmbeddedText(subStream)) return;
       clearTimeout(subTimer);
       setText(subsText, cleanSubtitle(text));
       if (ms > 0) subTimer = setTimeout(() => setText(subsText, ''), ms);
@@ -198,7 +201,9 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   }
 
   // mc: the server's transcode decision (null when playing the file directly).
+  let lastDecision = null;
   function showPlayback(mc) {
+    lastDecision = mc;
     const v = videoOf(part);
     const hdr = v && /hdr|dolby vision|dovi/i.test(v.displayTitle || '') ? (/(dolby vision|dovi)/i.test(v.displayTitle) ? ' Dolby Vision' : ' HDR') : '';
     const srcVideo = [resLabel(media.videoResolution), codecName(media.videoCodec) + hdr].filter(Boolean).join(' ');
@@ -232,6 +237,13 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
           : [resLabel(m.videoResolution || (quality.height ? String(quality.height) : '')), m.bitrate ? Math.round(m.bitrate / 1000) + ' Mbps' : '', why,
             audioCopied ? '' : 'audio → ' + codecName(ad.codec || 'aac')];
       }
+    }
+    if (subStream) {
+      const how = isSidecarText(subStream) ? 'file' : isEmbeddedText(subStream) ? 'in video' : 'image';
+      const burned = mc && ((((mc.Metadata || [])[0] || {}).Media || [{}])[0].Part || [{}])[0];
+      const isBurn = burned && (burned.Stream || []).some(st => st.streamType === 3 && st.decision === 'burn');
+      info.push('subtitles ' + (subStream.language || subStream.languageCode || '?') + ' (' + (isBurn ? 'burned in' : how) + ')');
+      if (!mc && how === 'image') info.push('image subtitles can\'t show with direct play');
     }
     setText(osdPlayMode, modeText);
     setText(osdPlayInfo, info.filter(Boolean).join('  ·  '));
@@ -423,6 +435,33 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     return pos >= 0 && t[pos] != null ? t[pos] : null;
   }
 
+  const refreshedFor = {};
+  async function reloadSubtitlesAfterRefresh(old) {
+    const server = session.server;
+    await server.refresh(item.ratingKey);
+    await new Promise(r => setTimeout(r, 6000)); // give Plex a moment to re-read the folder
+    if (!alive || subStream !== old) return;
+    try {
+      server.invalidate();
+      const fresh = await server.metadata(item.ratingKey);
+      const freshMedia = fresh && fresh.Media && (fresh.Media.find(m => m.id === media.id) || fresh.Media[0]);
+      const freshPart = freshMedia && freshMedia.Part && freshMedia.Part[0];
+      if (!freshPart || !alive || subStream !== old) return;
+      part.Stream = freshPart.Stream; // same file, updated subtitle list
+      const texts = streamsOf(part, 3);
+      const same = texts.filter(t => langOf(t) === langOf(old));
+      const pick = same.find(t => t.key && !!t.forced === !!old.forced) || same.find(t => t.key) || same[0];
+      if (!pick) { toast('The ' + (old.language || 'selected') + ' subtitles are gone from the server'); return; }
+      subStream = pick;
+      cueFor = null;
+      if (mode === 'direct') applyTracks();
+      syncSidecar();
+      showPlayback(mode === 'direct' ? null : lastDecision);
+    } catch (e) {
+      toast('Couldn\'t reload the subtitles (' + e.message + ')');
+    }
+  }
+
   // Start/stop drawing an external subtitle file for the current selection.
   function syncSidecar() {
     if (!isSidecarText(subStream)) {
@@ -438,13 +477,30 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     cueTrack = null;
     subOff = subOffset(stream.id);
     fetch(session.server.url(stream.key, { encoding: 'utf-8' }))
-      .then(r => r.text())
+      .then(r => {
+        if (!r.ok) { const e = new Error('Plex answered ' + r.status); e.status = r.status; throw e; }
+        return r.text();
+      })
       .then(text => {
         if (cueFor !== stream || !alive) return;
-        cueTrack = new CueTrack(parseSubtitles(text, stream.codec));
-        log('subtitles loaded', stream.displayTitle, cueTrack.cues.length + ' cues');
+        const cues = parseSubtitles(text, stream.codec);
+        cueTrack = new CueTrack(cues);
+        log('subtitles loaded', stream.displayTitle, cues.length + ' cues');
+        if (!cues.length) toast('These subtitles are empty or unreadable');
       })
-      .catch(e => warn('subtitle fetch failed', e.message));
+      .catch(e => {
+        if (cueFor !== stream || !alive) return;
+        warn('subtitle fetch failed', e.message);
+        if ((e.status === 404 || e.status === 400 || e.status === 500) && !refreshedFor[stream.id]) {
+          // The file moved (Bazarr often replaces subtitles after a download):
+          // have Plex re-read the title, then pick the same language again.
+          refreshedFor[stream.id] = true;
+          toast('Subtitle file changed on the server, reloading it…');
+          reloadSubtitlesAfterRefresh(stream);
+        } else {
+          toast('Couldn\'t load the subtitles (' + e.message + ')');
+        }
+      });
     clearInterval(cueTimer);
     cueTimer = setInterval(() => {
       // Positive offset = show each line later, so look up an earlier time.
@@ -670,8 +726,10 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     if (wanted === 'direct' && mode === 'direct') {
       applyTracks();
       syncSidecar();
+      showPlayback(null);
     } else if (mode === 'hls' && wanted === 'hls' && col === 1 && isSidecarText(subStream)) {
       syncSidecar();
+      showPlayback(lastDecision);
     } else {
       mode = wanted;
       triedFallback = false;
