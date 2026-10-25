@@ -1,8 +1,7 @@
 """Generate every FlexPlex logo image from one drawing (run with python3 -I).
 
-The mark ("Fast Forward"): two rounded play arrows, cream then coral, on a
-charcoal tile. The wordmark: "Flex" + coral "PLEX" in the app's Barlow
-Condensed 600. Shapes are drawn 4x oversized and scaled down, so every size
+The mark ("Fast Forward"): two rounded play arrows, white then violet, on an
+ink tile. The wordmark: "Flex" + violet "Plex" in the app's Outfit 600. Shapes are drawn 4x oversized and scaled down, so every size
 is crisp; only Pillow is needed.
 
 Writes the app's icon, header/sign-in/splash images and the brand set under
@@ -12,20 +11,20 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 root = Path(__file__).resolve().parent.parent
-FONT = root / 'app' / 'fonts' / 'barlow-condensed-latin-600-normal.woff2'
+FONT = root / 'app' / 'fonts' / 'outfit-latin-600-normal.woff2'
 
-BG = (11, 13, 18)            # app background #0B0D12
-TILE = (21, 24, 31)          # #15181F
-CREAM = (255, 247, 230)      # #FFF7E6
-CORAL = (255, 76, 66)        # #FF4C42
-CHARCOAL = (18, 20, 25)      # wordmark on light backgrounds
-TAGLINE = (178, 172, 160)
+BG = (11, 11, 18)            # app background #0B0B12
+TILE = (23, 23, 36)          # #171724 (--raised)
+CREAM = (244, 243, 255)      # #F4F3FF (--cream)
+ACCENT = (139, 124, 255)     # #8B7CFF (--accent)
+CHARCOAL = (17, 17, 28)      # wordmark on light backgrounds
+TAGLINE = (164, 161, 190)
 SS = 4                        # supersampling factor
 
 # The mark, in a 120x120 design grid (matches the design canvas).
 ARROWS = [
     ([(28, 38), (54, 60), (28, 82)], CREAM),
-    ([(64, 38), (90, 60), (64, 82)], CORAL),
+    ([(64, 38), (90, 60), (64, 82)], ACCENT),
 ]
 STROKE = 8      # rounds the arrow corners
 RADIUS = 28     # tile corner radius
@@ -56,10 +55,10 @@ def mark(size, rounded=True, bg=TILE):
     return im.resize((size, size), Image.LANCZOS)
 
 
-def wordmark(height, first=CREAM, second=CORAL, tracking=-0.02):
+def wordmark(height, first=CREAM, second=ACCENT, tracking=-0.03):
     size = 800
     font = ImageFont.truetype(str(FONT), size)
-    chars = [(c, first) for c in 'Flex'] + [(c, second) for c in 'PLEX']
+    chars = [(c, first) for c in 'Flex'] + [(c, second) for c in 'Plex']
     im = Image.new('RGBA', (int(sum(font.getlength(c) for c, _ in chars)) + 40, 1000), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
     x = 20
@@ -91,7 +90,7 @@ def backdrop(w, h):
     px = im.load()
     cx, cy = sw / 2, sh * 0.45
     far = ((cx ** 2) + (cy ** 2)) ** 0.5
-    centre = (24, 27, 35)
+    centre = (27, 25, 44)
     for y in range(sh):
         for x in range(sw):
             t = min(1, (((x - cx) ** 2 + (y - cy) ** 2) ** 0.5) / far)
@@ -116,7 +115,7 @@ def splash(w, h):
     im.alpha_composite(icon, ((w - icon.width) // 2, round(230 * s)))
     wm = wordmark(round(92 * s))
     im.alpha_composite(wm, ((w - wm.width) // 2, round(640 * s)))
-    tag = text('A SHARPER WAY TO WATCH', round(26 * s), TAGLINE)
+    tag = text('A SHARPER WAY TO WATCH', round(24 * s), TAGLINE, tracking=0.2)
     im.alpha_composite(tag, ((w - tag.width) // 2, round(800 * s)))
     return im
 

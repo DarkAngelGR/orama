@@ -109,7 +109,7 @@ html.playing .ambience { display: none; }
 .brand { display: flex; align-items: center; flex-shrink: 0; }
 .brand-mark { width: 80px; height: 80px; display: block; }
 .brand-text { margin-left: 16px; }
-.brand-wordmark { width: 186px; height: 44px; display: block; }
+.brand-wordmark { width: 193px; height: 40px; display: block; }
 .brand-by {
   margin-top: 6px; padding-left: 2px;
   font: 500 17px/1 var(--body); letter-spacing: 0.06em; color: rgba(255, 255, 255, 0.86);

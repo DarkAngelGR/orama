@@ -12,7 +12,7 @@ const FALLBACK = { topLeft: '1d1b31', topRight: '100f1a', bottomLeft: '1e1430', 
 const DIM = 0.78; // keep text readable on bright posters
 
 function rgb(hex) {
-  const n = parseInt(hex || '0b0d12', 16);
+  const n = parseInt(hex || '0b0b12', 16);
   return [(n >> 16 & 255) * DIM, (n >> 8 & 255) * DIM, (n & 255) * DIM];
 }
 

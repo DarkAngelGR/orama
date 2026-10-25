@@ -10,7 +10,7 @@ import { useAmbience } from '../ui/backdrop.js';
 
 export function LoginScreen({ onDone }) {
   const el = h('div', 'screen login');
-  const ambience = useAmbience({ topLeft: '3a1518', topRight: '161922', bottomLeft: '1b1f2b', bottomRight: '2a1012' });
+  const ambience = useAmbience({ topLeft: '27204a', topRight: '13121f', bottomLeft: '1a1830', bottomRight: '221a3d' });
   const left = h('div', 'login-art', el);
   const art = h('img', '', left);
   art.src = 'img/logo-560.png';
