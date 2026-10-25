@@ -14,7 +14,7 @@ import { log, warn, error } from '../util/log.js';
 import { request } from '../plex/client.js';
 import { parseSubtitles, CueTrack } from '../player/subtitles.js';
 import {
-  TEXT_SUBS, streamsOf, audioLabel, subtitleLabel, qualitiesFor, qualityById, effectiveQuality, defaultQuality, forceDirect,
+  TEXT_SUBS, streamsOf, audioLabel, subtitleLabel, qualitiesFor, qualityById, effectiveQuality, defaultQuality, forceDirect, audioExtras,
 } from '../player/options.js';
 import { subOffset, setSubOffset, offsetLabel, preferredSub } from '../player/subprefs.js';
 import * as lang from '../util/lang.js';
@@ -207,7 +207,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     if (!mc) {
       kind = 'direct';
       modeText = forceDirect() ? 'Direct Play (forced)' : 'Direct Play';
-      info = [srcVideo, srcAudio, media.bitrate ? Math.round(media.bitrate / 1000) + ' Mbps' : ''];
+      info = [srcVideo, srcAudio, media.bitrate >= 500 ? Math.round(media.bitrate / 1000) + ' Mbps' : ''];
     } else {
       const m = (mc.Metadata && mc.Metadata[0] && mc.Metadata[0].Media && mc.Metadata[0].Media[0]) || {};
       const streams = (m.Part && m.Part[0] && m.Part[0].Stream) || [];
@@ -220,13 +220,17 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
         kind = 'stream';
         modeText = 'Direct Stream';
         info = ['video untouched (' + srcVideo + ')',
-          audioCopied ? srcAudio : 'audio ' + (audioStream ? codecName(audioStream.codec) : '') + ' → ' + codecName(ad.codec || 'aac')];
+          audioCopied ? srcAudio : 'audio ' + (audioStream ? codecName(audioStream.codec) : '') + ' → ' + codecName(ad.codec || 'aac'),
+          audioCopied || audioDirectOk() ? '' : 'change in Settings › Audio formats'];
       } else {
         kind = 'transcode';
         modeText = 'Transcoding';
         const why = sd.decision === 'burn' ? 'burning in subtitles' : quality.kbps ? 'lower quality picked' : srcVideo + ' → ' + codecName(vd.codec || 'h264');
-        info = [resLabel(m.videoResolution || (quality.height ? String(quality.height) : '')), m.bitrate ? Math.round(m.bitrate / 1000) + ' Mbps' : '', why,
-          audioCopied ? '' : 'audio → ' + codecName(ad.codec || 'aac')];
+        if (!quality.kbps && !audioDirectOk()) info = null; // explained below
+        info = info === null && !audioDirectOk()
+          ? [why, 'because ' + codecName(audioStream.codec) + ' audio is set to convert (Settings › Audio formats)']
+          : [resLabel(m.videoResolution || (quality.height ? String(quality.height) : '')), m.bitrate ? Math.round(m.bitrate / 1000) + ' Mbps' : '', why,
+            audioCopied ? '' : 'audio → ' + codecName(ad.codec || 'aac')];
       }
     }
     setText(osdPlayMode, modeText);
@@ -313,10 +317,15 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     // A lower quality than the file means Plex has to convert it.
     if (quality.kbps) return 'hls';
     if (forceDirect()) return 'direct';
-    const directOk = DIRECT.container[media.container] && DIRECT.video[media.videoCodec] &&
-      (!audioStream || DIRECT.audio[audioStream.codec]);
+    const directOk = DIRECT.container[media.container] && DIRECT.video[media.videoCodec] && audioDirectOk();
     const subsOk = !subStream || isEmbeddedText(subStream) || isSidecarText(subStream);
     return directOk && subsOk ? 'direct' : 'hls';
+  }
+
+  function audioDirectOk() {
+    if (!audioStream) return true;
+    const c = String(audioStream.codec || '').toLowerCase();
+    return !!(DIRECT.audio[c] || audioExtras().codecs[c]);
   }
 
   async function open(atMs) {

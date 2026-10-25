@@ -8,7 +8,7 @@ import * as router from '../router.js';
 import { ServerPicker } from './login.js';
 import { error } from '../util/log.js';
 import { useAmbience, setLegacyGradients, legacyGradients } from '../ui/backdrop.js';
-import { QUALITIES, qualityById, defaultQuality, setDefaultQuality, forceDirect, setForceDirect } from '../player/options.js';
+import { QUALITIES, qualityById, defaultQuality, setDefaultQuality, forceDirect, setForceDirect, audioExtras, cycleAudioExtras } from '../player/options.js';
 import { subSize, subBackground, cycleSubSize, toggleSubBackground, subLang, cycleSubLang } from '../player/subprefs.js';
 import * as watchlist from '../plex/watchlist.js';
 import { DownloadsScreen } from './downloads.js';
@@ -44,6 +44,7 @@ export function SettingsScreen() {
       { label: 'Server', value: session.server ? session.server.name : '—', run: switchServer },
       { label: 'Signed in as', value: session.user ? session.user.title : '—', run: doSignOut, action: 'Sign out' },
       { label: 'Default quality', value: qualityById(defaultQuality()).label, run: () => { nextDefaultQuality(); build(); } },
+      { label: 'Audio formats', value: audioExtras().label, run: () => { cycleAudioExtras(); build(); } },
       { label: 'Force direct play', value: forceDirect() ? 'On · never convert' : 'Off · convert only when needed', run: () => { setForceDirect(!forceDirect()); build(); } },
       { label: 'Subtitle language', value: subLang().label, run: () => { cycleSubLang(); build(); } },
       { label: 'Subtitle size', value: subSize().label, run: () => { cycleSubSize(); build(); } },

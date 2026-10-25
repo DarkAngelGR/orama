@@ -82,3 +82,23 @@ export function forceDirect() {
 export function setForceDirect(on) {
   store.set('forceDirect', on ? true : undefined);
 }
+
+// Audio formats this TV (or its soundbar, over eARC) plays without help, on
+// top of the standard ones. Samsung's own decoder skips these, but many setups
+// pass them through fine: Force direct play is the way to check.
+export const AUDIO_EXTRAS = [
+  { id: 'std', label: 'Standard (convert TrueHD and DTS)', codecs: {} },
+  { id: 'truehd', label: 'Also Dolby TrueHD / Atmos', codecs: { truehd: 1 } },
+  { id: 'all', label: 'Also TrueHD and DTS', codecs: { truehd: 1, dca: 1, dts: 1, 'dca-ma': 1 } },
+];
+
+export function audioExtras() {
+  const id = store.get('audioExtras', 'std');
+  return AUDIO_EXTRAS.find(a => a.id === id) || AUDIO_EXTRAS[0];
+}
+
+export function cycleAudioExtras() {
+  const i = AUDIO_EXTRAS.indexOf(audioExtras());
+  const next = AUDIO_EXTRAS[(i + 1) % AUDIO_EXTRAS.length].id;
+  store.set('audioExtras', next === 'std' ? undefined : next);
+}
