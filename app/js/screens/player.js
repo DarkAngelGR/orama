@@ -599,10 +599,28 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     // External subtitle files are drawn by us, so their timing can be nudged.
     if (isSidecarText(subStream)) panelLists[1].push({ offset: true, label: timingLabel() });
     panelIndex = panelLists.map(l => Math.max(0, l.findIndex(x => x.on)));
+    panelFirst = panelLists.map(() => 0);
     panelCol = 0;
     renderPanel();
     panel.classList.remove('hidden');
     hideOsd();
+  }
+
+  // Long lists (30 subtitle tracks...) scroll so the focused or chosen row is
+  // always visible, with a row of context above and below. Rows have a fixed
+  // height, so nothing needs measuring.
+  const PANEL_ROW = 68;      // .tracks-opt height + margin
+  const PANEL_VISIBLE = 11;  // rows that fit under the column heading
+  let panelFirst = [];
+
+  function scrollPanel(c) {
+    const n = panelLists[c].length;
+    if (n <= PANEL_VISIBLE) { panelFirst[c] = 0; return; }
+    const i = panelIndex[c];
+    let first = panelFirst[c] || 0;
+    if (i < first + 1) first = i - 1;
+    if (i > first + PANEL_VISIBLE - 2) first = i - PANEL_VISIBLE + 2;
+    panelFirst[c] = Math.max(0, Math.min(first, n - PANEL_VISIBLE));
   }
 
   function renderPanel() {
@@ -612,8 +630,16 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       const head = h('div', 'tracks-head', col);
       head.innerHTML = spec.icon;
       h('span', '', head).textContent = spec.name;
+      scrollPanel(c);
+      const clip = h('div', 'tracks-list', col);
+      const listEl = h('div', 'tracks-track', clip);
+      const first = panelFirst[c];
+      const n = panelLists[c].length;
+      toggleClass(clip, 'more-up', first > 0);
+      toggleClass(clip, 'more-down', first + PANEL_VISIBLE < n);
+      if (first) setTransform(listEl, 'translateY(' + (-first * PANEL_ROW) + 'px)');
       panelLists[c].forEach((opt, i) => {
-        const row = h('div', 'tracks-opt' + (opt.offset ? ' tracks-adjust' : ''), col);
+        const row = h('div', 'tracks-opt' + (opt.offset ? ' tracks-adjust' : ''), listEl);
         row.textContent = opt.label;
         toggleClass(row, 'on', opt.on);
         toggleClass(row, 'focus', c === panelCol && i === panelIndex[c]);

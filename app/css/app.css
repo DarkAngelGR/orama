@@ -433,7 +433,13 @@ html.subs-bg .subs-text {
 .tracks-col { flex: 1; margin-right: 32px; overflow: hidden; }
 .tracks-head { display: flex; align-items: center; margin-bottom: 24px; font: 600 24px var(--body); color: var(--dim); letter-spacing: 0.08em; text-transform: uppercase; }
 .tracks-head svg { width: 30px; height: 30px; margin-right: 12px; }
+.tracks-list { position: relative; height: 748px; overflow: hidden; }
+.tracks-list.more-down { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 90px), transparent); }
+.tracks-list.more-up { -webkit-mask-image: linear-gradient(to bottom, transparent, #000 90px); }
+.tracks-list.more-up.more-down { -webkit-mask-image: linear-gradient(to bottom, transparent, #000 90px, #000 calc(100% - 90px), transparent); }
+.tracks-track { position: absolute; left: 0; right: 0; top: 0; }
 .tracks-opt {
+  height: 62px; line-height: 30px;
   padding: 16px 22px; margin-bottom: 6px; border-radius: 14px;
   font: 500 25px var(--body); color: rgba(244, 243, 255, 0.75);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
