@@ -28,23 +28,31 @@ export function UsersScreen({ onDone } = {}) {
   let busy = false;
   let alive = true;
 
-  function render() {
+  // Cards are built once; moving only moves the highlight, so the pictures
+  // never reload (rebuilding them on every press made them flicker).
+  let cards = [];
+  function build() {
     list.innerHTML = '';
-    users.forEach((u, i) => {
+    cards = users.map(u => {
       const card = h('div', 'user', list);
       const face = h('div', 'user-face', card);
+      h('span', 'user-initials', face).textContent = initials(u.title);
       if (u.thumb) {
         const img = h('img', '', face);
         img.onload = () => { img.style.opacity = 1; };
         img.src = u.thumb;
       }
-      h('span', 'user-initials', face).textContent = initials(u.title);
       const name = h('div', 'user-name', card);
       name.textContent = u.title;
       if (u.protected) { const lock = h('span', 'user-lock', name); lock.innerHTML = LOCK; }
       if (session.user && u.uuid === session.user.uuid) h('div', 'user-current', card).textContent = 'Watching now';
-      toggleClass(card, 'focus', i === index);
+      return card;
     });
+    render();
+  }
+
+  function render() {
+    cards.forEach((card, i) => toggleClass(card, 'focus', i === index));
   }
 
   async function load() {
@@ -60,7 +68,7 @@ export function UsersScreen({ onDone } = {}) {
     if (users.length < 2 && onDone) { onDone(); return; }
     index = Math.max(0, users.findIndex(u => session.user && u.uuid === session.user.uuid));
     if (!users.length) setText(note, 'No Plex Home profiles on this account.');
-    render();
+    build();
   }
 
   async function choose(u, pin) {
