@@ -1,271 +1,233 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: light)" srcset="assets/brand/lockup-horizontal-dark-1920x640.png">
-    <img src="assets/brand/lockup-horizontal-light-1920x640.png" alt="Orama" width="560">
+    <img src="assets/brand/lockup-horizontal-light-1920x640.png" alt="Orama" width="520">
   </picture>
 </p>
 
 <p align="center">
-  <b>Orama (όραμα, "vision"): a fast player for your Plex library on Samsung TVs.</b><br>
-  Smooth scrolling, hardware playback, zero dependencies.
+  <b>A fast, good-looking player for your Plex library on Samsung TVs.</b><br>
+  Instant browsing, hardware playback, and the extras the official app is missing.
 </p>
-
-<p align="center"><sub>By <a href="https://github.com/DarkAngelGR">Aggelos (DarkAngelGR)</a>. Based on <a href="https://github.com/rfaile313/samsucks">SamSUCKS</a> by rfaile313.</sub></p>
 
 <p align="center">
-  <img src="assets/readme/home.png" alt="Orama home screen" width="880">
+  <a href="https://github.com/DarkAngelGR/FlexPlex/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/DarkAngelGR/FlexPlex?label=release&color=8B7CFF"></a>
+  <img alt="Samsung Tizen" src="https://img.shields.io/badge/Samsung-Tizen%205.5%2B-1f1f2e">
+  <a href="LICENSE"><img alt="License: GPL-3.0" src="https://img.shields.io/badge/license-GPL--3.0-1f1f2e"></a>
 </p>
 
-The official Plex app on Samsung TVs is painfully slow. The same library flies on a
-Fire TV or an Apple TV, so the TV isn't the problem; the app is.
+<p align="center">
+  <img src="assets/readme/home.png" alt="Orama's home screen" width="880">
+</p>
 
-On a 75" Samsung Q60B (2022, Tizen 6.5), as measured by the original SamSUCKS author:
+Orama (όραμα, Greek for "vision") replaces the official Plex app on Samsung smart TVs. The
+official app takes up to a minute to open and lags on every key press; Orama opens in about a
+second, scrolls smoothly, and plays almost everything straight through the TV's hardware
+decoder, so your server barely has to work.
 
-| | Official Plex app | Orama |
-| --- | --- | --- |
-| Opening the app | about a minute | about a second |
-| Typing in search | every letter lags | instant |
-| Search results | take forever | appear as you type |
+## Highlights
 
-The Plex server answers a search in 30–150 ms, so the server was never the bottleneck.
+**Fast**
+- Home in under a second, smooth scrolling everywhere, search results as you type.
+- Direct play through Samsung's hardware decoder. Only what the TV really can't play is converted,
+  and the player tells you exactly what's happening: *Direct Play*, *Direct Stream* or *Transcoding*.
 
-Orama is a from-scratch Plex client for Samsung's Tizen TVs, built for speed:
+**Made for watching**
+- Pick quality, audio and subtitles before you press play, or make Greek or English subtitles
+  the default for everything.
+- Skip intro and credits, subtitle timing and size, up next with your languages kept.
+- Movie and show pages with ratings (IMDb, Rotten Tomatoes, TMDB), cast with photos, the rest of a
+  movie's collection, episode descriptions, theme music and a full "More info" page.
 
-- **Smooth.** About 50 fps while scrolling, with a 17 ms median frame, measured on a 2022 Samsung Q60B.
-- **Hardware playback.** It plays files directly through Samsung's video decoder.
-  On a real 3,952-item library, 98.7% plays without any transcoding.
-- **Quick to start.** Home appears in under a second, and video starts about a second after you press play.
-- **Tiny.** Plain JavaScript, no framework, no npm, no build step.
+**Made for your server**
+- Search beyond your library: find any movie or show and add it to your Plex Watchlist.
+- With [watchlist-sync](#optional-companions), Watchlist adds reach Sonarr and Radarr in seconds,
+  and a *Downloading* row shows their progress live.
+- The home screen shows library scans as they happen and picks up new media by itself.
 
-Orama adds:
+**Made for the household**
+- Plex Home profiles, with PINs and an optional "Who's watching?" at start.
+- Updates from GitHub Releases, installed from the TV itself with the optional
+  [Orama installer](installer/).
 
-- **Search beyond your server.** Search also looks in Plex's movie and TV catalog and lists what
-  you don't have under "Not on your server". **Add to Watchlist** puts it on your Plex Watchlist;
-  with [watchlist-sync](https://github.com/DarkAngelGR/watchlist-sync) running, Orama asks it
-  to sync right away, so shows go to Sonarr and movies to Radarr within seconds. watchlist-sync is
-  found automatically when it runs on the same machine as Plex; see Settings › Downloads.
-- **IMDb, Rotten Tomatoes and TMDB ratings** on the detail page and in lists.
-- **Updates without a computer.** Each new version is published as a GitHub release; Orama
-  tells you when one is out, and the [Orama installer](installer/) on your server installs it on
-  the TV with Apps2Samsung's command-line tool, from **Settings › Updates** (or its web page, from
-  your phone).
-- **Download progress.** With watchlist-sync, a "Downloading" row on the home screen shows what Sonarr/Radarr
-  are fetching (progress, time left, or "looking for a download"), and a title's page shows its progress live.
-- **Live library.** The home screen shows when Plex is scanning a library ("Scanning Movies · 42%")
-  and picks up new or removed media by itself, without restarting the app.
-- **Plex Home profiles.** Switch profiles (with PIN) from Settings › Profile, or have Orama ask
-  "Who's watching?" at start; each profile has its own Continue Watching and watched state.
-- **Theme music.** A title's theme plays quietly on its page, like Plex (Settings › Theme music).
-- **Collections.** A movie's page shows the rest of its collection (e.g. the trilogy) from Radarr, owned or
-  not: owned parts open, missing ones can be added to your Watchlist (needs watchlist-sync).
-- **Cast.** Movie and show pages have a Cast row with photos; pick an actor to see everything on your
-  server they're in.
-- **More info.** A full page per title (button on the detail page, or the Info key): the whole
-  description, director, writers, cast with characters, studio, release date and all ratings, plus
-  the version, size, bitrate, audio tracks and subtitles of your own files.
-- **Choose before you play.** Quality (or which version), audio and subtitles on the detail page.
-- **See how it's playing.** The player's info bar says **Direct Play**, **Direct Stream** (e.g. only the audio
-  converted) or **Transcoding**, with the details. **Force direct play** in Settings never converts.
-- **Player extras.** Skip intro/credits, subtitle timing, size and background, a CH ▲▼ (or green-button)
-  subtitle toggle, and the next episode keeps your languages.
+## Getting started
 
-## Install
+You need a Samsung smart TV (2020 or newer recommended; Tizen 5.5+) and a Plex Media Server.
 
-You need:
-- a Samsung smart TV (tested on a 2022 Q60B; 2020 or newer should work),
-- a Mac or Linux computer on the same network as the TV,
-- a Plex Media Server.
+### Option 1: install a release with Apps2Samsung (easiest)
 
-**1. Download Orama**
+1. Download `Orama-x.y.z.wgt` from the [latest release](https://github.com/DarkAngelGR/FlexPlex/releases/latest).
+2. Install it with [Apps2Samsung](https://github.com/Apps2Samsung/Apps2Samsung) (Windows, macOS
+   or Linux): turn on Developer Mode on the TV (see below), pick the TV in Apps2Samsung, and
+   install your own `.wgt`.
+3. Open Orama on the TV, go to **[plex.tv/link](https://plex.tv/link)** on your phone and type the
+   code it shows, or scan the QR code.
+
+### Option 2: build and install from source (macOS or Linux)
 
 ```sh
-git clone https://github.com/DarkAngelGR/samsucks.git
-cd samsucks
+git clone https://github.com/DarkAngelGR/FlexPlex.git orama
+cd orama
+./scripts/setup.sh     # Samsung's command-line tools, finds the TV, creates a signing certificate
+./scripts/deploy.sh    # builds, installs and opens Orama on the TV
 ```
 
-**2. Run setup**
-
-```sh
-./scripts/setup.sh
-```
-
-This installs Samsung's command-line tools (about 270 MB), finds your TV on the
-network, and creates a signing certificate. If Developer Mode isn't turned on yet,
-it stops and tells you exactly what to do, including your computer's IP address.
-The steps are also below. Run it again afterwards, and it picks up where it left off.
-
-**3. Install it on the TV**
-
-```sh
-./scripts/deploy.sh
-```
-
-Orama opens on the TV. Go to **[plex.tv/link](https://plex.tv/link)** on your phone
-or computer and type the code it shows, or scan the QR code. That's it.
+`setup.sh` stops and explains what to do if Developer Mode isn't on yet, and picks up where it
+left off when you run it again.
 
 <details>
 <summary><b>Turning on Developer Mode</b></summary>
 
 1. Press **Home** on the remote and open **Apps**.
-2. On the Apps screen, type **1 2 3 4 5** on the remote.
-   - No number keys? Press the **123** button to bring up the on-screen keypad.
-   - Nothing happened? Try again, typing a bit faster.
-3. Switch **Developer mode** to **On**, and enter your computer's IP address
-   (`./scripts/setup.sh` prints it).
-4. Choose **OK**, then restart the TV: hold the **Power** button until it turns off and back on.
+2. On the Apps screen, type **1 2 3 4 5**. No number keys? Use the on-screen keypad (**123**).
+3. Switch **Developer mode** to **On** and enter the IP address of the computer (or server) that
+   will install apps.
+4. Choose **OK**, then restart the TV: hold **Power** until it turns off and on again.
 
-When it's on, the Apps screen shows **Develop mode** at the top.
+The Apps screen shows **Develop mode** at the top when it's on.
 </details>
 
-### Opening it later
-
-Press **Home** → **Apps** and scroll to the bottom, where your installed apps are.
-To pin it to the home bar, highlight **Orama**, open its options (hold **OK**) and
-choose **Add to Home**.
-
-### Troubleshooting
+<details>
+<summary><b>Troubleshooting</b></summary>
 
 | Problem | Fix |
 | --- | --- |
-| Typing 12345 does nothing | Make sure you're on the **Apps** screen. Use the on-screen keypad (**123** button) if your remote has no number keys, and type quickly. |
-| Setup says "No Samsung TV found" | Turn the TV on and make sure it's on the same network (Wi-Fi or Ethernet) as your computer. |
-| Setup says Developer Mode points at another IP | Re-enter your computer's IP in the Developer Mode popup, then restart the TV. |
-| "Can't reach the TV" when deploying | Restart the TV, then run `./scripts/setup.sh` again. Your computer's IP may have changed. |
-| The app disappeared | TV firmware updates can remove sideloaded apps. Run `./scripts/deploy.sh` again. |
-| The sign-in code expired | Press **OK** on the sign-in screen for a new code. |
+| Typing 12345 does nothing | Make sure you're on the **Apps** screen, and type quickly. |
+| The TV isn't found | Turn it on and check it's on the same network as your computer. |
+| "Can't reach the TV" when installing | Developer Mode must point at the installing machine's IP. Re-enter it and restart the TV. |
+| The app disappeared | Firmware updates can remove sideloaded apps; install it again. |
+| The sign-in code expired | Press **OK** on the sign-in screen for a new one. |
+</details>
 
-## Using it
+## Optional companions
+
+Orama works on its own. Two small services on your server add more:
+
+- **[watchlist-sync](https://github.com/DarkAngelGR/watchlist-sync)** sends the Plex Watchlists of
+  your household and friends to Sonarr and Radarr. Orama then syncs Watchlist adds instantly,
+  shows download progress, and lists the parts of a collection you don't have yet.
+- **[Orama installer](installer/)** keeps Orama up to date: when a new release is out, install it
+  from **Settings › Updates** on the TV or from a web page on your phone.
+
+Both run in Docker and are found automatically when they run on the same machine as Plex.
+
+## Using Orama
 
 | Remote | What it does |
 | --- | --- |
 | Arrows / OK | Move around / select |
-| Play/Pause | Play whatever is focused, or pause and resume |
+| Play/Pause | Play whatever is focused; pause and resume |
 | Back | Go back (while watching, the first press hides the controls) |
-| ▼ while watching | Audio and subtitle tracks |
+| ▲ while watching | Show the info bar: title, progress and how it's playing |
+| ▼ while watching | Audio, subtitles and quality |
 | ◀ ▶ while watching | Seek; hold to go faster |
-| Yellow | Change the sort order in a library |
-| CH ▲ / CH ▼ | Jump by letter in a library |
+| CH ▲ / CH ▼ while watching | Subtitles on or off |
+| ▲ from the first row of a library | Sort (A–Z, recently added, release date, rating) |
+| CH ▲ / CH ▼ in a library | Jump by letter |
 
-What's in it: home rows (Continue Watching, On Deck, Recently Added…), full library
-grids, search with the TV keyboard, movie and show pages with seasons and episodes,
-resume and mark watched, audio and subtitle picker (including external `.srt` files),
-up-next autoplay, and watch progress synced back to Plex.
+Everything else lives in **Settings**: profiles, default quality, subtitle language and style,
+audio formats your TV can play, force direct play, theme music, downloads and updates.
 
 ## Why it's fast
 
-Samsung TVs only run web apps, but there's nothing slow about the web engine
-if you treat it like a game engine:
+Samsung TVs only run web apps, but the web engine is quick if you treat it like a game engine:
+every animation is a GPU transform or fade, lists recycle a fixed set of tiles, the focus ring
+stays still while content slides under it, a held key never queues up work, and Plex resizes
+every image to exactly the pixels on screen.
 
-- Every animation is a GPU transform or fade. Nothing big is ever repainted.
-- Lists reuse a fixed set of tiles instead of creating new ones as you scroll.
-- The focus ring never moves. The content slides under it.
-- A held-down key can never queue up work: input is applied at most once per frame.
-- Plex resizes every image to exactly the pixels on screen before it's sent.
-- Video goes straight to Samsung's hardware decoder. Only what the TV can't decode
-  (mostly DTS audio) is converted by Plex, and the video itself is never re-encoded.
-
-The biggest win was one line of CSS:
+The biggest single win was replacing a full-screen CSS gradient, which took almost two seconds
+to repaint on the TV's CPU, with a 2×2-pixel WebGL texture the GPU stretches for free:
 
 <p align="center">
-  <img src="assets/readme/frame-trace.png" alt="Frame times for the same 12 button presses: the old renderer froze for about 2 seconds on every press and took 24.4 s; Orama finished in 3.7 s and never went above 66 ms" width="760">
+  <img src="assets/readme/frame-trace.png" alt="Frame times for the same 12 button presses: the old renderer froze for about 2 seconds on every press and took 24.4 s; the new one finished in 3.7 s and never went above 66 ms" width="720">
 </p>
 
-A full-screen CSS gradient behind the UI took **almost two seconds** to repaint on the
-TV's CPU. Now the background is a 2×2-pixel WebGL texture that the GPU stretches to
-fill the screen: it looks the same and costs nothing. Want to see the difference?
-**Settings → Demo: original slow renderer** brings the old one back, and
-**Settings → Performance overlay** shows the frame rate.
-
-## For developers
-
 <details>
-<summary><b>Dev loop: logs, remote control and benchmarks on the real TV</b></summary>
+<summary><b>Measurements</b> (2022 Samsung Q60B, Tizen 6.5, measured by the original SamSUCKS author)</summary>
 
-Chrome DevTools can't attach to a retail TV, so dev builds talk to a small server on
-your computer instead. Put your computer's `host:port` in `.env` as `DEV_HOST`, then:
-
-```sh
-node tools/devserver.mjs          # receives logs and perf samples from the TV (build/tv.log)
-./scripts/deploy.sh --dev         # dev build: performance overlay, logging, remote control
-
-tools/tvsend.sh keys=down,right,right,enter                  # press buttons
-tools/tveval.sh 'document.title'                              # run JS on the TV, print the result
-tools/tveval.sh '__bench(["right","right","left","left"], 250)'   # frame stats while replaying keys
-tools/tveval.sh "__css('.hero-art{display:none}')"           # A/B test a CSS change live
-```
-
-Commands run as code inside the app on the TV, so the dev server only accepts them with
-the random secret in `build/dev-secret` (created on first run and built into `--dev`
-builds), and only from command-line tools on your computer. Rebuild with `--dev` if you
-delete that file.
-
-With `DEV_SKIP_LOGIN=1` and `PLEX_SERVER_URL` in `.env`, dev builds skip sign-in and
-use a server that allows unauthenticated local-network access.
-
-The UI also runs in desktop Chrome: `./scripts/deploy.sh --build-only`, then serve
-`build/app/` with any static server. It uses a `<video>` element instead of AVPlay there.
-</details>
-
-<details>
-<summary><b>How the code is laid out</b></summary>
-
-```
-app/            the whole TV app; deploy.sh copies it to build/app and packages it
-  js/screens/   home, library, detail, player, search, settings, login
-  js/ui/        rows, grids, tiles, image loader, backdrop, perf overlay
-  js/plex/      plex.tv sign-in and Plex Media Server API
-  js/platform/  Tizen keys and device info, AVPlay / <video> player
-scripts/        setup.sh (one-time) and deploy.sh (build + install)
-tools/          dev server, TV eval, network remote
-```
-
-There's no bundler. The TV's browser (Chromium 69+ on Tizen 5.5+) runs ES modules
-natively, and `deploy.sh` adds `<link rel="modulepreload">` tags so every module loads
-in parallel (about 0.9 s cold start, versus 0.8 s for a minified bundle).
-</details>
-
-<details>
-<summary><b>Performance notes</b> (measured on a 2022 Q60B, Tizen 6.5, Chromium 85)</summary>
+| | Official Plex app | Orama |
+| --- | --- | --- |
+| Opening the app | about a minute | about a second |
+| Typing in search | every letter lags | instant |
+| Scrolling | stutters | about 50 fps, 17 ms median frame |
 
 | Background renderer | fps while navigating | worst frame |
 | --- | --- | --- |
 | Full-screen CSS `radial-gradient` | 11 | 1,928 ms |
 | 2×2 2D canvas, stretched by CSS | 20 | 207 ms |
-| 2×2 WebGL canvas, stretched by the compositor | 49–50 | 80 ms (17 ms median) |
+| 2×2 WebGL canvas, stretched by the compositor | 49–50 | 80 ms |
 
-Ruled out by A/B testing on the TV: hero image masks, the focus ring's shadow,
-poster fade-ins, row opacity changes, and per-tile compositor layers. None made a
-measurable difference.
+On a real 3,952-item library, 98.7% of titles play without any transcoding.
+**Settings › Performance overlay** shows the frame rate on your own TV.
+</details>
+
+## For developers
+
+<details>
+<summary><b>Project layout</b></summary>
+
+```
+app/            the TV app (plain ES modules, no framework, no bundler)
+  js/screens/   home, library, detail, player, search, settings, profiles…
+  js/ui/        rows, grids, tiles, image loader, backdrop, theme music
+  js/plex/      plex.tv sign-in, Plex Media Server, Discover, watchlist-sync, updates
+  js/platform/  Tizen keys and device info, AVPlay / <video> player
+installer/      the Orama installer (Docker)
+scripts/        setup.sh, deploy.sh, make-logo.py
+tools/          dev server, TV eval, network remote
+```
+
+The TV's browser (Chromium 69+ on Tizen 5.5+) runs ES modules natively; `deploy.sh` adds
+`<link rel="modulepreload">` tags so every module loads in parallel.
 </details>
 
 <details>
-<summary><b>Plex server quirks</b></summary>
+<summary><b>Dev loop on the real TV</b></summary>
 
-- Plex Media Server 1.42 returns `400` for `start.m3u8` unless
+Chrome DevTools can't attach to a retail TV, so dev builds talk to a small server on your
+computer. Put its `host:port` in `.env` as `DEV_HOST` (see `.env.example`), then:
+
+```sh
+node tools/devserver.mjs          # receives logs and perf samples from the TV (build/tv.log)
+./scripts/deploy.sh --dev         # dev build: performance overlay, logging, remote control
+
+tools/tvsend.sh keys=down,right,enter                             # press buttons
+tools/tveval.sh 'document.title'                                  # run JS on the TV
+tools/tveval.sh '__bench(["right","right","left","left"], 250)'   # frame stats while replaying keys
+```
+
+The dev server only accepts commands carrying the random secret in `build/dev-secret`, created
+on first run and built into `--dev` builds.
+
+The UI also runs in desktop Chrome: `./scripts/deploy.sh --build-only`, then serve `build/app/`
+with any static server (it uses a `<video>` element instead of AVPlay there).
+</details>
+
+<details>
+<summary><b>Plex server notes</b></summary>
+
+- Plex Media Server 1.42+ returns `400` for `start.m3u8` unless
   `/video/:/transcode/universal/decision` was called for the same session first.
-- `X-Plex-Platform=Tizen` selects the server's built-in profile for the official app,
-  which rejects these transcode requests, so Orama identifies itself as `Samsung`.
-- Samsung TVs from 2018 on can't decode DTS. For those files Plex copies the video
-  and converts only the audio, to AC3 5.1.
+- `X-Plex-Platform=Tizen` selects the server's profile for the official app, which rejects these
+  transcode requests, so Orama identifies itself as `Samsung`.
+- Samsung TVs from 2018 on don't decode DTS themselves; Orama converts it unless
+  **Settings › Audio formats** says your setup (e.g. a soundbar over eARC) can play it.
 </details>
 
 ## Credits
 
-Inspired by [plx-native](https://github.com/GLinnik21/plx-native), a native Plex client
-for LG TVs. Fonts: [Inter](https://rsms.me/inter/) and
-[Barlow Condensed](https://fonts.google.com/specimen/Barlow+Condensed) (SIL Open Font
-License). QR codes: [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator)
-by Kazuhiko Arase (MIT).
-
-Orama is an independent project, not affiliated with Plex or Samsung.
+Orama started as a fork of [SamSUCKS](https://github.com/rfaile313/samsucks) by rfaile313 and was
+inspired by [plx-native](https://github.com/GLinnik21/plx-native), a native Plex client for LG TVs.
+Font: [Outfit](https://fonts.google.com/specimen/Outfit) (SIL Open Font License). QR codes:
+[qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) by Kazuhiko Arase (MIT).
+Installs and updates use [Apps2Samsung](https://github.com/Apps2Samsung/Apps2Samsung).
 
 ## License
 
-Orama is a modified version of [SamSUCKS](https://github.com/rfaile313/samsucks),
-copyright © 2026 rfaile313; changes copyright © 2026 DarkAngelGR. It is free software, released under the
-[GNU General Public License v3.0](LICENSE): you can use, study, change and share it,
-and anything you distribute that's built on it must stay open source under the same
-license.
+Orama is free software under the [GNU General Public License v3.0](LICENSE). It is a modified
+version of SamSUCKS, copyright © 2026 rfaile313; changes copyright © 2026 Aggelos (DarkAngelGR).
+You can use, study, change and share it; anything you distribute that's built on it must stay
+open source under the same license.
 
-Orama is an independent app. It is not made by, endorsed by or affiliated with Plex, Inc.; "Plex" is
-their trademark, used here only to say which media server Orama works with.
+Orama is an independent project, not made by, endorsed by or affiliated with Plex, Inc. or
+Samsung. "Plex" is a trademark of Plex, Inc., used only to say which media server Orama works with.

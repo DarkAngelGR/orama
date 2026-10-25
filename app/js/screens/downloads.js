@@ -77,7 +77,7 @@ export function DownloadsScreen() {
   function editAddress() {
     router.push(PromptScreen({
       title: 'watchlist-sync address',
-      hint: 'e.g. 192.168.178.30:' + watchlist.DEFAULT_PORT + '. Leave empty for automatic',
+      hint: 'e.g. 192.168.1.10:' + watchlist.DEFAULT_PORT + '. Leave empty for automatic',
       value: watchlist.manualUrl().replace(/^https?:\/\//, ''),
       placeholder: watchlist.plexLanHost() ? watchlist.plexLanHost() + ':' + watchlist.DEFAULT_PORT : '192.168.1.10:' + watchlist.DEFAULT_PORT,
       onDone: v => { watchlist.setManualUrl(v); check(); },

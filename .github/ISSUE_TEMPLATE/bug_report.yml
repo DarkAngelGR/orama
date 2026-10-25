@@ -1,0 +1,36 @@
+name: Bug report
+description: Something doesn't work or looks wrong
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Orama version
+      description: Shown at the bottom of Settings.
+      placeholder: e.g. 0.17.0
+    validations:
+      required: true
+  - type: input
+    id: tv
+    attributes:
+      label: TV model and year
+      placeholder: e.g. Samsung S95F (2025)
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+      description: Steps to get there help a lot. A photo of the screen is welcome.
+    validations:
+      required: true
+  - type: textarea
+    id: playback
+    attributes:
+      label: For playback problems
+      description: Press ▲ while playing and copy the line under the title (Direct Play / Direct Stream / Transcoding and the details).
+  - type: textarea
+    id: setup
+    attributes:
+      label: Your setup (optional)
+      description: Plex Media Server version, soundbar/receiver, whether you use watchlist-sync or the Orama installer.

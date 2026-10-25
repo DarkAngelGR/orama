@@ -39,7 +39,7 @@ export function setPassword(pw) {
 }
 
 // The LAN host Plex is reached at. plex.direct names encode the IP
-// ("192-168-178-30.<hash>.plex.direct"); relay/remote hosts don't count.
+// ("192-168-1-10.<hash>.plex.direct"); relay/remote hosts don't count.
 export function plexLanHost() {
   const uri = session.server && session.server.uri;
   if (!uri) return '';
