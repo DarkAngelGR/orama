@@ -68,7 +68,7 @@ export function HomeScreen() {
   h('img', 'brand-mark', brand).src = 'img/logo-mark.png';
   const brandText = h('div', 'brand-text', brand);
   h('img', 'brand-wordmark', brandText).src = 'img/wordmark.png';
-  h('div', 'brand-by', brandText).textContent = 'by rfaile313';
+  h('div', 'brand-by', brandText).textContent = 'by DarkAngelGR';
   // The nav is a clip with a sliding track, so any number of libraries fits.
   const navEl = h('nav', 'nav', top);
   const navTrack = h('div', 'nav-track', navEl);
