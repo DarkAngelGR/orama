@@ -9,7 +9,7 @@ import { longDate } from './info.js';
 import { clearLogo } from './home.js';
 import * as icons from '../ui/icons.js';
 import * as router from '../router.js';
-import { playItem } from '../nav.js';
+import { playItem, openPerson } from '../nav.js';
 import { InfoScreen } from './info.js';
 import { error } from '../util/log.js';
 import {
@@ -39,6 +39,10 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
   const epInfo = h('div', 'detail-epinfo', body);
   const epHead = h('div', 'detail-epinfo-head', epInfo);
   const epSummary = h('p', 'detail-epinfo-summary', epInfo);
+  // Cast with photos; placed under the play options for movies, under the
+  // episodes for shows.
+  const castWrap = h('div', 'detail-cast');
+  let cast = null;          // { row, items }
   const picker = new Picker(el);
   optionsEl.style.display = 'none';
 
@@ -304,6 +308,31 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     setTransform(seasonsTrack, 'translate3d(' + (-next) + 'px,0,0)');
   }
 
+  function renderCast() {
+    const roles = (item.Role || []).filter(r => r.tag).slice(0, 30);
+    if (!roles.length) {
+      if (castWrap.parentNode) castWrap.parentNode.removeChild(castWrap);
+      cast = null;
+      return;
+    }
+    const people = roles.map((r, i) => ({
+      ratingKey: 'person-' + (r.id || i), type: 'person', title: r.tag, role: r.role || '',
+      thumb: r.thumb || '', filter: r.filter || (r.id ? 'actor=' + r.id : ''), id: r.id,
+    }));
+    // Movies: right after the options. Shows: after the episodes.
+    const before = isShowLike() ? null : seasonsEl;
+    if (castWrap.parentNode !== body || (before && castWrap.nextSibling !== before)) body.insertBefore(castWrap, before);
+    if (!cast) {
+      const row = new Row({ title: 'Cast', kind: 'person', caption: true, items: people, onSelect: p => openPerson(p) });
+      row.el.classList.add('row-person');
+      castWrap.appendChild(row.el);
+      cast = { row, items: people };
+    } else {
+      cast.items = people;
+      cast.row.setItems(people);
+    }
+  }
+
   function renderFocus() {
     buttons.forEach((b, i) => toggleClass(b.el, 'focus', zone === 'buttons' && i === buttonIndex));
     options.forEach((o, i) => toggleClass(o.el, 'focus', zone === 'options' && i === optionIndex));
@@ -313,8 +342,11 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     });
     scrollSeasons();
     if (episodes) episodes.row.setActive(zone === 'episodes');
-    const shifted = zone === 'seasons' || zone === 'episodes';
-    const shift = SHIFT + (options.length ? OPTIONS_H : 0);
+    if (cast) cast.row.setActive(zone === 'cast');
+    const shifted = zone === 'seasons' || zone === 'episodes' || zone === 'cast';
+    let shift = SHIFT + (options.length ? OPTIONS_H : 0);
+    // The cast row: slide it up to the middle of the screen (read once per focus change).
+    if (zone === 'cast') shift = Math.max(0, castWrap.offsetTop - 430);
     setTransform(body, shifted ? 'translateY(' + (-shift) + 'px)' : 'translateY(0)');
     toggleClass(el, 'shifted', shifted);
   }
@@ -376,6 +408,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
       choice = null;
       fullCache.clear();
       renderHeader();
+      renderCast();
       if (isShowLike()) {
         seasons = (await session.server.children(item.ratingKey)).filter(s => s.type === 'season');
         if (!alive) return;
@@ -425,6 +458,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     if (options.length) order.push('options');
     if (seasons.length > 1) order.push('seasons');
     if (episodes) order.push('episodes');
+    if (cast) order.push('cast');
     const i = order.indexOf(zone) + dir;
     if (i < 0 || i >= order.length) return;
     zone = order[i];
@@ -472,6 +506,10 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
           return true;
         }
         if (action === 'enter') { moveZone(1); return true; }
+      } else if (zone === 'cast') {
+        if (action === 'left') { cast.row.move(-1); return true; }
+        if (action === 'right') { cast.row.move(1); return true; }
+        if (action === 'enter') { cast.row.select(); return true; }
       } else if (zone === 'episodes') {
         if (action === 'left') { episodes.row.move(-1); return true; }
         if (action === 'right') { episodes.row.move(1); return true; }

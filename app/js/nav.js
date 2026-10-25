@@ -6,6 +6,7 @@ import { PlayerScreen } from './screens/player.js';
 import { SearchScreen } from './screens/search.js';
 import { SettingsScreen } from './screens/settings.js';
 import { CatalogScreen } from './screens/catalog.js';
+import { PersonScreen } from './screens/person.js';
 
 export function openItem(item) {
   if (item.type === 'clip') { playItem(item); return; }
@@ -34,6 +35,10 @@ export function openSettings() {
 }
 
 // A title from Plex's catalog that isn't on your server.
+export function openPerson(person) {
+  router.push(PersonScreen(person));
+}
+
 export function openCatalog(item) {
   router.push(CatalogScreen(item));
 }

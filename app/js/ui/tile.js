@@ -10,6 +10,7 @@ export const KINDS = {
   wide: { w: 400, h: 225 },
   grid: { w: 216, h: 324 },
   episode: { w: 384, h: 216 },
+  person: { w: 176, h: 176 },
 };
 
 export function createTile(kind, { caption = false } = {}) {
@@ -35,7 +36,12 @@ export function createTile(kind, { caption = false } = {}) {
   return { el, img, ph, badge, bar, fill, cap, sub, kind, size, item: null };
 }
 
+function initials(name) {
+  return String(name || '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+}
+
 function artFor(item, kind) {
+  if (item.type === 'person') return item.thumb;
   if (kind === 'wide' || kind === 'episode') {
     if (item.type === 'episode') return item.thumb || item.art;
     return item.art || item.thumb;
@@ -51,6 +57,7 @@ function titleFor(item, kind) {
 }
 
 function subFor(item, kind) {
+  if (item.type === 'person') return item.role || '';
   if (item.type === 'episode') {
     return kind === 'episode' ? episodeLabel(item).replace(' · ', '') + '  ' + item.title
       : episodeLabel(item) + '  ' + item.title;
@@ -75,7 +82,7 @@ export function fillTile(tile, item) {
   const path = artFor(item, kind);
   // The web layer is 1920x1080, so tile size is exactly the pixels we need.
   load(tile.img, server ? server.image(path, tile.size.w, tile.size.h) : '');
-  setText(tile.ph, titleFor(item, kind));
+  setText(tile.ph, item.type === 'person' ? initials(item.title) : titleFor(item, kind));
 
   const p = progress(item);
   show(tile.bar, p > 0.01);
