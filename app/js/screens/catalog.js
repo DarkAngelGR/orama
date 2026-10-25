@@ -1,13 +1,14 @@
 // A movie or show from Plex's catalog that isn't on your server: details and
 // "Add to Watchlist". With watchlist-sync running, an add is synced right away
 // so Sonarr/Radarr start on it within seconds.
-import { h, setText, toggleClass } from '../util/dom.js';
+import { h, setText, toggleClass, setTransform } from '../util/dom.js';
 import { useAmbience, HeroArt } from '../ui/backdrop.js';
 import { session } from '../session.js';
 import { metaLine } from '../util/format.js';
 import * as icons from '../ui/icons.js';
 import * as discover from '../plex/discover.js';
 import * as watchlist from '../plex/watchlist.js';
+import * as downloads from '../plex/downloads.js';
 import { warn, log } from '../util/log.js';
 import * as router from '../router.js';
 import { InfoScreen } from './info.js';
@@ -26,6 +27,12 @@ export function CatalogScreen(initial) {
   const summary = h('p', 'detail-summary', body);
   const buttonsEl = h('div', 'detail-buttons', body);
   const note = h('div', 'catalog-note', body);
+  // Live download progress once Sonarr/Radarr have it (via watchlist-sync).
+  const dl = h('div', 'catalog-dl', body);
+  const dlText = h('div', 'catalog-dl-text', dl);
+  const dlBar = h('div', 'catalog-dl-bar', dl);
+  const dlFill = h('i', '', dlBar);
+  let wasDownloading = false;
 
   let item = initial;
   let listed = null;          // on the Watchlist? null = unknown yet
@@ -132,10 +139,30 @@ export function CatalogScreen(initial) {
       discover.onWatchlist(id).catch(e => { warn('watchlist state failed', e.message); return false; }),
     ]);
     if (!alive) return;
-    if (full) { item = Object.assign({}, initial, full); renderInfo(); }
+    if (full) { item = Object.assign({}, initial, full); renderInfo(); showDownload(); }
     listed = state;
     renderButtons();
   }
+
+  function showDownload() {
+    const d = downloads.find(item);
+    if (d) {
+      wasDownloading = true;
+      setText(dlText, downloads.describe(d));
+      const p = d.status === 'downloading' || d.status === 'paused' || d.status === 'stalled' ? (d.progress || 0) / 100 : 0;
+      toggleClass(dlBar, 'on', p > 0);
+      setTransform(dlFill, 'scaleX(' + Math.max(0.01, p).toFixed(3) + ')');
+      toggleClass(dl, 'on', true);
+      toggleClass(dl, 'failed', d.status === 'failed');
+    } else if (wasDownloading) {
+      // Left the queue after importing: Plex picks it up on its next scan.
+      setText(dlText, 'Downloaded  ·  it\'ll be in your library in a moment');
+      toggleClass(dlBar, 'on', false);
+    } else {
+      toggleClass(dl, 'on', false);
+    }
+  }
+  const unsubDownloads = downloads.subscribe(showDownload);
 
   renderInfo();
   renderButtons();
@@ -153,6 +180,6 @@ export function CatalogScreen(initial) {
       if (action === 'up' || action === 'down') return true;
       return false;
     },
-    destroy() { alive = false; },
+    destroy() { alive = false; unsubDownloads(); },
   };
 }

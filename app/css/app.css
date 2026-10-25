@@ -562,3 +562,12 @@ html.subs-bg .subs-text {
   animation: lib-spin 900ms linear infinite; will-change: transform;
 }
 @keyframes lib-spin { to { transform: rotate(360deg); } }
+
+/* Catalog page: download progress */
+.catalog-dl { display: none; margin-top: 18px; max-width: 760px; }
+.catalog-dl.on { display: block; }
+.catalog-dl-text { font: 500 26px var(--body); color: var(--cream); }
+.catalog-dl.failed .catalog-dl-text { color: #FF8A80; }
+.catalog-dl-bar { display: none; margin-top: 14px; height: 8px; border-radius: 4px; background: var(--faint); overflow: hidden; }
+.catalog-dl-bar.on { display: block; }
+.catalog-dl-bar i { display: block; height: 100%; background: var(--accent); transform-origin: 0 0; transition: transform 600ms var(--ease); will-change: transform; }

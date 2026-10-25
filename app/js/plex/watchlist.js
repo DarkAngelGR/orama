@@ -108,3 +108,15 @@ export async function info() {
 export async function syncNow() {
   return call('/api/tv/sync', { method: 'POST', body: {}, timeout: 6000 });
 }
+
+// What Sonarr/Radarr are downloading, per movie/series: { items: [{ kind,
+// title, year, tmdb, tvdb, imdb, poster, progress, status, timeleft, detail }] }.
+// null when this watchlist-sync is too old to say.
+export async function queue() {
+  try {
+    return await call('/api/tv/queue', { timeout: 10000 });
+  } catch (e) {
+    if (e.status === 404) return null;
+    throw e;
+  }
+}

@@ -8,10 +8,12 @@ import { metaLine } from '../util/format.js';
 import { isFast } from '../input.js';
 import * as store from '../util/store.js';
 import * as icons from '../ui/icons.js';
-import { openItem, playItem, openLibrary, openSearch, openSettings } from '../nav.js';
+import { openItem, playItem, openLibrary, openSearch, openSettings, openCatalog } from '../nav.js';
 import { error, log } from '../util/log.js';
 import * as updates from '../plex/updates.js';
 import * as notifications from '../plex/notifications.js';
+import * as downloads from '../plex/downloads.js';
+import * as discover from '../plex/discover.js';
 import { notice } from '../ui/notice.js';
 
 // Once per app start, a few seconds after home appears: is there a newer
@@ -104,6 +106,8 @@ export function HomeScreen() {
   let reportedPaint = false;
   let visible = true;
   let stale = false;       // the library changed while another screen was on top
+  let plexHubs = [];       // the server's hubs, before the Downloading row is added
+  let dlItems = [];        // downloads in progress, as tiles
 
   function buildNav(sections) {
     navTrack.innerHTML = '';
@@ -160,8 +164,13 @@ export function HomeScreen() {
       heroTitle.style.display = '';
       setText(heroTitle, item.type === 'episode' ? item.grandparentTitle : item.title);
     }
-    setText(heroMeta, (item.type === 'episode' ? item.title + '  ·  ' : '') + metaLine(item));
-    setText(heroSummary, item.summary || '');
+    if (item.download) {
+      setText(heroMeta, (item.year ? item.year + '  ·  ' : '') + downloads.describe(item.download));
+      setText(heroSummary, '');
+    } else {
+      setText(heroMeta, (item.type === 'episode' ? item.title + '  ·  ' : '') + metaLine(item));
+      setText(heroSummary, item.summary || '');
+    }
     ambience.set(item.UltraBlurColors);
     clearTimeout(artTimer);
     artTimer = setTimeout(() => hero.set(server.image(heroArtPath(item), 1344, 756)), isFast() ? 350 : 120);
@@ -192,9 +201,37 @@ export function HomeScreen() {
     setTransform(track, 'translateY(' + (-(offsets[rowIndex] || 0)) + 'px)');
   }
 
+  // The server's rows plus, when something is downloading, a "Downloading"
+  // row right after Continue Watching.
+  function composed() {
+    if (!dlItems.length) return plexHubs;
+    const at = plexHubs.findIndex(hb => !/continue|ondeck/i.test(hb.hubIdentifier));
+    const i = at < 0 ? plexHubs.length : at;
+    const row = { hubIdentifier: 'flexplex.downloads', title: 'Downloading', type: 'movie', size: dlItems.length, Metadata: dlItems };
+    return plexHubs.slice(0, i).concat([row], plexHubs.slice(i));
+  }
+
+  function selectItem(item) {
+    if (item.download) openDownload(item.download);
+    else openItem(item);
+  }
+
+  // A download's catalog page (details, Watchlist), found by title and year.
+  async function openDownload(d) {
+    try {
+      const found = await discover.search(d.title, { limit: 10 });
+      const kind = d.kind === 'show' ? 'show' : 'movie';
+      const m = found.find(x => x.type === kind && (!d.year || Math.abs((x.year || 0) - d.year) <= 1)) || found.find(x => x.type === kind);
+      if (m) openCatalog(m);
+    } catch (e) {
+      error('download lookup failed', e);
+    }
+  }
+
   function setHubs(hubs) {
     const sameShape = hubs.length === rows.length && hubs.every((hb, i) => rows[i].hubId === hb.hubIdentifier);
     const focusedKey = rows[rowIndex] && rows[rowIndex].current() && rows[rowIndex].current().ratingKey;
+    const focusedHub = rows[rowIndex] && rows[rowIndex].hubId;
     if (sameShape) {
       hubs.forEach((hb, i) => rows[i].setItems(hb.Metadata, i === rowIndex ? focusedKey : null));
     } else {
@@ -203,13 +240,19 @@ export function HomeScreen() {
         const wide = /continue|ondeck/i.test(hb.hubIdentifier);
         const row = new Row({
           title: hb.title, kind: wide ? 'wide' : 'poster', items: hb.Metadata,
-          onFocus: onFocusItem, onSelect: item => openItem(item),
+          onFocus: onFocusItem, onSelect: selectItem,
         });
         row.hubId = hb.hubIdentifier;
         track.appendChild(row.el);
         return row;
       });
-      rowIndex = Math.min(rowIndex, Math.max(0, rows.length - 1));
+      // Stay on the same row and item when a row appears or goes above it.
+      const again = focusedHub ? rows.findIndex(r => r.hubId === focusedHub) : -1;
+      rowIndex = again >= 0 ? again : Math.min(rowIndex, Math.max(0, rows.length - 1));
+      if (again >= 0 && focusedKey) {
+        const k = rows[again].items.findIndex(it => it.ratingKey === focusedKey);
+        if (k > 0) rows[again].focusIndex(k);
+      }
       layoutRows();
     }
     renderRows();
@@ -228,7 +271,8 @@ export function HomeScreen() {
     try {
       const [sections, hubs] = await Promise.all([server.sections(), server.hubs()]);
       buildNav(sections);
-      setHubs(hubs);
+      plexHubs = hubs;
+      setHubs(composed());
       store.set('homeCache', { server: server.id, sections, hubs: hubs.map(slimHub) });
     } catch (e) {
       error('home load failed', e);
@@ -257,10 +301,17 @@ export function HomeScreen() {
     }
   });
 
+  function onDownloads(list) {
+    dlItems = list.map(downloads.asItem);
+    setHubs(composed());
+  }
+  let unsubDownloads = downloads.subscribe(onDownloads);
+
   const cached = store.get('homeCache');
   if (cached && session.server && cached.server === session.server.id) {
     buildNav(cached.sections || []);
-    setHubs(cached.hubs || []);
+    plexHubs = cached.hubs || [];
+    setHubs(composed());
   } else {
     buildNav([]);
   }
@@ -279,14 +330,21 @@ export function HomeScreen() {
     name: 'home',
     onShow() {
       visible = true;
+      if (!unsubDownloads) unsubDownloads = downloads.subscribe(onDownloads);
       ambience.restore();
       checkForUpdate();
       renderNav(); // widths can't be measured while the screen was hidden
       // Coming back from playback: progress and Continue Watching changed.
       if (stale || Date.now() - loadedAt > 5000) { stale = false; load(); }
     },
-    onHide() { visible = false; },
-    destroy() { unsubscribe(); },
+    onHide() {
+      visible = false;
+      if (unsubDownloads) { unsubDownloads(); unsubDownloads = null; } // no polling behind other screens
+    },
+    destroy() {
+      unsubscribe();
+      if (unsubDownloads) unsubDownloads();
+    },
     onKey(action) {
       if (zone === 'nav') {
         if (action === 'left') { navIndex = Math.max(0, navIndex - 1); renderNav(); return true; }
