@@ -58,7 +58,7 @@ FlexPlex finds it automatically when it runs on the same machine as Plex.
 | `PORT` | `8790` | Web page and API |
 
 To use a specific Apps2Samsung version, build with
-`docker compose build --build-arg A2S_VERSION=v2.7.9` (default: the newest).
+`docker compose build --build-arg A2S_VERSION=v3.0.0-beta` (default: the newest release that includes its command-line tool, which first shipped in v3.0.0-beta).
 
 ## API
 
