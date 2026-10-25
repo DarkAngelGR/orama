@@ -132,3 +132,10 @@ export async function collection(tmdb) {
     throw e;
   }
 }
+
+// Delete a movie from Radarr or a show from Sonarr, files included. Returns
+// { service, configured, found, deleted, dry_run }. Throws (status 404) when
+// this watchlist-sync is too old to delete.
+export async function deleteTitle({ kind, tmdb, tvdb, imdb, title }) {
+  return call('/api/tv/delete', { method: 'POST', body: { kind, tmdb, tvdb, imdb, title }, timeout: 90000 });
+}

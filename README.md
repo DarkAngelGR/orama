@@ -48,6 +48,8 @@ decoder, so your server barely has to work.
 - With [watchlist-sync](#optional-companions), Watchlist adds reach Sonarr and Radarr in seconds,
   and a *Downloading* row shows their progress live.
 - The home screen shows library scans as they happen and picks up new media by itself.
+- Delete a movie or show from its page (server owner only). With watchlist-sync it's removed from
+  Radarr or Sonarr too, so it won't download again.
 
 **Made for the household**
 - Plex Home profiles, with PINs and an optional "Who's watching?" at start.
@@ -109,7 +111,8 @@ Orama works on its own. Two small services on your server add more:
 
 - **[watchlist-sync](https://github.com/DarkAngelGR/watchlist-sync)** sends the Plex Watchlists of
   your household and friends to Sonarr and Radarr. Orama then syncs Watchlist adds instantly,
-  shows download progress, and lists the parts of a collection you don't have yet.
+  shows download progress, lists the parts of a collection you don't have yet, and removes
+  deleted titles from Sonarr/Radarr.
 - **[Orama installer](installer/)** keeps Orama up to date: when a new release is out, install it
   from **Settings › Updates** on the TV or from a web page on your phone.
 

@@ -4,7 +4,8 @@ import { request, withQuery, identity } from './client.js';
 const SUPPORTED_HUB_TYPES = { movie: 1, show: 1, episode: 1, season: 1, mixed: 1, clip: 1 };
 
 export class Server {
-  constructor({ uri, token, name, id }) {
+  constructor({ uri, token, name, id, owned }) {
+    this.owned = owned;
     this.uri = uri;
     this.token = token;
     this.name = name;
@@ -73,6 +74,17 @@ export class Server {
     const item = (mc.Metadata || [])[0];
     if (item && mc.OnDeck && mc.OnDeck.Metadata) item.onDeck = mc.OnDeck.Metadata[0];
     return item;
+  }
+
+  // Delete a movie or show, files included. Plex allows it only for the
+  // server owner, with Settings › Library › "Allow media deletion" on.
+  deleteItem(ratingKey) {
+    return request(this.uri + '/library/metadata/' + ratingKey, { method: 'DELETE', token: this.token, raw: true, timeout: 30000 });
+  }
+
+  // Scan a library section for changes (e.g. files another app deleted).
+  scanSection(sectionId) {
+    return request(this.uri + '/library/sections/' + sectionId + '/refresh', { token: this.token, raw: true }).catch(() => {});
   }
 
   // Ask Plex to re-read a title's files (e.g. a subtitle file Bazarr replaced).

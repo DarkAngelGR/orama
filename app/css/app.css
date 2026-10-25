@@ -22,6 +22,7 @@
   --bg: #0B0B12;
   --raised: #171724;
   --accent: #8B7CFF;
+  --danger: #FF5C72;
   --cream: #F4F3FF;
   --dim: rgba(244, 243, 255, 0.6);
   --faint: rgba(244, 243, 255, 0.09);
@@ -500,6 +501,13 @@ html.subs-bg .subs-text {
 .settings-track { will-change: transform; transition: transform 220ms var(--ease); }
 .downloads-foot { right: 160px; line-height: 1.5; }
 .prompt-bar { top: 230px; left: 160px; right: 160px; }
+.confirm-title { max-width: 1600px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.confirm-text { position: absolute; left: 160px; top: 230px; width: 1300px; font: 500 30px/1.5 var(--body); color: var(--cream); }
+.confirm-buttons { position: absolute; left: 160px; top: 390px; white-space: nowrap; }
+.confirm-buttons.busy { opacity: 0.5; }
+.btn-danger.focus { background: var(--danger); color: #fff; }
+.confirm-status { position: absolute; left: 160px; top: 510px; width: 1500px; font: 500 26px/1.5 var(--body); color: var(--dim); }
+.confirm-status.error { color: var(--danger); }
 .prompt-hint { position: absolute; top: 350px; left: 160px; font: 500 24px var(--body); color: var(--dim); }
 
 /* ---------- search ---------- */

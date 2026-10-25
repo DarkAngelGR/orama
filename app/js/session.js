@@ -42,8 +42,27 @@ export function useProfile(token, user) {
 }
 
 export function useServer(resource, uri) {
-  session.server = new Server({ uri, token: resource.accessToken, name: resource.name, id: resource.clientIdentifier });
-  store.set('server', { uri, token: resource.accessToken, name: resource.name, id: resource.clientIdentifier });
+  const rec = { uri, token: resource.accessToken, name: resource.name, id: resource.clientIdentifier, owned: !!resource.owned };
+  session.server = new Server(rec);
+  store.set('server', rec);
+}
+
+// Does the profile watching own the server? (Only the owner can delete.)
+// Older saved servers don't know, so ask plex.tv once. null: couldn't tell.
+export async function ownsServer() {
+  const s = session.server;
+  if (!s) return null;
+  if (typeof s.owned === 'boolean') return s.owned;
+  try {
+    const found = (await getServers(session.token)).find(r => r.clientIdentifier === s.id);
+    if (!found) return null;
+    s.owned = !!found.owned;
+    const saved = store.get('server');
+    if (saved && saved.id === s.id) store.set('server', Object.assign({}, saved, { owned: s.owned }));
+    return s.owned;
+  } catch (e) {
+    return null;
+  }
 }
 
 export function signOut() {

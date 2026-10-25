@@ -19,6 +19,10 @@ import {
   streamsOf, audioLabel, subtitleLabel, qualitiesFor, effectiveQuality, defaultQuality, versionLabel,
 } from '../player/options.js';
 import { preferredSub } from '../player/subprefs.js';
+import { ConfirmScreen } from './confirm.js';
+import { ownsServer } from '../session.js';
+import { removeFromWatchlist } from '../plex/discover.js';
+import { notice } from '../ui/notice.js';
 
 const SHIFT = 400;    // how far the body slides up to reveal seasons/episodes
 const OPTIONS_H = 64; // .detail-options height + margin, added to SHIFT when shown
@@ -150,6 +154,9 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
       add(icons.tv, 'Go to show', () => router.push(DetailScreen({ ratingKey: item.grandparentRatingKey, type: 'show', title: item.grandparentTitle })));
     }
     add(icons.info, 'More info', openInfo);
+    if ((item.type === 'movie' || item.type === 'show') && session.server && session.server.owned !== false) {
+      add(icons.trash, 'Delete', askDelete);
+    }
     buttonIndex = Math.min(buttonIndex, buttons.length - 1);
     renderFocus();
   }
@@ -327,6 +334,81 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     // Nothing known yet (details still loading): leave a playing theme alone.
     const url = themeUrl();
     if (shownNow && url) themeMusic.play(url);
+  }
+
+  // --- Deleting the movie/show: Radarr/Sonarr first (through watchlist-sync),
+  // so it isn't downloaded again, then Plex, then the Watchlist.
+
+  function guidOf(it, scheme) {
+    const re = new RegExp('^' + scheme + '://(\\w+)');
+    const g = (it.Guid || []).map(x => re.exec(x.id || '')).find(Boolean);
+    return g ? g[1] : '';
+  }
+
+  function askDelete() {
+    const show = item.type === 'show';
+    const svc = show ? 'Sonarr' : 'Radarr';
+    router.push(ConfirmScreen({
+      title: 'Delete ' + item.title + '?',
+      message: (show ? 'Every season and episode of this show' : 'This movie') + ' and its files will be deleted from your server. '
+        + (watchlist.baseUrl() ? 'If ' + svc + ' has it, it\'s removed there too, so it won\'t download again. ' : '')
+        + 'This can\'t be undone.',
+      run: runDelete,
+    }));
+  }
+
+  async function runDelete(say) {
+    const server = session.server;
+    const kind = item.type === 'show' ? 'show' : 'movie';
+    const title = item.title;
+    say('Checking…');
+    const owned = await ownsServer();
+    if (owned === false) throw new Error('Only the server owner can delete. Switch to their profile first.');
+    if (owned === null) throw new Error('Couldn\'t check with plex.tv who owns this server. Nothing was deleted.');
+    let full = item;
+    if (!full.Guid) full = (await server.metadata(item.ratingKey)) || item;
+
+    let arr = null;
+    if (watchlist.baseUrl()) {
+      const svc = kind === 'show' ? 'Sonarr' : 'Radarr';
+      say('Removing from ' + svc + '…');
+      try {
+        arr = await watchlist.deleteTitle({ kind, title, tmdb: Number(guidOf(full, 'tmdb')) || 0,
+          tvdb: Number(guidOf(full, 'tvdb')) || 0, imdb: guidOf(full, 'imdb') });
+      } catch (e) {
+        // Automatic mode only guesses watchlist-sync runs next to Plex: nothing
+        // answering there means it isn't installed, so Plex alone deletes.
+        const absent = e.status === 0 && watchlist.mode() === 'auto' && !/in time/.test(e.message);
+        if (!absent) {
+          if (e.status === 404) throw new Error('Update watchlist-sync on your server to delete from ' + svc + '. Nothing was deleted.');
+          throw new Error(e.message + '. Nothing was deleted: removing it from Plex alone would make ' + svc + ' download it again.');
+        }
+      }
+      if (arr && arr.dry_run) throw new Error('watchlist-sync is in dry-run mode, so ' + svc + ' would download it again. Nothing was deleted.');
+    }
+
+    say('Removing from Plex…');
+    let after = '';
+    try {
+      await server.deleteItem(item.ratingKey);
+    } catch (e) {
+      if (arr && arr.deleted) {
+        // The files are gone already; a scan lets Plex notice.
+        if (full.librarySectionID) server.scanSection(full.librarySectionID);
+        after = ' Plex will drop it after its scan.';
+      } else if (e.status === 401 || e.status === 403) {
+        throw new Error('Plex refused: turn on "Allow media deletion" in Plex › Settings › Library.');
+      } else {
+        throw new Error('Plex couldn\'t delete it (' + e.message + ').');
+      }
+    }
+    const catalogId = (/^plex:\/\/\w+\/(\w+)/.exec(full.guid || '') || [])[1];
+    if (catalogId) removeFromWatchlist(catalogId).catch(() => {});
+    server.invalidate();
+
+    router.back(); // the confirmation
+    router.back(); // this page
+    notice('Deleted ' + title + (arr && arr.deleted ? ' (and from ' + (kind === 'show' ? 'Sonarr' : 'Radarr') + ')' : '') + '.' + after);
   }
 
   function tmdbOf(it) {
