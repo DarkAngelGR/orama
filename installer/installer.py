@@ -135,11 +135,26 @@ STATE = State()
 
 # --- GitHub --------------------------------------------------------------------
 
+class _DropAuthOnRedirect(urllib.request.HTTPRedirectHandler):
+    """GitHub sends release downloads on to a storage host, which rejects the
+    GitHub token; only send it to the host it was meant for."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        new = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if new is not None and urlparse(newurl).hostname != urlparse(req.full_url).hostname:
+            new.headers.pop("Authorization", None)
+            new.unredirected_hdrs.pop("Authorization", None)
+        return new
+
+
+_opener = urllib.request.build_opener(_DropAuthOnRedirect)
+
+
 def github(url, accept="application/vnd.github+json", timeout=20):
     headers = {"Accept": accept, "User-Agent": f"{PRODUCT}/{VERSION}"}
     if CFG["github_token"]:
         headers["Authorization"] = "Bearer " + CFG["github_token"]
-    return urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=timeout)
+    return _opener.open(urllib.request.Request(url, headers=headers), timeout=timeout)
 
 
 def check_latest():
@@ -150,7 +165,11 @@ def check_latest():
             rel = json.load(r)
     except urllib.error.HTTPError as e:
         if e.code == 404:
-            raise RuntimeError(f"no releases yet in {CFG['repo']}")
+            if not CFG["github_token"]:
+                raise RuntimeError(f"no releases found in {CFG['repo']}; if the repo is private, set GITHUB_TOKEN")
+            raise RuntimeError(f"no releases yet in {CFG['repo']} (or GITHUB_TOKEN can't read it)")
+        if e.code == 401:
+            raise RuntimeError("GitHub rejected GITHUB_TOKEN (expired or mistyped?)")
         if e.code == 403:
             raise RuntimeError("GitHub rate limit reached; try again later (or set GITHUB_TOKEN)")
         raise RuntimeError(f"GitHub answered {e.code}")
@@ -166,7 +185,8 @@ def check_latest():
         "notes": (rel.get("body") or "").strip()[:2000],
         "published": rel.get("published_at", ""),
         "url": rel.get("html_url", ""),
-        "asset": asset.get("browser_download_url"),
+        # The API URL works for private repos (with the token) and public ones.
+        "asset": asset.get("url") or asset.get("browser_download_url"),
         "asset_name": asset.get("name"),
         "size": asset.get("size", 0),
     }

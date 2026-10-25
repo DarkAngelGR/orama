@@ -30,6 +30,13 @@ FlexPlex finds it automatically when it runs on the same machine as Plex.
    address; to use Apps2Samsung on your computer again later, switch it back.)
 3. **Set your TV's IP** in `docker-compose.yml` (`TV_IP`). Give the TV a fixed
    address in your router so it doesn't change.
+
+   **Private repo?** GitHub only shows its releases to someone signed in, so
+   give the installer a read-only token: on GitHub, *Settings › Developer
+   settings › Personal access tokens › Fine-grained tokens › Generate new
+   token*. Repository access: *Only select repositories* › FlexPlex.
+   Permissions: *Contents: Read-only*. Pick an expiry (or none), generate it,
+   and paste it into `GITHUB_TOKEN` in `docker-compose.yml`.
 4. **Start it** on the server (Linux, x86-64 or arm64, with Docker), from this folder:
 
    ```sh
@@ -47,7 +54,7 @@ FlexPlex finds it automatically when it runs on the same machine as Plex.
 | `PASSWORD` | (none) | Protects the web page and API; enter it in Settings › Updates on the TV |
 | `ALLOW_REINSTALL` | `false` | Let Apps2Samsung go past its pre-install warnings and, if the TV refuses an update (e.g. a different certificate), uninstall and install fresh, which erases FlexPlex's settings and sign-in |
 | `GITHUB_REPO` | `DarkAngelGR/FlexPlex` | Where releases come from |
-| `GITHUB_TOKEN` | (none) | Only if GitHub's rate limit gets in the way |
+| `GITHUB_TOKEN` | (none) | Required if the repo is private (read-only token, see above) |
 | `PORT` | `8790` | Web page and API |
 
 To use a specific Apps2Samsung version, build with
