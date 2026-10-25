@@ -1,5 +1,5 @@
 # Publishes a GitHub release with the .wgt whenever the version in
-# app/config.xml changes on main. The FlexPlex installer (installer/) and the
+# app/config.xml changes on main. The Orama installer (installer/) and the
 # app itself watch these releases.
 name: Release
 
@@ -32,13 +32,13 @@ jobs:
         run: |
           printf '' > .env
           ./scripts/deploy.sh --build-only
-          (cd build/app && zip -qr -X "../../FlexPlex-${{ steps.v.outputs.version }}.wgt" .)
+          (cd build/app && zip -qr -X "../../Orama-${{ steps.v.outputs.version }}.wgt" .)
 
       - name: Publish
         if: steps.v.outputs.exists != 'true'
         run: |
           git log -1 --pretty=%B | grep -vE '^(Co-Authored-By|Claude-Session):' > notes.md
-          gh release create "v$V" "FlexPlex-$V.wgt" --title "FlexPlex $V" --notes-file notes.md --target "$GITHUB_SHA"
+          gh release create "v$V" "Orama-$V.wgt" --title "Orama $V" --notes-file notes.md --target "$GITHUB_SHA"
         env:
           GH_TOKEN: ${{ github.token }}
           V: ${{ steps.v.outputs.version }}

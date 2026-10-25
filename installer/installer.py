@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""FlexPlex installer: keeps the FlexPlex app on a Samsung TV up to date.
+"""Orama installer: keeps the Orama app on a Samsung TV up to date.
 
-Watches the GitHub releases of FlexPlex, and on request (from its web page, from
-FlexPlex itself, or automatically) downloads the newest .wgt and has
+Watches the GitHub releases of Orama, and on request (from its web page, from
+Orama itself, or automatically) downloads the newest .wgt and has
 Apps2Samsung sign it with your TV's certificate and install it.
 
 Standard library only. The signing and installing are done by Apps2Samsung's
@@ -46,7 +46,7 @@ CFG = {
     "a2s": env("A2S_BIN", "apps2samsung-cli"),
     # Lets Apps2Samsung continue past its pre-install warnings and, if the TV
     # only takes the update after removing the old copy (different
-    # certificate), do that: FlexPlex's settings and sign-in go with it.
+    # certificate), do that: Orama's settings and sign-in go with it.
     "allow_reinstall": env("ALLOW_REINSTALL", "false").lower() in ("1", "true", "yes", "on"),
 }
 
@@ -110,7 +110,7 @@ class State:
             self.save()
 
     def installed(self):
-        """Best guess of the version on the TV: what FlexPlex last reported, or
+        """Best guess of the version on the TV: what Orama last reported, or
         what this installer last put there, whichever is newer."""
         a, b = self.data.get("seen_on_tv"), self.data.get("installed")
         return a if newer(a, b) or not b else b
@@ -260,10 +260,10 @@ def do_install(latest):
     version = latest["version"]
     if not CFG["tv_ip"]:
         raise InstallError("TV_IP isn't set")
-    STATE.log(f"installing FlexPlex {version}")
+    STATE.log(f"installing Orama {version}")
     shutil.rmtree(WORK, ignore_errors=True)
     os.makedirs(WORK)
-    wgt = os.path.join(WORK, f"FlexPlex-{version}.wgt")
+    wgt = os.path.join(WORK, f"Orama-{version}.wgt")
     STATE.log(f"downloading {latest['asset_name']}")
     try:
         with github(latest["asset"], accept="application/octet-stream", timeout=120) as r, open(wgt, "wb") as f:
@@ -286,7 +286,7 @@ def do_install(latest):
     code, res, err = a2s(args)
     if code == 0 and field(res, "ok"):
         STATE.update(installed=version, installed_at=now_iso())
-        STATE.log(f"FlexPlex {version} installed" + (" and started" if field(res, "launched") else ""))
+        STATE.log(f"Orama {version} installed" + (" and started" if field(res, "launched") else ""))
         return
     msg = field(res, "error") or (err.strip().splitlines() or [f"exit {code}"])[-1]
     checks = field(field(res, "details") or {}, "checks") or []
@@ -305,7 +305,7 @@ def install_job(version=None):
             raise InstallError(f"{version} isn't the latest release ({latest['version']} is)")
         do_install(latest)
         STATE.update(last={"ok": True, "version": latest["version"], "at": now_iso(),
-                           "message": f"FlexPlex {latest['version']} installed"})
+                           "message": f"Orama {latest['version']} installed"})
     except Exception as e:  # noqa: BLE001
         msg = str(e)
         STATE.log("install failed: " + msg)
@@ -328,7 +328,7 @@ def loop():
     while True:
         latest = safe_check()
         if latest and CFG["auto_install"] and newer(latest["version"], STATE.installed()):
-            STATE.log(f"FlexPlex {latest['version']} is out; installing it (AUTO_INSTALL)")
+            STATE.log(f"Orama {latest['version']} is out; installing it (AUTO_INSTALL)")
             start_install(latest["version"])
         time.sleep(max(0.25, CFG["check_hours"]) * 3600)
 
@@ -338,7 +338,7 @@ def loop():
 PAGE = """<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FlexPlex installer</title>
+<title>Orama installer</title>
 <style>
 :root { --bg:#0B0D12; --raised:#181B23; --text:#FFF7E6; --dim:rgba(255,247,230,.62); --coral:#FF4C42; --ok:#5BD18B; }
 * { box-sizing: border-box; }
@@ -357,7 +357,7 @@ button:disabled { opacity:.5; }
 pre { white-space:pre-wrap; font:12px/1.5 ui-monospace, monospace; color:var(--dim); margin:0; max-height:280px; overflow:auto; }
 .notes { white-space:pre-wrap; color:var(--dim); font-size:14px; margin-top:8px; }
 </style></head><body><main>
-<h1>FlexPlex installer</h1>
+<h1>Orama installer</h1>
 <div class="card">
   <div class="row"><span>On the TV</span><span id="installed">…</span></div>
   <div class="row"><span>Latest release</span><span id="latest">…</span></div>
@@ -445,10 +445,10 @@ class Handler(BaseHTTPRequestHandler):
                     return True
             except (ValueError, UnicodeDecodeError):
                 pass
-        # The browser page gets a login prompt; API calls (FlexPlex) a plain 401.
+        # The browser page gets a login prompt; API calls (Orama) a plain 401.
         self.send_response(401)
         if not urlparse(self.path).path.startswith("/api/"):
-            self.send_header("WWW-Authenticate", 'Basic realm="FlexPlex installer"')
+            self.send_header("WWW-Authenticate", 'Basic realm="Orama installer"')
         self.send_header("Content-Type", "application/json")
         self._cors()
         self.end_headers()
@@ -508,7 +508,7 @@ def main():
         STATE.log("TV_IP isn't set: updates can be checked but not installed")
     threading.Thread(target=loop, daemon=True).start()
     srv = ThreadingHTTPServer(("0.0.0.0", CFG["port"]), Handler)
-    STATE.log(f"FlexPlex installer listening on port {CFG['port']} (repo {CFG['repo']}, TV {CFG['tv_ip'] or '?'})")
+    STATE.log(f"Orama installer listening on port {CFG['port']} (repo {CFG['repo']}, TV {CFG['tv_ip'] or '?'})")
     srv.serve_forever()
 
 

@@ -1,5 +1,5 @@
 // Talks to watchlist-sync (github.com/DarkAngelGR/watchlist-sync), which sends
-// what's on your Plex Watchlist to Sonarr/Radarr. FlexPlex only asks it to
+// what's on your Plex Watchlist to Sonarr/Radarr. Orama only asks it to
 // sync right after you add something; its Sonarr/Radarr keys stay on the
 // server. The TV needs its address, found automatically when it runs on the
 // same machine as Plex.

@@ -138,4 +138,4 @@ bold "4/4  Connecting to the TV"
 "$SDB" devices | grep -q "^$TV_IP:26101" || fail "The TV didn't accept the connection. Restart the TV and run this again."
 ok "connected"
 
-printf '\n\033[1mAll set.\033[0m Install FlexPlex on your TV with:\n\n    ./scripts/deploy.sh\n\n'
+printf '\n\033[1mAll set.\033[0m Install Orama on your TV with:\n\n    ./scripts/deploy.sh\n\n'

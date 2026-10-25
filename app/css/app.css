@@ -109,7 +109,7 @@ html.playing .ambience { display: none; }
 .brand { display: flex; align-items: center; flex-shrink: 0; }
 .brand-mark { width: 80px; height: 80px; display: block; }
 .brand-text { margin-left: 16px; }
-.brand-wordmark { width: 193px; height: 40px; display: block; }
+.brand-wordmark { width: 169px; height: 40px; display: block; }
 .brand-by {
   margin-top: 6px; padding-left: 2px;
   font: 500 17px/1 var(--body); letter-spacing: 0.06em; color: rgba(255, 255, 255, 0.86);
@@ -550,7 +550,7 @@ html.subs-bg .subs-text {
 .info-value { margin-top: 6px; font: 500 24px/1.4 var(--body); white-space: pre-line; }
 .info-hint { position: absolute; right: 96px; bottom: 40px; font: 500 22px var(--body); color: var(--dim); }
 
-/* App-wide notice (e.g. "FlexPlex 0.9.0 is available") */
+/* App-wide notice (e.g. "Orama 0.9.0 is available") */
 .notice { left: 460px; width: 1000px; z-index: 50; }
 .updates-notes { right: 160px; max-height: 120px; overflow: hidden; white-space: pre-line; line-height: 1.5; }
 

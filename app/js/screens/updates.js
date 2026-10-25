@@ -1,5 +1,5 @@
 // Settings › Updates: the running version, the newest release, and installing
-// it through the FlexPlex installer on your server.
+// it through the Orama installer on your server.
 import { h, toggleClass, setText } from '../util/dom.js';
 import { useAmbience } from '../ui/backdrop.js';
 import * as router from '../router.js';
@@ -41,8 +41,8 @@ export function UpdatesScreen() {
       try { latest = await updates.githubLatest(); } catch (e) { latest = null; status = e.message; }
       if (gen !== generation) return;
     }
-    if (installer && installer.busy) { status = 'Installing… FlexPlex will close and reopen'; watch(); }
-    else if (latest) status = updates.newer(latest.version, VERSION) ? 'FlexPlex ' + latest.version + ' is available' : 'Up to date';
+    if (installer && installer.busy) { status = 'Installing… Orama will close and reopen'; watch(); }
+    else if (latest) status = updates.newer(latest.version, VERSION) ? 'Orama ' + latest.version + ' is available' : 'Up to date';
     else if (installer && installer.check_error) status = installer.check_error;
     build();
   }
@@ -67,7 +67,7 @@ export function UpdatesScreen() {
     if (!latest) return;
     try {
       const r = await updates.startInstall(latest.version);
-      status = r.already ? 'Already installing…' : 'Installing ' + latest.version + '… FlexPlex will close and reopen';
+      status = r.already ? 'Already installing…' : 'Installing ' + latest.version + '… Orama will close and reopen';
       build();
       watch();
     } catch (e) {
@@ -83,7 +83,7 @@ export function UpdatesScreen() {
     const fresh = latest && updates.newer(latest.version, VERSION);
     list.innerHTML = '';
     items = [
-      { label: 'FlexPlex ' + VERSION, value: status, run: () => check(true), action: 'Check again' },
+      { label: 'Orama ' + VERSION, value: status, run: () => check(true), action: 'Check again' },
     ];
     if (canInstall) {
       items.push({ label: fresh ? 'Install ' + latest.version : 'Reinstall ' + latest.version,
@@ -103,7 +103,7 @@ export function UpdatesScreen() {
       h('span', 'setting-value', it.el).textContent = it.value + (it.action ? '  ·  ' + it.action : '');
     });
     setText(notes, fresh && latest.notes ? 'What\'s new in ' + latest.version + ':\n' + latest.notes
-      : installer ? '' : 'Updates install through the FlexPlex installer on your server (port '
+      : installer ? '' : 'Updates install through the Orama installer on your server (port '
         + updates.DEFAULT_PORT + '); see installer/README.md on GitHub.');
     render();
   }

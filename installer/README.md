@@ -1,18 +1,18 @@
-# FlexPlex installer
+# Orama installer
 
-Keeps FlexPlex on your Samsung TV up to date from your home server, so you
+Keeps Orama on your Samsung TV up to date from your home server, so you
 don't need a computer to update it.
 
 - Watches this repo's GitHub releases.
 - Installs a new release on the TV using
   [Apps2Samsung](https://github.com/Apps2Samsung/Apps2Samsung)'s command-line
   tool, signed with the **same certificate** your Apps2Samsung app already
-  uses, so updates keep FlexPlex's settings and sign-in.
-- Start an install from **Settings › Updates** in FlexPlex, from its web page
+  uses, so updates keep Orama's settings and sign-in.
+- Start an install from **Settings › Updates** in Orama, from its web page
   (works on a phone: `http://<server>:8790`), or let it install new releases by
   itself (`AUTO_INSTALL`).
 
-FlexPlex finds it automatically when it runs on the same machine as Plex.
+Orama finds it automatically when it runs on the same machine as Plex.
 
 ## Setup
 
@@ -34,7 +34,7 @@ FlexPlex finds it automatically when it runs on the same machine as Plex.
    **Private repo?** GitHub only shows its releases to someone signed in, so
    give the installer a read-only token: on GitHub, *Settings › Developer
    settings › Personal access tokens › Fine-grained tokens › Generate new
-   token*. Repository access: *Only select repositories* › FlexPlex.
+   token*. Repository access: *Only select repositories* › Orama.
    Permissions: *Contents: Read-only*. Pick an expiry (or none), generate it,
    and paste it into `GITHUB_TOKEN` in `docker-compose.yml`.
 4. **Start it** on the server (Linux, x86-64 or arm64, with Docker), from this folder:
@@ -52,7 +52,7 @@ FlexPlex finds it automatically when it runs on the same machine as Plex.
 | `AUTO_INSTALL` | `false` | Install new releases by itself (when the TV is on) |
 | `CHECK_HOURS` | `6` | How often to look for a new release |
 | `PASSWORD` | (none) | Protects the web page and API; enter it in Settings › Updates on the TV |
-| `ALLOW_REINSTALL` | `false` | Let Apps2Samsung go past its pre-install warnings and, if the TV refuses an update (e.g. a different certificate), uninstall and install fresh, which erases FlexPlex's settings and sign-in |
+| `ALLOW_REINSTALL` | `false` | Let Apps2Samsung go past its pre-install warnings and, if the TV refuses an update (e.g. a different certificate), uninstall and install fresh, which erases Orama's settings and sign-in |
 | `GITHUB_REPO` | `DarkAngelGR/FlexPlex` | Where releases come from |
 | `GITHUB_TOKEN` | (none) | Required if the repo is private (read-only token, see above) |
 | `PORT` | `8790` | Web page and API |

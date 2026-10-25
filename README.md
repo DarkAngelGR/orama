@@ -1,19 +1,19 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: light)" srcset="assets/brand/lockup-horizontal-dark-1920x640.png">
-    <img src="assets/brand/lockup-horizontal-light-1920x640.png" alt="FlexPlex" width="560">
+    <img src="assets/brand/lockup-horizontal-light-1920x640.png" alt="Orama" width="560">
   </picture>
 </p>
 
 <p align="center">
-  <b>A Plex client for Samsung TVs that doesn't suck.</b><br>
+  <b>Orama (όραμα, "vision"): a fast player for your Plex library on Samsung TVs.</b><br>
   Smooth scrolling, hardware playback, zero dependencies.
 </p>
 
 <p align="center"><sub>By <a href="https://github.com/DarkAngelGR">Aggelos (DarkAngelGR)</a>. Based on <a href="https://github.com/rfaile313/samsucks">SamSUCKS</a> by rfaile313.</sub></p>
 
 <p align="center">
-  <img src="assets/readme/home.png" alt="FlexPlex home screen" width="880">
+  <img src="assets/readme/home.png" alt="Orama home screen" width="880">
 </p>
 
 The official Plex app on Samsung TVs is painfully slow. The same library flies on a
@@ -21,7 +21,7 @@ Fire TV or an Apple TV, so the TV isn't the problem; the app is.
 
 On a 75" Samsung Q60B (2022, Tizen 6.5), as measured by the original SamSUCKS author:
 
-| | Official Plex app | FlexPlex |
+| | Official Plex app | Orama |
 | --- | --- | --- |
 | Opening the app | about a minute | about a second |
 | Typing in search | every letter lags | instant |
@@ -29,7 +29,7 @@ On a 75" Samsung Q60B (2022, Tizen 6.5), as measured by the original SamSUCKS au
 
 The Plex server answers a search in 30–150 ms, so the server was never the bottleneck.
 
-FlexPlex is a from-scratch Plex client for Samsung's Tizen TVs, built for speed:
+Orama is a from-scratch Plex client for Samsung's Tizen TVs, built for speed:
 
 - **Smooth.** About 50 fps while scrolling, with a 17 ms median frame, measured on a 2022 Samsung Q60B.
 - **Hardware playback.** It plays files directly through Samsung's video decoder.
@@ -37,23 +37,23 @@ FlexPlex is a from-scratch Plex client for Samsung's Tizen TVs, built for speed:
 - **Quick to start.** Home appears in under a second, and video starts about a second after you press play.
 - **Tiny.** Plain JavaScript, no framework, no npm, no build step.
 
-FlexPlex adds:
+Orama adds:
 
 - **Search beyond your server.** Search also looks in Plex's movie and TV catalog and lists what
   you don't have under "Not on your server". **Add to Watchlist** puts it on your Plex Watchlist;
-  with [watchlist-sync](https://github.com/DarkAngelGR/watchlist-sync) running, FlexPlex asks it
+  with [watchlist-sync](https://github.com/DarkAngelGR/watchlist-sync) running, Orama asks it
   to sync right away, so shows go to Sonarr and movies to Radarr within seconds. watchlist-sync is
   found automatically when it runs on the same machine as Plex; see Settings › Downloads.
 - **IMDb, Rotten Tomatoes and TMDB ratings** on the detail page and in lists.
-- **Updates without a computer.** Each new version is published as a GitHub release; FlexPlex
-  tells you when one is out, and the [FlexPlex installer](installer/) on your server installs it on
+- **Updates without a computer.** Each new version is published as a GitHub release; Orama
+  tells you when one is out, and the [Orama installer](installer/) on your server installs it on
   the TV with Apps2Samsung's command-line tool, from **Settings › Updates** (or its web page, from
   your phone).
 - **Download progress.** With watchlist-sync, a "Downloading" row on the home screen shows what Sonarr/Radarr
   are fetching (progress, time left, or "looking for a download"), and a title's page shows its progress live.
 - **Live library.** The home screen shows when Plex is scanning a library ("Scanning Movies · 42%")
   and picks up new or removed media by itself, without restarting the app.
-- **Plex Home profiles.** Switch profiles (with PIN) from Settings › Profile, or have FlexPlex ask
+- **Plex Home profiles.** Switch profiles (with PIN) from Settings › Profile, or have Orama ask
   "Who's watching?" at start; each profile has its own Continue Watching and watched state.
 - **Theme music.** A title's theme plays quietly on its page, like Plex (Settings › Theme music).
 - **Collections.** A movie's page shows the rest of its collection (e.g. the trilogy) from Radarr, owned or
@@ -76,7 +76,7 @@ You need:
 - a Mac or Linux computer on the same network as the TV,
 - a Plex Media Server.
 
-**1. Download FlexPlex**
+**1. Download Orama**
 
 ```sh
 git clone https://github.com/DarkAngelGR/samsucks.git
@@ -100,7 +100,7 @@ The steps are also below. Run it again afterwards, and it picks up where it left
 ./scripts/deploy.sh
 ```
 
-FlexPlex opens on the TV. Go to **[plex.tv/link](https://plex.tv/link)** on your phone
+Orama opens on the TV. Go to **[plex.tv/link](https://plex.tv/link)** on your phone
 or computer and type the code it shows, or scan the QR code. That's it.
 
 <details>
@@ -120,7 +120,7 @@ When it's on, the Apps screen shows **Develop mode** at the top.
 ### Opening it later
 
 Press **Home** → **Apps** and scroll to the bottom, where your installed apps are.
-To pin it to the home bar, highlight **FlexPlex**, open its options (hold **OK**) and
+To pin it to the home bar, highlight **Orama**, open its options (hold **OK**) and
 choose **Add to Home**.
 
 ### Troubleshooting
@@ -167,7 +167,7 @@ if you treat it like a game engine:
 The biggest win was one line of CSS:
 
 <p align="center">
-  <img src="assets/readme/frame-trace.png" alt="Frame times for the same 12 button presses: the old renderer froze for about 2 seconds on every press and took 24.4 s; FlexPlex finished in 3.7 s and never went above 66 ms" width="760">
+  <img src="assets/readme/frame-trace.png" alt="Frame times for the same 12 button presses: the old renderer froze for about 2 seconds on every press and took 24.4 s; Orama finished in 3.7 s and never went above 66 ms" width="760">
 </p>
 
 A full-screen CSS gradient behind the UI took **almost two seconds** to repaint on the
@@ -244,7 +244,7 @@ measurable difference.
 - Plex Media Server 1.42 returns `400` for `start.m3u8` unless
   `/video/:/transcode/universal/decision` was called for the same session first.
 - `X-Plex-Platform=Tizen` selects the server's built-in profile for the official app,
-  which rejects these transcode requests, so FlexPlex identifies itself as `Samsung`.
+  which rejects these transcode requests, so Orama identifies itself as `Samsung`.
 - Samsung TVs from 2018 on can't decode DTS. For those files Plex copies the video
   and converts only the audio, to AC3 5.1.
 </details>
@@ -257,12 +257,15 @@ for LG TVs. Fonts: [Inter](https://rsms.me/inter/) and
 License). QR codes: [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator)
 by Kazuhiko Arase (MIT).
 
-FlexPlex is an independent project, not affiliated with Plex or Samsung.
+Orama is an independent project, not affiliated with Plex or Samsung.
 
 ## License
 
-FlexPlex is a modified version of [SamSUCKS](https://github.com/rfaile313/samsucks),
+Orama is a modified version of [SamSUCKS](https://github.com/rfaile313/samsucks),
 copyright © 2026 rfaile313; changes copyright © 2026 DarkAngelGR. It is free software, released under the
 [GNU General Public License v3.0](LICENSE): you can use, study, change and share it,
 and anything you distribute that's built on it must stay open source under the same
 license.
+
+Orama is an independent app. It is not made by, endorsed by or affiliated with Plex, Inc.; "Plex" is
+their trademark, used here only to say which media server Orama works with.

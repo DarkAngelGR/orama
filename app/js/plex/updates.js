@@ -1,6 +1,6 @@
-// New FlexPlex releases, and installing them through the FlexPlex installer
+// New Orama releases, and installing them through the Orama installer
 // (installer/ in this repo), which runs on your server and does the signing
-// and installing a TV app can't do for itself. Without the installer, FlexPlex
+// and installing a TV app can't do for itself. Without the installer, Orama
 // still asks GitHub directly so it can tell you an update is out.
 import * as store from '../util/store.js';
 import { VERSION } from '../config.js';
@@ -81,7 +81,7 @@ export async function installerStatus() {
     throw new Error('Can\'t reach the installer at ' + base.replace(/^https?:\/\//, ''));
   }
   if (r.status === 401) throw new Error('The installer needs its password');
-  if (!r.ok || r.data.product !== 'flexplex-installer') throw new Error('That address isn\'t the FlexPlex installer');
+  if (!r.ok || r.data.product !== 'flexplex-installer') throw new Error('That address isn\'t the Orama installer');
   return r.data;
 }
 

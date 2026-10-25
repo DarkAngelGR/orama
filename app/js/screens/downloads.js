@@ -13,7 +13,7 @@ export function DownloadsScreen() {
   const list = h('div', 'settings-list', el);
   const foot = h('div', 'settings-foot downloads-foot', el);
   foot.textContent = 'Titles you add to your Watchlist from search go to Sonarr/Radarr through '
-    + 'watchlist-sync. FlexPlex asks it to sync right away. It\'s found automatically when it runs '
+    + 'watchlist-sync. Orama asks it to sync right away. It\'s found automatically when it runs '
     + 'on the same machine as Plex (port ' + watchlist.DEFAULT_PORT + ').';
 
   let index = 0;

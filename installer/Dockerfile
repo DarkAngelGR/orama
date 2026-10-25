@@ -1,4 +1,4 @@
-# FlexPlex installer: a small Python service + Apps2Samsung's command-line tool
+# Orama installer: a small Python service + Apps2Samsung's command-line tool
 # (github.com/Apps2Samsung/Apps2Samsung), which signs and installs on the TV.
 # x86-64 and arm64.
 FROM debian:bookworm-slim

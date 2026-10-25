@@ -1,6 +1,6 @@
-# FlexPlex branding assets
+# Orama branding assets
 
-The FlexPlex mark, "Fast Forward": two rounded play arrows, cream then coral,
+The Orama mark, "Fast Forward": two rounded play arrows, cream then coral,
 on a charcoal tile. The wordmark is "Flex" in cream (charcoal on light
 backgrounds) plus "PLEX" in coral, set in Barlow Condensed 600.
 

@@ -16,7 +16,7 @@ import * as downloads from '../plex/downloads.js';
 import { notice } from '../ui/notice.js';
 
 // Once per app start, a few seconds after home appears: is there a newer
-// FlexPlex? Mentioned once per version.
+// Orama? Mentioned once per version.
 let updateChecked = false;
 function checkForUpdate() {
   if (updateChecked) return;
@@ -25,7 +25,7 @@ function checkForUpdate() {
     updates.latest().then(l => {
       if (!l || !l.version) return;
       store.set('upLatest', l.version);
-      if (updates.shouldNotify(l.version)) notice('FlexPlex ' + l.version + ' is available  ·  Settings › Updates');
+      if (updates.shouldNotify(l.version)) notice('Orama ' + l.version + ' is available  ·  Settings › Updates');
     }, () => {});
   }, 6000);
 }

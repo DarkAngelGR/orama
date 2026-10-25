@@ -1,7 +1,7 @@
-"""Generate every FlexPlex logo image from one drawing (run with python3 -I).
+"""Generate every Orama logo image from one drawing (run with python3 -I).
 
 The mark ("Fast Forward"): two rounded play arrows, white then violet, on an
-ink tile. The wordmark: "Flex" + violet "Plex" in the app's Outfit 600. Shapes are drawn 4x oversized and scaled down, so every size
+ink tile. The wordmark: "Or" + violet "ama" in the app's Outfit 600. Shapes are drawn 4x oversized and scaled down, so every size
 is crisp; only Pillow is needed.
 
 Writes the app's icon, header/sign-in/splash images and the brand set under
@@ -58,7 +58,7 @@ def mark(size, rounded=True, bg=TILE):
 def wordmark(height, first=CREAM, second=ACCENT, tracking=-0.03):
     size = 800
     font = ImageFont.truetype(str(FONT), size)
-    chars = [(c, first) for c in 'Flex'] + [(c, second) for c in 'Plex']
+    chars = [(c, first) for c in 'Or'] + [(c, second) for c in 'ama']
     im = Image.new('RGBA', (int(sum(font.getlength(c) for c, _ in chars)) + 40, 1000), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
     x = 20
@@ -115,7 +115,7 @@ def splash(w, h):
     im.alpha_composite(icon, ((w - icon.width) // 2, round(230 * s)))
     wm = wordmark(round(92 * s))
     im.alpha_composite(wm, ((w - wm.width) // 2, round(640 * s)))
-    tag = text('A SHARPER WAY TO WATCH', round(24 * s), TAGLINE, tracking=0.2)
+    tag = text('A FAST PLAYER FOR YOUR PLEX LIBRARY', round(24 * s), TAGLINE, tracking=0.2)
     im.alpha_composite(tag, ((w - tag.width) // 2, round(800 * s)))
     return im
 

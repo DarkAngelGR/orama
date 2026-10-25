@@ -35,7 +35,7 @@ export function SettingsScreen() {
   const clip = h('div', 'settings-list settings-clip', el);
   const list = h('div', 'settings-track', clip);
   const foot = h('div', 'settings-foot', el);
-  foot.textContent = 'FlexPlex ' + VERSION + (DEV ? ' (dev)' : '') + ' by Aggelos (DarkAngelGR) · ' + (session.server ? session.server.uri.replace(/X-Plex-Token=.*/, '') : '');
+  foot.textContent = 'Orama ' + VERSION + (DEV ? ' (dev)' : '') + ' by Aggelos (DarkAngelGR) · ' + (session.server ? session.server.uri.replace(/X-Plex-Token=.*/, '') : '');
 
   let index = 0;
   let items = [];
@@ -54,7 +54,7 @@ export function SettingsScreen() {
       { label: 'Subtitle language', value: subLang().label, run: () => { cycleSubLang(); build(); } },
       { label: 'Subtitle size', value: subSize().label, run: () => { cycleSubSize(); build(); } },
       { label: 'Subtitle background', value: subBackground() ? 'On' : 'Off', run: () => { toggleSubBackground(); build(); } },
-      { label: 'Updates', value: updates.newer(store.get('upLatest'), VERSION) ? store.get('upLatest') + ' available' : 'FlexPlex ' + VERSION,
+      { label: 'Updates', value: updates.newer(store.get('upLatest'), VERSION) ? store.get('upLatest') + ' available' : 'Orama ' + VERSION,
         run: () => router.push(UpdatesScreen()) },
       { label: 'Downloads (watchlist-sync)', value: watchlist.mode() === 'off' ? 'Off' : watchlist.baseUrl() ? watchlist.baseUrl().replace(/^https?:\/\//, '') : 'Not set',
         run: () => router.push(DownloadsScreen()) },

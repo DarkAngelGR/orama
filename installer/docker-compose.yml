@@ -12,7 +12,7 @@ services:
       # AUTO_INSTALL: "true"         # install new releases by itself (TV must be on)
       # CHECK_HOURS: "6"
       # PASSWORD: ""                 # protect the web page / API
-      # ALLOW_REINSTALL: "true"      # let it remove and reinstall if the TV insists (erases FlexPlex's settings)
+      # ALLOW_REINSTALL: "true"      # let it remove and reinstall if the TV insists (erases Orama's settings)
       # GITHUB_REPO: "DarkAngelGR/FlexPlex"
     volumes:
       - ./data:/data                 # put Apps2Samsung's Certificate folder in data/apps2samsung/
