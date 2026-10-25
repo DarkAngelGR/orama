@@ -1,0 +1,44 @@
+# Publishes a GitHub release with the .wgt whenever the version in
+# app/config.xml changes on main. The FlexPlex installer (installer/) and the
+# app itself watch these releases.
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths: [app/config.xml, .github/workflows/release.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read version
+        id: v
+        run: |
+          V=$(sed -n 's/.*widget.* version="\([^"]*\)".*/\1/p' app/config.xml)
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          if gh release view "v$V" >/dev/null 2>&1; then echo "exists=true" >> "$GITHUB_OUTPUT"; fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Build
+        if: steps.v.outputs.exists != 'true'
+        run: |
+          printf '' > .env
+          ./scripts/deploy.sh --build-only
+          (cd build/app && zip -qr -X "../../FlexPlex-${{ steps.v.outputs.version }}.wgt" .)
+
+      - name: Publish
+        if: steps.v.outputs.exists != 'true'
+        run: |
+          git log -1 --pretty=%B | grep -vE '^(Co-Authored-By|Claude-Session):' > notes.md
+          gh release create "v$V" "FlexPlex-$V.wgt" --title "FlexPlex $V" --notes-file notes.md --target "$GITHUB_SHA"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          V: ${{ steps.v.outputs.version }}
