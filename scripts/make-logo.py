@@ -132,7 +132,7 @@ def lockup(w, h, first, bg=None):
 
 
 # --- the app ------------------------------------------------------------------
-save(mark(512, rounded=False), 'app/icon.png', 'RGB')        # TV launcher icon
+save(mark(512, rounded=False), 'app/icon-orama.png', 'RGB')        # TV launcher icon
 save(mark(160), 'app/img/logo-mark.png')                      # home header (shown 80x80)
 save(mark(560), 'app/img/logo-560.png')                       # sign-in screen
 save(wordmark(96), 'app/img/wordmark.png')                    # home header (shown 44 tall)
