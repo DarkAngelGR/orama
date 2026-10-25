@@ -1,6 +1,7 @@
 // How subtitles look (size, background box) and per-file timing offsets.
 // Style is a class on <html>, set once, so playback does no extra work.
 import * as store from '../util/store.js';
+import * as lang from '../util/lang.js';
 
 export const SUB_SIZES = [
   { id: 's', label: 'Small' },
@@ -57,4 +58,37 @@ export function setSubOffset(streamId, ms) {
 export function offsetLabel(ms) {
   if (!ms) return '0.00 s';
   return (ms > 0 ? '+' : '−') + (Math.abs(ms) / 1000).toFixed(2) + ' s' + (ms > 0 ? ' (later)' : ' (earlier)');
+}
+
+// Preferred subtitle language: 'auto' (whatever Plex selects, from your Plex
+// account's language settings), 'off', or a language code like 'el'.
+export const SUB_LANGS = [
+  { id: 'auto', label: 'Plex\'s choice' },
+  { id: 'el', label: 'Greek' },
+  { id: 'en', label: 'English' },
+  { id: 'off', label: 'Off' },
+];
+
+export function subLang() {
+  const id = store.get('subLang', 'auto');
+  return SUB_LANGS.find(l => l.id === id) || SUB_LANGS[0];
+}
+
+export function cycleSubLang() {
+  const i = SUB_LANGS.indexOf(subLang());
+  const next = SUB_LANGS[(i + 1) % SUB_LANGS.length].id;
+  store.set('subLang', next === 'auto' ? undefined : next);
+}
+
+// The subtitle to start with: `current` (Plex's pick) adjusted to the
+// preference. Full subtitles beat forced-only ones; text beats images.
+export function preferredSub(texts, current) {
+  const pref = subLang().id;
+  if (pref === 'auto') return current;
+  if (pref === 'off') return null;
+  if (current && lang.ofStream(current) === pref && !current.forced) return current;
+  const same = texts.filter(t => lang.ofStream(t) === pref);
+  if (!same.length) return current;
+  const score = t => (t.forced ? 2 : 0) + (/pgs|vobsub|dvd|dvb/i.test(t.codec || '') ? 1 : 0);
+  return same.slice().sort((a, b) => score(a) - score(b))[0];
 }

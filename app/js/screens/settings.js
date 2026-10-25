@@ -9,7 +9,7 @@ import { ServerPicker } from './login.js';
 import { error } from '../util/log.js';
 import { useAmbience, setLegacyGradients, legacyGradients } from '../ui/backdrop.js';
 import { QUALITIES, qualityById, defaultQuality, setDefaultQuality, forceDirect, setForceDirect } from '../player/options.js';
-import { subSize, subBackground, cycleSubSize, toggleSubBackground } from '../player/subprefs.js';
+import { subSize, subBackground, cycleSubSize, toggleSubBackground, subLang, cycleSubLang } from '../player/subprefs.js';
 import * as watchlist from '../plex/watchlist.js';
 import { DownloadsScreen } from './downloads.js';
 import { UpdatesScreen } from './updates.js';
@@ -45,6 +45,7 @@ export function SettingsScreen() {
       { label: 'Signed in as', value: session.user ? session.user.title : '—', run: doSignOut, action: 'Sign out' },
       { label: 'Default quality', value: qualityById(defaultQuality()).label, run: () => { nextDefaultQuality(); build(); } },
       { label: 'Force direct play', value: forceDirect() ? 'On · never convert' : 'Off · convert only when needed', run: () => { setForceDirect(!forceDirect()); build(); } },
+      { label: 'Subtitle language', value: subLang().label, run: () => { cycleSubLang(); build(); } },
       { label: 'Subtitle size', value: subSize().label, run: () => { cycleSubSize(); build(); } },
       { label: 'Subtitle background', value: subBackground() ? 'On' : 'Off', run: () => { toggleSubBackground(); build(); } },
       { label: 'Updates', value: updates.newer(store.get('upLatest'), VERSION) ? store.get('upLatest') + ' available' : 'FlexPlex ' + VERSION,

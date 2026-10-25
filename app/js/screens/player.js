@@ -16,7 +16,8 @@ import { parseSubtitles, CueTrack } from '../player/subtitles.js';
 import {
   TEXT_SUBS, streamsOf, audioLabel, subtitleLabel, qualitiesFor, qualityById, effectiveQuality, defaultQuality, forceDirect,
 } from '../player/options.js';
-import { subOffset, setSubOffset, offsetLabel } from '../player/subprefs.js';
+import { subOffset, setSubOffset, offsetLabel, preferredSub } from '../player/subprefs.js';
+import * as lang from '../util/lang.js';
 
 // What a 2022 Samsung (Tizen 6.5) decodes natively. No DTS on 2018+ models.
 const DIRECT = {
@@ -33,7 +34,7 @@ const SUB_OFFSET_MAX = 10000;
 
 // Language of a stream, for carrying the user's track choice to the next episode.
 function langOf(s) {
-  return (s && (s.languageCode || s.language)) || '';
+  return lang.ofStream(s);
 }
 
 function isEmbeddedText(sub) {
@@ -359,6 +360,12 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     }
     syncSidecar();
     player.play();
+    // Some TVs switch to the file's default subtitle once playback starts:
+    // select ours again a moment later.
+    if (mode === 'direct' && isEmbeddedText(subStream)) {
+      const want = subStream;
+      setTimeout(() => { if (alive && mode === 'direct' && subStream === want) applyTracks(); }, 1200);
+    }
     paused = false;
     started = true;
     position = atMs;
@@ -377,12 +384,34 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       if (pos >= 0 && t.audio[pos] != null) player.selectAudio(t.audio[pos]);
     }
     if (isEmbeddedText(subStream)) {
-      const pos = streamsOf(part, 3).filter(isEmbeddedText).indexOf(subStream);
-      if (pos >= 0 && t.text[pos] != null) player.selectText(t.text[pos]);
+      const idx = textTrackFor(subStream);
+      if (idx != null) player.selectText(idx);
     } else {
       player.selectText(null);
       setText(subsText, '');
     }
+  }
+
+  // Which AVPlay TEXT track is this Plex subtitle? By language when the TV
+  // reports languages (its list can include image subtitles Plex counts
+  // differently), else by position.
+  function textTrackFor(sub) {
+    const tracks = player.textTracks ? player.textTracks() : [];
+    const embedded = streamsOf(part, 3).filter(s => !s.key);
+    if (tracks.length && tracks.some(t => t.lang)) {
+      const want = langOf(sub);
+      const sameTracks = tracks.filter(t => lang.key(t.lang) === want);
+      if (sameTracks.length) {
+        const samePlex = embedded.filter(s => langOf(s) === want);
+        const pos = Math.max(0, samePlex.indexOf(sub));
+        log('subtitle track by language', want, 'pos', pos, 'of', sameTracks.length);
+        return (sameTracks[pos] || sameTracks[0]).index;
+      }
+    }
+    if (tracks.length === embedded.length) return tracks[embedded.indexOf(sub)] ? tracks[embedded.indexOf(sub)].index : null;
+    const t = player.tracks().text;
+    const pos = embedded.filter(isEmbeddedText).indexOf(sub);
+    return pos >= 0 && t[pos] != null ? t[pos] : null;
   }
 
   // Start/stop drawing an external subtitle file for the current selection.
@@ -430,7 +459,10 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       audioStream = (audioStreamID != null && audios.find(s => s.id === audioStreamID)) ||
         audios.find(s => s.selected) || audios[0] || null;
       subStream = subtitleStreamID === 0 ? null :
-        (subtitleStreamID != null && texts.find(s => s.id === subtitleStreamID)) || texts.find(s => s.selected) || null;
+        (subtitleStreamID != null && texts.find(s => s.id === subtitleStreamID)) || null;
+      // Nothing picked on the detail page: Plex's selection, adjusted to the
+      // Subtitle language setting.
+      if (subtitleStreamID == null) subStream = preferredSub(texts, texts.find(s => s.selected) || null);
       // Next episode: same languages as the one before, when available.
       if (langs && audioStreamID == null && langs.audio) {
         audioStream = audios.find(s => langOf(s) === langs.audio) || audioStream;

@@ -55,6 +55,17 @@ function avplayBackend(container, listener) {
         text: info.filter(t => t.type === 'TEXT').map(t => t.index),
       };
     },
+    // TEXT tracks with their language, from AVPlay's extra_info JSON
+    // ({"track_lang":"gre","fourCC":"TTXT",...}).
+    textTracks() {
+      let info = [];
+      try { info = av.getTotalTrackInfo() || []; } catch (e) {}
+      return info.filter(t => t.type === 'TEXT').map(t => {
+        let x = {};
+        try { x = JSON.parse(t.extra_info || '{}'); } catch (e) {}
+        return { index: t.index, lang: x.track_lang || x.language || '', fourCC: x.fourCC || '' };
+      });
+    },
     selectAudio(avIndex) {
       try { av.setSelectTrack('AUDIO', avIndex); return true; } catch (e) { return false; }
     },
@@ -106,6 +117,7 @@ function videoBackend(container, listener) {
     time() { return v.currentTime * 1000; },
     state() { return v.paused ? 'PAUSED' : 'PLAYING'; },
     tracks() { return { audio: [], text: [] }; },
+    textTracks() { return []; },
     selectAudio() { return false; },
     selectText() { return false; },
     suspend() {},

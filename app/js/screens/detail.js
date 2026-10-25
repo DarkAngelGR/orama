@@ -15,6 +15,7 @@ import { error } from '../util/log.js';
 import {
   streamsOf, audioLabel, subtitleLabel, qualitiesFor, effectiveQuality, defaultQuality, versionLabel,
 } from '../player/options.js';
+import { preferredSub } from '../player/subprefs.js';
 
 const SHIFT = 400;    // how far the body slides up to reveal seasons/episodes
 const OPTIONS_H = 64; // .detail-options height + margin, added to SHIFT when shown
@@ -163,7 +164,8 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     const part = currentPart();
     const audios = streamsOf(part, 2);
     const a = audios.find(s => s.selected) || audios[0];
-    const s = streamsOf(part, 3).find(x => x.selected);
+    const texts = streamsOf(part, 3);
+    const s = preferredSub(texts, texts.find(x => x.selected) || null);
     choice.audioId = a ? a.id : undefined;
     choice.subId = s ? s.id : 0;
   }
