@@ -2,10 +2,11 @@
 """FlexPlex installer: keeps the FlexPlex app on a Samsung TV up to date.
 
 Watches the GitHub releases of FlexPlex, and on request (from its web page, from
-FlexPlex itself, or automatically) downloads the newest .wgt, signs it with this
-server's certificate and installs it on the TV with Samsung's tools.
+FlexPlex itself, or automatically) downloads the newest .wgt and has
+Apps2Samsung sign it with your TV's certificate and install it.
 
-Standard library only. Samsung's tools (tizen, sdb) come with the Docker image.
+Standard library only. The signing and installing are done by Apps2Samsung's
+command-line tool (apps2samsung-cli), which comes with the Docker image.
 """
 import base64
 import hmac
@@ -42,17 +43,16 @@ CFG = {
     "port": int(env("PORT", "8790") or 8790),
     "password": env("PASSWORD"),
     "data": env("DATA_DIR", "/data"),
-    "tizen": env("TIZEN_BIN", "tizen"),
-    "sdb": env("SDB_BIN", "sdb"),
-    "profile": env("SIGN_PROFILE", "flexplex"),
-    # A TV refuses an update signed by a different certificate. Allowed by
-    # default: uninstall the old copy (its settings and sign-in go with it) and
-    # install fresh. Happens once, the first time this server installs it.
-    "reinstall_on_cert_mismatch": env("REINSTALL_ON_CERT_MISMATCH", "true").lower() in ("1", "true", "yes", "on"),
+    "a2s": env("A2S_BIN", "apps2samsung-cli"),
+    # Lets Apps2Samsung continue past its pre-install warnings and, if the TV
+    # only takes the update after removing the old copy (different
+    # certificate), do that: FlexPlex's settings and sign-in go with it.
+    "allow_reinstall": env("ALLOW_REINSTALL", "false").lower() in ("1", "true", "yes", "on"),
 }
 
 STATE_FILE = os.path.join(CFG["data"], "state.json")
 WORK = os.path.join(CFG["data"], "work")
+A2S_DATA = os.path.join(CFG["data"], "apps2samsung")
 LOG_MAX = 200
 
 
@@ -183,136 +183,98 @@ def safe_check():
         return None
 
 
-# --- Samsung tools ---------------------------------------------------------------
+# --- Apps2Samsung ------------------------------------------------------------------
+# The signing and installing are done by apps2samsung-cli (github.com/Apps2Samsung/
+# Apps2Samsung), which reuses the certificate the Apps2Samsung desktop app made
+# for your TV: copy its Certificate folder into DATA_DIR/apps2samsung/.
 
 class InstallError(Exception):
     pass
 
 
-def run(cmd, timeout=300):
-    """Run a command, returning (exit code, combined output)."""
+def a2s(args, timeout=900):
+    """Run apps2samsung-cli with --json; returns (exit code, JSON result, stderr)."""
+    cmd = [CFG["a2s"]] + args + ["--json", "--no-browser", "--data-dir", A2S_DATA]
     try:
-        p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout,
+                           env=dict(os.environ, GITHUB_TOKEN=CFG["github_token"]))
     except FileNotFoundError:
-        raise InstallError(f"{cmd[0]} isn't installed (use the Docker image)")
+        raise InstallError("apps2samsung-cli isn't installed (use the Docker image)")
     except subprocess.TimeoutExpired:
-        raise InstallError(f"{os.path.basename(cmd[0])} {cmd[1] if len(cmd) > 1 else ''} timed out")
-    return p.returncode, (p.stdout or "") + (p.stderr or "")
+        raise InstallError(f"apps2samsung-cli {args[0]} timed out")
+    out = (p.stdout or "").strip()
+    result = {}
+    try:  # one (indented) JSON document on stdout; progress goes to stderr
+        result = json.loads(out[out.index("{"):]) if "{" in out else {}
+    except ValueError:
+        pass
+    return p.returncode, result, (p.stderr or "")
 
 
-def ensure_profile():
-    """Create this server's signing certificate the first time (like
-    scripts/setup.sh does on a computer). Its password is kept in /data."""
-    code, out = run([CFG["tizen"], "security-profiles", "list"], timeout=60)
-    if re.search(r"^\s*" + re.escape(CFG["profile"]) + r"\s", out, re.M):
-        return
-    pw_file = os.path.join(CFG["data"], "cert-password")
-    if os.path.exists(pw_file):
-        pw = open(pw_file).read().strip()
-    else:
-        pw = base64.b32encode(os.urandom(15)).decode().lower()
-        os.makedirs(CFG["data"], exist_ok=True)
-        with open(pw_file, "w") as f:
-            f.write(pw)
-        os.chmod(pw_file, 0o600)
-    keystore = os.path.expanduser(f"~/tizen-studio-data/keystore/author/{CFG['profile']}.p12")
-    if not os.path.exists(keystore):
-        STATE.log("creating this server's signing certificate")
-        code, out = run([CFG["tizen"], "certificate", "-a", CFG["profile"], "-p", pw, "-f", CFG["profile"]], timeout=120)
-        if code != 0 or not os.path.exists(keystore):
-            raise InstallError("couldn't create a signing certificate: " + out.strip()[-300:])
-    code, out = run([CFG["tizen"], "security-profiles", "add", "-n", CFG["profile"], "-a", keystore, "-p", pw], timeout=60)
-    if code != 0:
-        raise InstallError("couldn't set up the signing profile: " + out.strip()[-300:])
+def field(d, name, default=None):
+    """The CLI's JSON may use camelCase or PascalCase."""
+    if not isinstance(d, dict):
+        return default
+    return d.get(name, d.get(name[:1].upper() + name[1:], default))
 
 
-def connect_tv():
-    """Connect sdb to the TV; returns the device name the tizen CLI wants."""
-    if not CFG["tv_ip"]:
-        raise InstallError("TV_IP isn't set")
-    target = f"{CFG['tv_ip']}:{CFG['tv_port']}"
-    run([CFG["sdb"], "connect", target], timeout=30)
-    code, out = run([CFG["sdb"], "devices"], timeout=30)
-    for line in out.splitlines():
-        parts = line.split()
-        if parts and parts[0] == target and len(parts) >= 3:
-            if parts[1] != "device":
-                raise InstallError(f"the TV answered but isn't ready ({parts[1]})")
-            return parts[2]
-    raise InstallError(f"can't reach the TV at {target}. Is it on, with Developer Mode "
-                       f"set to this server's IP address?")
-
-
-CERT_MISMATCH = re.compile(r"certificate|signature|author", re.I)
-INSTALL_OK = re.compile(r"install completed|installed successfully|Installed the package", re.I)
-
-
-def install_wgt(wgt, app_id, device):
-    code, out = run([CFG["tizen"], "install", "-n", wgt, "-t", device], timeout=600)
-    if INSTALL_OK.search(out):
-        return
-    if CFG["reinstall_on_cert_mismatch"] and CERT_MISMATCH.search(out):
-        STATE.log("the TV has a copy signed by another certificate; uninstalling it and installing fresh")
-        run([CFG["tizen"], "uninstall", "-p", app_id, "-t", device], timeout=300)
-        code, out = run([CFG["tizen"], "install", "-n", wgt, "-t", device], timeout=600)
-        if INSTALL_OK.search(out):
-            return
-    tail = " ".join(l.strip() for l in out.strip().splitlines()[-4:])
-    raise InstallError("the TV didn't accept the install: " + (tail or f"exit {code}"))
+def certificate_covers_tv():
+    """Is there a certificate here for this TV? Making one needs a Samsung
+    sign-in in a browser, which a server can't do, so it must be copied in."""
+    code, res, err = a2s(["cert", "--tv", CFG["tv_ip"]], timeout=120)
+    duid = field(res, "tvDuid")
+    profiles = field(res, "profiles") or []
+    if code != 0 or not duid:
+        msg = field(res, "error") or err.strip().splitlines()[-1:] or ["no answer"]
+        raise InstallError(f"can't reach the TV at {CFG['tv_ip']} ({msg if isinstance(msg, str) else msg[0]}). "
+                           "Is it on, with Developer Mode set to this server's IP address?")
+    for p in profiles:
+        if field(p, "usable") and duid.lower() in [d.lower() for d in field(p, "duids") or []]:
+            return True
+    raise InstallError(f"no Apps2Samsung certificate here covers this TV (DUID {duid}). Copy the Certificate "
+                       "folder from the Apps2Samsung app on your computer into data/apps2samsung/ "
+                       "(see installer/README.md)")
 
 
 def do_install(latest):
     version = latest["version"]
+    if not CFG["tv_ip"]:
+        raise InstallError("TV_IP isn't set")
     STATE.log(f"installing FlexPlex {version}")
     shutil.rmtree(WORK, ignore_errors=True)
     os.makedirs(WORK)
-    src = os.path.join(WORK, "release.wgt")
+    wgt = os.path.join(WORK, f"FlexPlex-{version}.wgt")
     STATE.log(f"downloading {latest['asset_name']}")
     try:
-        with github(latest["asset"], accept="application/octet-stream", timeout=120) as r, open(src, "wb") as f:
+        with github(latest["asset"], accept="application/octet-stream", timeout=120) as r, open(wgt, "wb") as f:
             shutil.copyfileobj(r, f)
     except (urllib.error.URLError, TimeoutError, OSError) as e:
         raise InstallError(f"download failed ({getattr(e, 'reason', e)})")
-
-    app_dir = os.path.join(WORK, "app")
     try:
-        with zipfile.ZipFile(src) as z:
-            for n in z.namelist():  # no absolute paths or ../ escapes
-                if n.startswith("/") or ".." in n.split("/"):
-                    raise InstallError("the release package looks wrong (unsafe paths)")
-            z.extractall(app_dir)
+        with zipfile.ZipFile(wgt) as z:
+            if "config.xml" not in z.namelist():
+                raise InstallError("the release package has no config.xml")
     except zipfile.BadZipFile:
         raise InstallError("the release package isn't a valid .wgt")
-    config = os.path.join(app_dir, "config.xml")
-    if not os.path.exists(config):
-        raise InstallError("the release package has no config.xml")
-    # Drop any signature from the release; this server signs it.
-    for n in os.listdir(app_dir):
-        if re.match(r"(author-)?signature\d*\.xml$", n):
-            os.remove(os.path.join(app_dir, n))
-    m = re.search(r'tizen:application[^>]*\bid="([^"]+)"', open(config, encoding="utf-8").read())
-    if not m:
-        raise InstallError("the release package has no Tizen app id")
-    app_id = m.group(1)
 
-    ensure_profile()
-    out_dir = os.path.join(WORK, "out")
-    os.makedirs(out_dir)
-    STATE.log("signing")
-    code, out = run([CFG["tizen"], "package", "-t", "wgt", "-s", CFG["profile"], "-o", out_dir, "--", app_dir], timeout=300)
-    wgts = [f for f in os.listdir(out_dir) if f.endswith(".wgt")]
-    if not wgts:
-        raise InstallError("signing failed: " + out.strip()[-300:])
-    wgt = os.path.join(WORK, "flexplex.wgt")  # the TV installer chokes on spaces
-    os.replace(os.path.join(out_dir, wgts[0]), wgt)
-
-    STATE.log(f"connecting to the TV at {CFG['tv_ip']}")
-    device = connect_tv()
-    STATE.log("installing on the TV")
-    install_wgt(wgt, app_id, device)
-    STATE.update(installed=version, installed_at=now_iso())
-    STATE.log(f"FlexPlex {version} installed; starting it")
-    run([CFG["tizen"], "run", "-p", app_id, "-t", device], timeout=60)
+    STATE.log(f"checking the TV at {CFG['tv_ip']} and the certificate")
+    certificate_covers_tv()
+    STATE.log("signing and installing (Apps2Samsung)")
+    args = ["install", wgt, "--tv", CFG["tv_ip"]]
+    if CFG["allow_reinstall"]:
+        args.append("--yes")
+    code, res, err = a2s(args)
+    if code == 0 and field(res, "ok"):
+        STATE.update(installed=version, installed_at=now_iso())
+        STATE.log(f"FlexPlex {version} installed" + (" and started" if field(res, "launched") else ""))
+        return
+    msg = field(res, "error") or (err.strip().splitlines() or [f"exit {code}"])[-1]
+    checks = field(field(res, "details") or {}, "checks") or []
+    if checks:
+        msg += ": " + "; ".join(str(field(c, "message") or field(c, "defaultMessageWithDetail") or field(c, "kind")) for c in checks)
+    if code == 3 and not CFG["allow_reinstall"]:
+        msg = re.sub(r"\s*Rerun with --yes[^.]*\.?", "", msg) + " Set ALLOW_REINSTALL=true to let it go ahead."
+    raise InstallError(msg)
 
 
 def install_job(version=None):

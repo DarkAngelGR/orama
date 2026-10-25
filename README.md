@@ -46,8 +46,9 @@ FlexPlex adds:
   found automatically when it runs on the same machine as Plex; see Settings › Downloads.
 - **IMDb, Rotten Tomatoes and TMDB ratings** on the detail page and in lists.
 - **Updates without a computer.** Each new version is published as a GitHub release; FlexPlex
-  tells you when one is out, and the [FlexPlex installer](installer/) on your server signs and
-  installs it on the TV from **Settings › Updates** (or its web page, from your phone).
+  tells you when one is out, and the [FlexPlex installer](installer/) on your server installs it on
+  the TV with Apps2Samsung's command-line tool, from **Settings › Updates** (or its web page, from
+  your phone).
 - **More info.** A full page per title (button on the detail page, or the Info key): the whole
   description, director, writers, cast with characters, studio, release date and all ratings, plus
   the version, size, bitrate, audio tracks and subtitles of your own files.
