@@ -39,6 +39,16 @@ export function openPerson(person) {
   router.push(PersonScreen(person));
 }
 
+// A title's catalog page (details, Add to Watchlist), found by title and year.
+export async function openCatalogLookup({ title, year, kind }) {
+  const { search } = await import('./plex/discover.js');
+  const found = await search(title, { limit: 10 });
+  const type = kind === 'show' ? 'show' : 'movie';
+  const m = found.find(x => x.type === type && (!year || Math.abs((x.year || 0) - year) <= 1)) || found.find(x => x.type === type);
+  if (m) openCatalog(m);
+  return !!m;
+}
+
 export function openCatalog(item) {
   router.push(CatalogScreen(item));
 }

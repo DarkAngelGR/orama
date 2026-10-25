@@ -9,7 +9,9 @@ import { longDate } from './info.js';
 import { clearLogo } from './home.js';
 import * as icons from '../ui/icons.js';
 import * as router from '../router.js';
-import { playItem, openPerson } from '../nav.js';
+import { playItem, openPerson, openItem, openCatalogLookup } from '../nav.js';
+import * as watchlist from '../plex/watchlist.js';
+import * as downloads from '../plex/downloads.js';
 import { InfoScreen } from './info.js';
 import * as themeMusic from '../ui/theme-music.js';
 import { error } from '../util/log.js';
@@ -44,6 +46,11 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
   // episodes for shows.
   const castWrap = h('div', 'detail-cast');
   let cast = null;          // { row, items }
+  // The rest of a movie's collection (e.g. the trilogy), owned or not, from
+  // Radarr via watchlist-sync. Sits between the play options and the cast.
+  const collWrap = h('div', 'detail-cast detail-collection');
+  let coll = null;          // { row, items }
+  let collFor = '';
   const picker = new Picker(el);
   optionsEl.style.display = 'none';
 
@@ -322,6 +329,62 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     if (shownNow && url) themeMusic.play(url);
   }
 
+  function tmdbOf(it) {
+    const g = (it.Guid || []).map(x => /^tmdb:\/\/(\d+)/.exec(x.id || '')).find(Boolean);
+    return g ? Number(g[1]) : 0;
+  }
+
+  // Library items for the parts we own (by title and year), so they open
+  // their own page; the rest open the catalog page with Add to Watchlist.
+  async function libraryMatch(part) {
+    try {
+      const hubs = await session.server.search(part.title);
+      const all = [].concat(...hubs.map(hb => hb.Metadata || []));
+      return all.find(m => m.type === 'movie' && (!part.year || Math.abs((m.year || 0) - part.year) <= 1)) || null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function partNote(p) {
+    const d = downloads.current().find(x => x.kind === 'movie' && x.tmdb === p.tmdb);
+    if (d) return downloads.describe(d).split('  ·  ').slice(0, 2).join(' · ');
+    if (p.inRadarr && p.monitored) return 'Wanted · on its way';
+    return 'Not in your library';
+  }
+
+  async function renderCollection() {
+    if (item.type !== 'movie' || !watchlist.baseUrl()) return;
+    const tmdb = tmdbOf(item);
+    if (!tmdb || collFor === String(tmdb)) return;
+    collFor = String(tmdb);
+    let c;
+    try { c = await watchlist.collection(tmdb); } catch (e) { return; }
+    if (!alive || !c || !c.movies) return;
+    const others = c.movies.filter(p => p.tmdb !== tmdb);
+    if (!others.length) return;
+    const items = await Promise.all(others.map(async p => {
+      if (p.hasFile) {
+        const m = await libraryMatch(p);
+        if (m) return m;
+      }
+      return { ratingKey: 'coll-' + p.tmdb, type: 'movie', title: p.title, year: p.year, thumb: p.poster || '',
+        note: partNote(p), lookup: { title: p.title, year: p.year, kind: 'movie' } };
+    }));
+    if (!alive) return;
+    if (collWrap.parentNode !== body) body.insertBefore(collWrap, castWrap.parentNode === body ? castWrap : seasonsEl);
+    const onSelect = it => (it.lookup ? openCatalogLookup(it.lookup) : openItem(it));
+    if (!coll) {
+      const row = new Row({ title: c.title || 'Collection', kind: 'poster', caption: true, items, onSelect });
+      collWrap.appendChild(row.el);
+      collWrap.style.height = row.height + 'px';
+      coll = { row, items };
+    } else {
+      coll.items = items;
+      coll.row.setItems(items);
+    }
+  }
+
   function renderCast() {
     const roles = (item.Role || []).filter(r => r.tag).slice(0, 30);
     if (!roles.length) {
@@ -340,6 +403,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
       const row = new Row({ title: 'Cast', kind: 'person', caption: true, items: people, onSelect: p => openPerson(p) });
       row.el.classList.add('row-person');
       castWrap.appendChild(row.el);
+      castWrap.style.height = row.height + 'px'; // rows are absolutely positioned
       cast = { row, items: people };
     } else {
       cast.items = people;
@@ -357,10 +421,12 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     scrollSeasons();
     if (episodes) episodes.row.setActive(zone === 'episodes');
     if (cast) cast.row.setActive(zone === 'cast');
-    const shifted = zone === 'seasons' || zone === 'episodes' || zone === 'cast';
+    if (coll) coll.row.setActive(zone === 'collection');
+    const shifted = zone === 'seasons' || zone === 'episodes' || zone === 'cast' || zone === 'collection';
     let shift = SHIFT + (options.length ? OPTIONS_H : 0);
-    // The cast row: slide it up to the middle of the screen (read once per focus change).
+    // Cast / collection rows: slide them up to the middle of the screen (read once per focus change).
     if (zone === 'cast') shift = Math.max(0, castWrap.offsetTop - 430);
+    if (zone === 'collection') shift = Math.max(0, collWrap.offsetTop - 330);
     setTransform(body, shifted ? 'translateY(' + (-shift) + 'px)' : 'translateY(0)');
     toggleClass(el, 'shifted', shifted);
   }
@@ -423,6 +489,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
       fullCache.clear();
       renderHeader();
       renderCast();
+      renderCollection();
       playTheme();
       if (isShowLike()) {
         seasons = (await session.server.children(item.ratingKey)).filter(s => s.type === 'season');
@@ -473,6 +540,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     if (options.length) order.push('options');
     if (seasons.length > 1) order.push('seasons');
     if (episodes) order.push('episodes');
+    if (coll) order.push('collection');
     if (cast) order.push('cast');
     const i = order.indexOf(zone) + dir;
     if (i < 0 || i >= order.length) return;
@@ -498,6 +566,11 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
       if (picker.isOpen) return picker.onKey(action);
       if (action === 'up') { moveZone(-1); return true; }
       if (action === 'down') { moveZone(1); return true; }
+      if ((action === 'play' || action === 'playpause') && zone === 'collection') {
+        const c = coll.row.current();
+        if (c && !c.lookup) playItem(c);
+        return true;
+      }
       if (action === 'play' || action === 'playpause') {
         const t = zone === 'episodes' ? episodes.row.current() : target();
         if (t) play(t, t.viewOffset || 0);
@@ -523,6 +596,10 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
           return true;
         }
         if (action === 'enter') { moveZone(1); return true; }
+      } else if (zone === 'collection') {
+        if (action === 'left') { coll.row.move(-1); return true; }
+        if (action === 'right') { coll.row.move(1); return true; }
+        if (action === 'enter') { coll.row.select(); return true; }
       } else if (zone === 'cast') {
         if (action === 'left') { cast.row.move(-1); return true; }
         if (action === 'right') { cast.row.move(1); return true; }

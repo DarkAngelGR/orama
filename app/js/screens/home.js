@@ -8,12 +8,11 @@ import { metaLine } from '../util/format.js';
 import { isFast } from '../input.js';
 import * as store from '../util/store.js';
 import * as icons from '../ui/icons.js';
-import { openItem, playItem, openLibrary, openSearch, openSettings, openCatalog } from '../nav.js';
+import { openItem, playItem, openLibrary, openSearch, openSettings, openCatalogLookup } from '../nav.js';
 import { error, log } from '../util/log.js';
 import * as updates from '../plex/updates.js';
 import * as notifications from '../plex/notifications.js';
 import * as downloads from '../plex/downloads.js';
-import * as discover from '../plex/discover.js';
 import { notice } from '../ui/notice.js';
 
 // Once per app start, a few seconds after home appears: is there a newer
@@ -219,10 +218,7 @@ export function HomeScreen() {
   // A download's catalog page (details, Watchlist), found by title and year.
   async function openDownload(d) {
     try {
-      const found = await discover.search(d.title, { limit: 10 });
-      const kind = d.kind === 'show' ? 'show' : 'movie';
-      const m = found.find(x => x.type === kind && (!d.year || Math.abs((x.year || 0) - d.year) <= 1)) || found.find(x => x.type === kind);
-      if (m) openCatalog(m);
+      await openCatalogLookup({ title: d.title, year: d.year, kind: d.kind });
     } catch (e) {
       error('download lookup failed', e);
     }

@@ -56,6 +56,8 @@ FlexPlex adds:
 - **Plex Home profiles.** Switch profiles (with PIN) from Settings › Profile, or have FlexPlex ask
   "Who's watching?" at start; each profile has its own Continue Watching and watched state.
 - **Theme music.** A title's theme plays quietly on its page, like Plex (Settings › Theme music).
+- **Collections.** A movie's page shows the rest of its collection (e.g. the trilogy) from Radarr, owned or
+  not: owned parts open, missing ones can be added to your Watchlist (needs watchlist-sync).
 - **Cast.** Movie and show pages have a Cast row with photos; pick an actor to see everything on your
   server they're in.
 - **More info.** A full page per title (button on the detail page, or the Info key): the whole

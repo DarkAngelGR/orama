@@ -69,7 +69,7 @@ export class Server {
 
   async metadata(ratingKey) {
     // includeMarkers: intro/credits ranges, for the player's skip button.
-    const mc = await this.get('/library/metadata/' + ratingKey, { includeOnDeck: 1, includeExtras: 0, includeMarkers: 1 });
+    const mc = await this.get('/library/metadata/' + ratingKey, { includeOnDeck: 1, includeExtras: 0, includeMarkers: 1, includeGuids: 1 });
     const item = (mc.Metadata || [])[0];
     if (item && mc.OnDeck && mc.OnDeck.Metadata) item.onDeck = mc.OnDeck.Metadata[0];
     return item;

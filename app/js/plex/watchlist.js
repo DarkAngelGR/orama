@@ -120,3 +120,15 @@ export async function queue() {
     throw e;
   }
 }
+
+// The Radarr collection a movie belongs to: { title, tmdb, movies: [{ tmdb,
+// title, year, poster, inRadarr, hasFile, monitored }] }, or null.
+export async function collection(tmdb) {
+  try {
+    const r = await call('/api/tv/collection?tmdb=' + encodeURIComponent(tmdb), { timeout: 15000 });
+    return r.collection || null;
+  } catch (e) {
+    if (e.status === 404) return null; // older watchlist-sync
+    throw e;
+  }
+}

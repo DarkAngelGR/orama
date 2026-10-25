@@ -57,6 +57,7 @@ function titleFor(item, kind) {
 }
 
 function subFor(item, kind) {
+  if (item.note) return item.note;
   if (item.type === 'person') return item.role || '';
   if (item.type === 'episode') {
     return kind === 'episode' ? episodeLabel(item).replace(' · ', '') + '  ' + item.title
