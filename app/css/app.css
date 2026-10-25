@@ -322,6 +322,13 @@ html.fast .row-track, html.fast .rows-track, html.fast .grid-track, html.fast .r
 .pill.current { color: var(--cream); background: var(--faint); }
 .pill.focus { background: var(--cream); color: var(--bg); }
 .detail-episodes { position: relative; margin: 24px 0 0 -96px; width: 1920px; height: 330px; }
+.detail-epinfo { margin-top: 64px; width: 1300px; height: 160px; opacity: 0; transition: opacity 260ms var(--ease); }
+.detail.shifted .detail-epinfo { opacity: 1; }
+.detail-epinfo-head { font: 600 26px var(--body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.detail-epinfo-summary {
+  margin-top: 10px; font: 400 24px/1.45 var(--body); color: rgba(255, 247, 230, 0.8);
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
 
 /* ---------- player ---------- */
 

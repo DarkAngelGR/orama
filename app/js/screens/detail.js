@@ -4,7 +4,8 @@ import { useAmbience, HeroArt } from '../ui/backdrop.js';
 import { Row } from '../ui/row.js';
 import { Picker } from '../ui/picker.js';
 import { session } from '../session.js';
-import { metaLine, clock, episodeLabel } from '../util/format.js';
+import { metaLine, clock, episodeLabel, duration } from '../util/format.js';
+import { longDate } from './info.js';
 import { clearLogo } from './home.js';
 import * as icons from '../ui/icons.js';
 import * as router from '../router.js';
@@ -34,6 +35,9 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
   const seasonsEl = h('div', 'detail-seasons', body);
   const seasonsTrack = h('div', 'detail-seasons-track', seasonsEl);
   const episodesWrap = h('div', 'detail-episodes', body);
+  const epInfo = h('div', 'detail-epinfo', body);
+  const epHead = h('div', 'detail-epinfo-head', epInfo);
+  const epSummary = h('p', 'detail-epinfo-summary', epInfo);
   const picker = new Picker(el);
   optionsEl.style.display = 'none';
 
@@ -313,12 +317,36 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     toggleClass(el, 'shifted', shifted);
   }
 
+  // Description of the highlighted episode, under the row. Season listings
+  // normally include it; if not, fetch that one episode (after a short pause,
+  // so holding Right doesn't fire a request per episode).
+  const epFull = new Map();
+  let epTimer = 0;
+  function showEpisode(ep) {
+    clearTimeout(epTimer);
+    if (!ep) { setText(epHead, ''); setText(epSummary, ''); return; }
+    const bits = [episodeLabel(ep) + '   ' + (ep.title || '')];
+    if (ep.originallyAvailableAt) bits.push(longDate(ep.originallyAvailableAt));
+    if (ep.duration) bits.push(duration(ep.duration));
+    setText(epHead, bits.join('   ·   '));
+    const text = ep.summary || (epFull.get(ep.ratingKey) || {}).summary;
+    setText(epSummary, text || '');
+    if (text || epFull.has(ep.ratingKey)) return;
+    epTimer = setTimeout(() => {
+      session.server.metadata(ep.ratingKey).then(full => {
+        epFull.set(ep.ratingKey, full || {});
+        if (alive && episodes && episodes.row.current() === ep) setText(epSummary, (full && full.summary) || '');
+      }, () => epFull.set(ep.ratingKey, {}));
+    }, 350);
+  }
+
   async function loadEpisodes(season) {
     const kids = await session.server.children(season.ratingKey);
     if (!alive) return;
     if (!episodes) {
       const row = new Row({
         kind: 'episode', caption: true, items: kids,
+        onFocus: ep => showEpisode(ep),
         onSelect: ep => play(ep, ep.viewOffset || 0),
       });
       episodesWrap.appendChild(row.el);
