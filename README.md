@@ -17,7 +17,11 @@
 </p>
 
 <p align="center">
-  <img src="assets/readme/home.png" alt="Orama's home screen" width="880">
+  <img src="assets/readme/home.jpg" alt="Orama's home screen: Interstellar in the hero, Continue Watching and Recently Added rows" width="880">
+</p>
+<p align="center">
+  <img src="assets/readme/detail.jpg" alt="A movie page with play, quality and cast" width="436">
+  <img src="assets/readme/library.jpg" alt="The Movies library as a poster grid" width="436">
 </p>
 
 Orama (όραμα, Greek for "vision") replaces the official Plex app on Samsung smart TVs. The
