@@ -236,7 +236,7 @@ export function HomeScreen() {
   } else {
     buildNav([]);
   }
-  // Inter swaps in after first paint and changes the label widths.
+  // The web font swaps in after first paint and changes the label widths.
   if (document.fonts) document.fonts.ready.then(renderNav);
   load();
 

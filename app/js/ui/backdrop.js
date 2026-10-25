@@ -8,7 +8,7 @@
 // One shared instance sits behind every screen; two layers cross-fade.
 import { h } from '../util/dom.js';
 
-const FALLBACK = { topLeft: '1b1f2b', topRight: '0f1118', bottomLeft: '2a1414', bottomRight: '0b0d12' };
+const FALLBACK = { topLeft: '1d1b31', topRight: '100f1a', bottomLeft: '1e1430', bottomRight: '0b0b12' };
 const DIM = 0.78; // keep text readable on bright posters
 
 function rgb(hex) {
@@ -53,7 +53,7 @@ function legacyGradient(colors) {
   const c = colors || FALLBACK;
   return ['topLeft 0% 0%', 'topRight 100% 0%', 'bottomLeft 0% 100%', 'bottomRight 100% 100%']
     .map(s => { const [k, x, y] = s.split(' '); return 'radial-gradient(ellipse at ' + x + ' ' + y + ', #' + c[k] + ' 0%, transparent 70%)'; })
-    .join(',') + ',#0B0D12';
+    .join(',') + ',#0B0B12';
 }
 
 class Ambience {
