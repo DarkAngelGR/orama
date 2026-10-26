@@ -406,6 +406,9 @@ html.fast .row-track, html.fast .rows-track, html.fast .grid-track, html.fast .r
   text-shadow: 0 2px 6px #000, 0 0 3px #000, 0 0 3px #000;
 }
 .osd-on .subs { bottom: 340px; }
+/* Translated signs (anime) sit at the top, clear of the OSD title */
+.subs.subs-top, .osd-on .subs.subs-top { top: 70px; bottom: auto; }
+.osd-on .subs.subs-top { top: 290px; }
 /* Subtitle size / background (Settings), as classes on <html> */
 html.subs-s .subs { font-size: 38px; }
 html.subs-l .subs { font-size: 56px; }

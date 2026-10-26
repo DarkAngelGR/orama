@@ -13,7 +13,10 @@ export function audioLabel(s) {
 }
 
 export function subtitleLabel(s) {
-  const title = s.displayTitle && s.displayTitle !== 'Unknown' ? s.displayTitle : (s.language || '');
+  let title = s.displayTitle && s.displayTitle !== 'Unknown' ? s.displayTitle : (s.language || '');
+  // The track's own name tells same-language tracks apart ("Full Subtitles",
+  // "Signs & Songs").
+  if (title && s.title && title.toLowerCase().indexOf(s.title.toLowerCase()) < 0) title += ' · ' + s.title;
   const kind = (s.codec || '').toUpperCase() + (s.key ? ' · external' : '');
   return title ? title + (s.key ? ' · external' : '') : kind || 'Subtitle';
 }

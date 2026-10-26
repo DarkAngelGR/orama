@@ -12,13 +12,13 @@ import * as icons from '../ui/icons.js';
 import * as router from '../router.js';
 import { log, warn, error } from '../util/log.js';
 import { request } from '../plex/client.js';
-import { parseSubtitles, CueTrack } from '../player/subtitles.js';
+import { parseSubtitles, CueTrack, cleanCue, NO_CUE } from '../player/subtitles.js';
 import {
   TEXT_SUBS, streamsOf, audioLabel, subtitleLabel, qualitiesFor, qualityById, effectiveQuality, defaultQuality, forceDirect, audioExtras,
 } from '../player/options.js';
 import { subOffset, setSubOffset, offsetLabel } from '../player/subprefs.js';
 import * as lang from '../util/lang.js';
-import { NATIVE_AUDIO, pickTracks, rememberShowTracks, showKeyOf } from '../player/tracks.js';
+import { NATIVE_AUDIO, pickTracks, rememberShowTracks, showKeyOf, learnShowGenres } from '../player/tracks.js';
 
 // What a 2022 Samsung (Tizen 6.5) decodes natively. No DTS on 2018+ models.
 const DIRECT = {
@@ -47,13 +47,6 @@ function isSidecarText(sub) {
   return !!sub && !!sub.key && !!TEXT_SUBS[sub.codec];
 }
 
-function cleanSubtitle(text) {
-  return String(text || '')
-    .replace(/\{\\[^}]*\}/g, '')        // ASS override tags
-    .replace(/<[^>]+>/g, '')            // <i>, <font> ...
-    .replace(/\\N/g, '\n');
-}
-
 // Options picked on the detail screen: quality id, which version (Media) to
 // play, and audio/subtitle stream ids (subtitleStreamID 0 = off). Anything
 // left out falls back to the server's selection and the default quality.
@@ -64,6 +57,8 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   const stage = h('div', 'player-stage', el);
   const subs = h('div', 'subs', el);
   const subsText = h('span', 'subs-text', subs); // inline, so the optional background hugs the text
+  const signs = h('div', 'subs subs-top', el);   // translated on-screen signs (anime)
+  const signsText = h('span', 'subs-text', signs);
   const spinner = h('div', 'spinner', el);
   const pauseBig = h('div', 'pause-big', el);
   pauseBig.innerHTML = icons.pause;
@@ -118,6 +113,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   let osdTimer = 0;
   let timelineTimer = 0;
   let subTimer = 0;
+  let signTimer = 0;
   let lastText = 0;
   let upnextTimer = 0;
   let nextItem = null;
@@ -147,11 +143,24 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       // The TV can keep sending its default track's lines; only an embedded
       // subtitle that's actually selected should show.
       if (mode !== 'direct' || !isEmbeddedText(subStream)) return;
-      clearTimeout(subTimer);
-      setText(subsText, cleanSubtitle(text));
-      if (ms > 0) subTimer = setTimeout(() => setText(subsText, ''), ms);
+      // Signs and dialogue come one line at a time and each keeps its own place.
+      const cue = cleanCue(text);
+      if (cue.top) {
+        clearTimeout(signTimer);
+        setText(signsText, cue.text);
+        if (ms > 0) signTimer = setTimeout(() => setText(signsText, ''), ms);
+      } else {
+        clearTimeout(subTimer);
+        setText(subsText, cue.text);
+        if (ms > 0) subTimer = setTimeout(() => setText(subsText, ''), ms);
+      }
     },
   });
+
+  function showCue(cue) {
+    setText(subsText, cue.text);
+    setText(signsText, cue.top);
+  }
 
   // --- OSD --------------------------------------------------------------
 
@@ -410,7 +419,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       if (idx != null) player.selectText(idx);
     } else {
       player.selectText(null);
-      setText(subsText, '');
+      showCue(NO_CUE);
     }
   }
 
@@ -469,7 +478,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       cueTrack = null;
       cueFor = null;
       clearInterval(cueTimer);
-      if (!isEmbeddedText(subStream)) setText(subsText, '');
+      if (!isEmbeddedText(subStream)) showCue(NO_CUE);
       return;
     }
     if (cueFor === subStream) return;
@@ -505,7 +514,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     clearInterval(cueTimer);
     cueTimer = setInterval(() => {
       // Positive offset = show each line later, so look up an earlier time.
-      if (cueTrack && started) setText(subsText, cueTrack.at(base + player.time() - subOff));
+      if (cueTrack && started) showCue(cueTrack.at(base + player.time() - subOff));
     }, 120);
   }
 
@@ -520,6 +529,8 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       mediaIdx = Math.max(0, medias.indexOf(media));
       part = media && media.Part && media.Part[0];
       if (!part) throw new Error('No playable media');
+      await learnShowGenres(item, session.server);  // is it anime? (once per show)
+      if (!alive) return;
       // Picked on the detail page, else this show's remembered languages (or the
       // previous episode's), else Plex's selection; and audio the TV can play.
       const picked = pickTracks(item, part, { audioStreamID, subtitleStreamID, langs });
@@ -833,7 +844,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     if (!alive) return;
     alive = false;
     if (started && position < duration) report('stopped');
-    [seekTimer, osdTimer, subTimer, toastTimer].forEach(clearTimeout);
+    [seekTimer, osdTimer, subTimer, signTimer, toastTimer].forEach(clearTimeout);
     clearInterval(timelineTimer);
     clearInterval(upnextTimer);
     clearInterval(cueTimer);

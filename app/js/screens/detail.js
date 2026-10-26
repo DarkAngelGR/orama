@@ -19,7 +19,7 @@ import {
   streamsOf, audioLabel, subtitleLabel, qualitiesFor, effectiveQuality, defaultQuality, versionLabel,
 } from '../player/options.js';
 import { ConfirmScreen } from './confirm.js';
-import { pickTracks, rememberShowTracks, showKeyOf, langsOf } from '../player/tracks.js';
+import { pickTracks, rememberShowTracks, showKeyOf, langsOf, rememberShowGenres, learnShowGenres } from '../player/tracks.js';
 import { ownsServer } from '../session.js';
 import { removeFromWatchlist } from '../plex/discover.js';
 import { notice, hideNotice } from '../ui/notice.js';
@@ -211,8 +211,9 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
       if (!alive || !full) return;
       fullCache.set(t.ratingKey, full);
     }
+    await learnShowGenres(full, session.server);
     const now = target();
-    if (!now || now.ratingKey !== t.ratingKey) return;
+    if (!alive || !now || now.ratingKey !== t.ratingKey) return;
     choice = { key: t.ratingKey, full, mediaIndex: 0, audioId: undefined, subId: 0 };
     if (!currentPart()) { choice = null; renderOptions(); return; }
     resetStreams();
@@ -669,6 +670,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
       const full = await session.server.metadata(key);
       if (!alive || !full) return;
       item = full;
+      rememberShowGenres(full);   // anime? decides the default audio/subtitles
       // Fresh metadata carries the server's current track selection (which
       // the player may have changed), so rebuild the choices from it.
       choice = null;

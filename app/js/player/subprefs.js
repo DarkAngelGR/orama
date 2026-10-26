@@ -80,15 +80,47 @@ export function cycleSubLang() {
   store.set('subLang', next === 'auto' ? undefined : next);
 }
 
+// "Signs & Songs" tracks (common in anime) only translate on-screen text and
+// lyrics; "Full Subtitles (incl. Songs)" is the real thing.
+export function isSigns(s) {
+  const t = ((s && s.title) || '') + ' ' + ((s && s.displayTitle) || '');
+  return /\bsigns?\b/i.test(t) || (/\bsongs?\b/i.test(t) && !/\bfull\b|dialog/i.test(t));
+}
+
+// The best track of a list: full dialogue first, then text before images.
+export function bestSub(list) {
+  const score = t => (t.forced || isSigns(t) ? 2 : 0) + (/pgs|vobsub|dvd|dvb/i.test(t.codec || '') ? 1 : 0);
+  return list.slice().sort((a, b) => score(a) - score(b))[0] || null;
+}
+
+// A Signs & Songs pick swapped for the full track in the same language.
+function fullTrack(texts, sub) {
+  if (!sub || !isSigns(sub)) return sub;
+  const want = lang.ofStream(sub);
+  return bestSub(texts.filter(t => lang.ofStream(t) === want && !t.forced && !isSigns(t))) || sub;
+}
+
 // The subtitle to start with: `current` (Plex's pick) adjusted to the
-// preference. Full subtitles beat forced-only ones; text beats images.
+// preference. Full subtitles beat forced-only and Signs & Songs ones; text
+// beats images.
 export function preferredSub(texts, current) {
   const pref = subLang().id;
-  if (pref === 'auto') return current;
+  if (pref === 'auto') return fullTrack(texts, current);
   if (pref === 'off') return null;
-  if (current && lang.ofStream(current) === pref && !current.forced) return current;
+  if (current && lang.ofStream(current) === pref && !current.forced && !isSigns(current)) return current;
   const same = texts.filter(t => lang.ofStream(t) === pref);
-  if (!same.length) return current;
-  const score = t => (t.forced ? 2 : 0) + (/pgs|vobsub|dvd|dvb/i.test(t.codec || '') ? 1 : 0);
-  return same.slice().sort((a, b) => score(a) - score(b))[0];
+  if (!same.length) return fullTrack(texts, current);
+  return bestSub(same);
+}
+
+// Anime in Japanese: Greek subtitles if there are any, else English (or the
+// Subtitle language setting's pick first), full dialogue over signs-only.
+export function animeSub(texts) {
+  const pref = subLang().id;
+  const order = (pref === 'el' || pref === 'en' ? [pref] : []).concat(['el', 'en']);
+  for (const code of order) {
+    const pick = bestSub(texts.filter(t => lang.ofStream(t) === code));
+    if (pick) return pick;
+  }
+  return null;
 }

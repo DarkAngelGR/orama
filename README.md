@@ -43,6 +43,8 @@ decoder, so your server barely has to work.
   each show remembers the audio and subtitle languages you picked for it.
 - Audio the TV can't play (like DTS) is swapped for another track in the same language
   when the file has one, so nothing needs converting.
+- Anime starts in Japanese with Greek (else English) subtitles, the full dialogue track rather
+  than "Signs & Songs", and translated signs show at the top of the screen.
 - Movie and show pages with ratings (IMDb, Rotten Tomatoes, TMDB), cast with photos, trailers,
   the rest of a movie's collection, episode descriptions, theme music and a full "More info" page.
 - Hold OK on a Continue Watching tile to remove it, mark it watched or clear its progress.
