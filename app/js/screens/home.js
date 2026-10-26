@@ -14,6 +14,8 @@ import * as updates from '../plex/updates.js';
 import * as notifications from '../plex/notifications.js';
 import * as downloads from '../plex/downloads.js';
 import { notice } from '../ui/notice.js';
+import { Picker } from '../ui/picker.js';
+import * as watchlist from '../plex/watchlist.js';
 
 // Once per app start, a few seconds after home appears: is there a newer
 // Orama? Mentioned once per version.
@@ -91,6 +93,9 @@ export function HomeScreen() {
   rowsClip.style.top = ROWS_TOP + 'px';
   const track = h('div', 'rows-track', rowsClip);
   const empty = h('div', 'home-empty', el);
+  const holdHint = h('div', 'home-hint', el);
+  holdHint.textContent = 'Hold OK for options';
+  const picker = new Picker(el);
 
   let rows = [];
   let offsets = [];
@@ -107,6 +112,8 @@ export function HomeScreen() {
   let stale = false;       // the library changed while another screen was on top
   let plexHubs = [];       // the server's hubs, before the Downloading row is added
   let dlItems = [];        // downloads in progress, as tiles
+  let upItems = [];        // episodes airing soon (Sonarr's calendar), as tiles
+  let upLoadedAt = 0;
 
   function buildNav(sections) {
     navTrack.innerHTML = '';
@@ -166,6 +173,10 @@ export function HomeScreen() {
     if (item.download) {
       setText(heroMeta, (item.year ? item.year + '  ·  ' : '') + downloads.describe(item.download));
       setText(heroSummary, '');
+    } else if (item.upcoming) {
+      const u = item.upcoming;
+      setText(heroMeta, item.note + (u.title ? '  ·  ' + u.title : ''));
+      setText(heroSummary, u.overview || '');
     } else {
       setText(heroMeta, (item.type === 'episode' ? item.title + '  ·  ' : '') + metaLine(item));
       setText(heroSummary, item.summary || '');
@@ -176,6 +187,7 @@ export function HomeScreen() {
   }
 
   function onFocusItem(item) {
+    updateHint();
     clearTimeout(heroTimer);
     // While a key is held, skip the text repaint until the user settles.
     if (isFast()) heroTimer = setTimeout(() => showHero(item), 160);
@@ -198,19 +210,60 @@ export function HomeScreen() {
       toggleClass(r.el, 'above', i < rowIndex);
     });
     setTransform(track, 'translateY(' + (-(offsets[rowIndex] || 0)) + 'px)');
+    updateHint();
   }
 
   // The server's rows plus, when something is downloading, a "Downloading"
   // row right after Continue Watching.
+  // and a "Coming up" row after the recently added ones.
   function composed() {
-    if (!dlItems.length) return plexHubs;
-    const at = plexHubs.findIndex(hb => !/continue|ondeck/i.test(hb.hubIdentifier));
-    const i = at < 0 ? plexHubs.length : at;
-    const row = { hubIdentifier: 'flexplex.downloads', title: 'Downloading', type: 'movie', size: dlItems.length, Metadata: dlItems };
-    return plexHubs.slice(0, i).concat([row], plexHubs.slice(i));
+    let hubs = plexHubs;
+    if (dlItems.length) {
+      const at = hubs.findIndex(hb => !/continue|ondeck/i.test(hb.hubIdentifier));
+      const i = at < 0 ? hubs.length : at;
+      const row = { hubIdentifier: 'flexplex.downloads', title: 'Downloading', type: 'movie', size: dlItems.length, Metadata: dlItems };
+      hubs = hubs.slice(0, i).concat([row], hubs.slice(i));
+    }
+    if (upItems.length) {
+      let last = -1;
+      hubs.forEach((hb, i) => { if (/recentlyadded|downloads|continue|ondeck/i.test(hb.hubIdentifier)) last = i; });
+      const row = { hubIdentifier: 'flexplex.upcoming', title: 'Coming up', type: 'show', size: upItems.length, Metadata: upItems };
+      hubs = hubs.slice(0, last + 1).concat([row], hubs.slice(last + 1));
+    }
+    return hubs;
+  }
+
+  const WEEKDAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  function airLabel(iso) {
+    const d = new Date(iso);
+    if (isNaN(d)) return '';
+    const days = Math.round((new Date(d.toDateString()) - new Date(new Date().toDateString())) / 86400000);
+    const day = days <= 0 ? 'Today' : days === 1 ? 'Tomorrow' : WEEKDAY[d.getDay()];
+    return day + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  }
+
+  function upcomingTile(u) {
+    const se = 'S' + String(u.season).padStart(2, '0') + 'E' + String(u.episode).padStart(2, '0');
+    return {
+      ratingKey: 'up-' + (u.tvdb || u.show) + '-' + u.season + '-' + u.episode,
+      type: 'show', title: u.show, year: u.year, thumb: u.poster || '', art: u.fanart || '',
+      note: se + '  ·  ' + airLabel(u.air), upcoming: u,
+    };
+  }
+
+  // Once at start and every 30 minutes; quietly nothing without watchlist-sync.
+  async function loadUpcoming() {
+    if (Date.now() - upLoadedAt < 30 * 60000 || !watchlist.baseUrl()) return;
+    upLoadedAt = Date.now();
+    try {
+      const r = await watchlist.upcoming(7);
+      upItems = r && r.items ? r.items.map(upcomingTile) : [];
+      setHubs(composed());
+    } catch (e) { /* watchlist-sync not there */ }
   }
 
   function selectItem(item) {
+    if (item.upcoming) { openCatalogLookup({ title: item.title, year: item.year, kind: 'show' }).catch(e => error('show lookup failed', e)); return; }
     if (item.download) openDownload(item.download);
     else openItem(item);
   }
@@ -270,6 +323,7 @@ export function HomeScreen() {
       plexHubs = hubs;
       setHubs(composed());
       store.set('homeCache', { server: server.id, sections, hubs: hubs.map(slimHub) });
+      loadUpcoming();
     } catch (e) {
       error('home load failed', e);
       if (!rows.length) setText(empty, 'Couldn\'t load from ' + server.name + '. Press OK to retry.');
@@ -315,6 +369,53 @@ export function HomeScreen() {
   if (document.fonts) document.fonts.ready.then(renderNav);
   load();
 
+  // --- Hold OK on a tile: remove from Continue Watching, watched / unwatched ---
+  function isContinueRow(row) {
+    return !!row && /continue|ondeck/i.test(row.hubId || '');
+  }
+
+  function libraryItem(it) {
+    return it && it.ratingKey && !it.download && !it.catalog && /^\d+$/.test(String(it.ratingKey));
+  }
+
+  function updateHint() {
+    const row = rows[rowIndex];
+    toggleClass(holdHint, 'on', zone === 'rows' && !picker.isOpen && isContinueRow(row) && libraryItem(row.current()));
+  }
+
+  function openTileMenu() {
+    const row = rows[rowIndex];
+    const it = row && row.current();
+    if (!libraryItem(it)) return;
+    const server = session.server;
+    const watched = it.type === 'show' ? it.viewedLeafCount >= it.leafCount : !!it.viewCount;
+    const opts = [];
+    if (isContinueRow(row) || it.viewOffset) opts.push({ label: 'Remove from Continue Watching', value: 'remove' });
+    if (!watched || it.viewOffset) opts.push({ label: 'Mark as watched', value: 'watched' });
+    if (watched) opts.push({ label: 'Mark as unwatched', value: 'unwatched' });
+    else if (it.viewOffset) opts.push({ label: 'Clear progress', value: 'unwatched' });
+    if (it.type === 'episode' && it.grandparentRatingKey) opts.push({ label: 'Go to show', value: 'show' });
+    opts.push({ label: 'Open', value: 'open' });
+    toggleClass(holdHint, 'on', false);
+    picker.open(it.grandparentTitle || it.title, opts, async v => {
+      updateHint();
+      try {
+        if (v === 'open') return selectItem(it);
+        if (v === 'show') return openItem({ ratingKey: it.grandparentRatingKey, type: 'show', title: it.grandparentTitle });
+        if (v === 'remove') await server.removeFromContinueWatching(it.ratingKey);
+        if (v === 'watched') await server.scrobble(it.ratingKey);
+        if (v === 'unwatched') await server.unscrobble(it.ratingKey);
+        notice(v === 'remove' ? 'Removed from Continue Watching' : v === 'watched' ? 'Marked as watched'
+          : watched ? 'Marked as unwatched' : 'Progress cleared', 3000);
+        server.invalidate();
+        load();
+      } catch (e) {
+        error('tile action failed', e);
+        notice('Plex didn\'t accept that (' + e.message + ')', 5000);
+      }
+    });
+  }
+
   function activateNav(n) {
     if (n.id === 'section') openLibrary(n.section);
     else if (n.id === 'search') openSearch();
@@ -341,7 +442,16 @@ export function HomeScreen() {
       unsubscribe();
       if (unsubDownloads) unsubDownloads();
     },
+    wantsHold() {
+      return zone === 'rows' && !picker.isOpen && libraryItem(rows[rowIndex] && rows[rowIndex].current());
+    },
     onKey(action) {
+      if (picker.isOpen) {
+        const handled = picker.onKey(action);
+        if (!picker.isOpen) updateHint();
+        return handled;
+      }
+      if (action === 'hold') { openTileMenu(); return true; }
       if (zone === 'nav') {
         if (action === 'left') { navIndex = Math.max(0, navIndex - 1); renderNav(); return true; }
         if (action === 'right') { navIndex = Math.min(navItems.length - 1, navIndex + 1); renderNav(); return true; }

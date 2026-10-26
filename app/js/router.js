@@ -2,7 +2,7 @@
 // back is instant and keeps its scroll/focus state.
 //
 // A screen is { el, onKey(action) -> bool?, onShow?(), onHide?(), destroy?() }.
-import { setHandler } from './input.js';
+import { setHandler, setHoldCheck } from './input.js';
 import { exitApp } from './platform/tizen.js';
 
 const stack = [];
@@ -17,6 +17,10 @@ export function init(container, onGlobalKey) {
     if (top && top.onKey && top.onKey(action) === true) return;
     if (globalKey && globalKey(action) === true) return;
     if (action === 'back') back();
+  });
+  setHoldCheck(() => {
+    const top = stack[stack.length - 1];
+    return !!(top && top.wantsHold && top.wantsHold());
   });
 }
 

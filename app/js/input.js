@@ -11,12 +11,21 @@ let pending = null;
 let scheduled = false;
 let fastTimer = 0;
 let lastNavAt = 0;
+let holdCheck = null;   // () => true while the screen on top wants long presses of OK
+let holdTimer = 0;
+const HOLD_MS = 600;
 const root = document.documentElement;
 
 export const stats = { keyAt: 0, latency: 0 };
 
 export function setHandler(fn) {
   handler = fn;
+}
+
+// Holding OK sends 'hold' instead of 'enter' (for options menus). Only where
+// the screen asks for it, since OK then fires on release instead of press.
+export function setHoldCheck(fn) {
+  holdCheck = fn;
 }
 
 function setFast(on) {
@@ -58,6 +67,15 @@ document.addEventListener('keydown', e => {
     }
     return;
   }
+  if (action === 'enter' && holdCheck && holdCheck()) {
+    if (!holdTimer && !e.repeat) {
+      holdTimer = setTimeout(() => {
+        holdTimer = -1; // fired: the release does nothing
+        if (handler) handler('hold');
+      }, HOLD_MS);
+    }
+    return;
+  }
   if (handler) handler(action);
 }, true);
 
@@ -76,7 +94,13 @@ export function inject(action) {
   if (handler) handler(action);
 }
 
-document.addEventListener('keyup', () => {
+document.addEventListener('keyup', e => {
+  if (holdTimer && actionFor(e) === 'enter') {
+    const pressed = holdTimer !== -1;
+    clearTimeout(holdTimer);
+    holdTimer = 0;
+    if (pressed && handler) handler('enter');
+  }
   clearTimeout(fastTimer);
   fastTimer = setTimeout(() => setFast(false), 60);
 });

@@ -39,9 +39,13 @@ decoder, so your server barely has to work.
 **Made for watching**
 - Pick quality, audio and subtitles before you press play, or make Greek or English subtitles
   the default for everything.
-- Skip intro and credits, subtitle timing and size, up next with your languages kept.
-- Movie and show pages with ratings (IMDb, Rotten Tomatoes, TMDB), cast with photos, the rest of a
-  movie's collection, episode descriptions, theme music and a full "More info" page.
+- Skip intro and credits, subtitle timing and size, up next with your languages kept, and
+  each show remembers the audio and subtitle languages you picked for it.
+- Audio the TV can't play (like DTS) is swapped for another track in the same language
+  when the file has one, so nothing needs converting.
+- Movie and show pages with ratings (IMDb, Rotten Tomatoes, TMDB), cast with photos, trailers,
+  the rest of a movie's collection, episode descriptions, theme music and a full "More info" page.
+- Hold OK on a Continue Watching tile to remove it, mark it watched or clear its progress.
 
 **Made for your server**
 - Search beyond your library: find any movie or show and add it to your Plex Watchlist.
@@ -50,6 +54,8 @@ decoder, so your server barely has to work.
 - The home screen shows library scans as they happen and picks up new media by itself.
 - Delete a movie or show from its page (server owner only). With watchlist-sync it's removed from
   Radarr or Sonarr too, so it won't download again.
+- With watchlist-sync and Bazarr: search for more subtitles from the TV and pick one, and a
+  *Coming up* row shows episodes airing this week.
 
 **Made for the household**
 - Plex Home profiles, with PINs and an optional "Who's watching?" at start.
@@ -111,8 +117,8 @@ Orama works on its own. Two small services on your server add more:
 
 - **[watchlist-sync](https://github.com/DarkAngelGR/watchlist-sync)** sends the Plex Watchlists of
   your household and friends to Sonarr and Radarr. Orama then syncs Watchlist adds instantly,
-  shows download progress, lists the parts of a collection you don't have yet, and removes
-  deleted titles from Sonarr/Radarr.
+  shows download progress and upcoming episodes, lists the parts of a collection you don't have
+  yet, searches Bazarr for subtitles, and removes deleted titles from Sonarr/Radarr.
 - **[Orama installer](installer/)** keeps Orama up to date: when a new release is out, install it
   from **Settings › Updates** on the TV or from a web page on your phone.
 
@@ -123,6 +129,7 @@ Both run in Docker and are found automatically when they run on the same machine
 | Remote | What it does |
 | --- | --- |
 | Arrows / OK | Move around / select |
+| Hold OK on a home tile | Options: remove from Continue Watching, watched / unwatched |
 | Play/Pause | Play whatever is focused; pause and resume |
 | Back | Go back (while watching, the first press hides the controls) |
 | ▲ while watching | Show the info bar: title, progress and how it's playing |

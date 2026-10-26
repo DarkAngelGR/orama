@@ -139,3 +139,29 @@ export async function collection(tmdb) {
 export async function deleteTitle({ kind, tmdb, tvdb, imdb, title }) {
   return call('/api/tv/delete', { method: 'POST', body: { kind, tmdb, tvdb, imdb, title }, timeout: 90000 });
 }
+
+// Subtitle search through Bazarr. params: { kind: 'movie'|'episode', tmdb,
+// tvdb (the show's), imdb, season, episode, lang }. Returns { token, results:
+// [{ provider, language, hi, forced, score (0-100), release, uploader }] }.
+// Bazarr searches every provider, which can take a minute.
+export async function searchSubtitles(params) {
+  const q = Object.keys(params).filter(k => params[k] !== undefined && params[k] !== '')
+    .map(k => k + '=' + encodeURIComponent(params[k])).join('&');
+  return call('/api/tv/subtitles?' + q, { timeout: 160000 });
+}
+
+export async function downloadSubtitle(token, index) {
+  return call('/api/tv/subtitles/download', { method: 'POST', body: { token, index }, timeout: 160000 });
+}
+
+// Episodes airing in the next `days` days that aren't downloaded yet:
+// { items: [{ show, year, tvdb, imdb, season, episode, title, overview, air, poster, fanart }] },
+// or null when this watchlist-sync is too old to say.
+export async function upcoming(days = 7) {
+  try {
+    return await call('/api/tv/upcoming?days=' + days, { timeout: 15000 });
+  } catch (e) {
+    if (e.status === 404) return null;
+    throw e;
+  }
+}

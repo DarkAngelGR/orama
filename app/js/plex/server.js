@@ -92,6 +92,13 @@ export class Server {
     return request(this.uri + '/library/metadata/' + ratingKey + '/refresh', { method: 'PUT', token: this.token, raw: true }).catch(() => {});
   }
 
+  // Trailers, featurettes etc. for a movie or show: local extras files and the
+  // ones Plex itself provides.
+  async extras(ratingKey) {
+    const mc = await this.get('/library/metadata/' + ratingKey + '/extras', null, { maxAge: 600000 });
+    return mc.Metadata || [];
+  }
+
   async children(ratingKey) {
     const mc = await this.get('/library/metadata/' + ratingKey + '/children', { excludeAllLeaves: 1 });
     return mc.Metadata || [];
@@ -115,6 +122,13 @@ export class Server {
 
   timeline(params) {
     return request(this.uri + '/:/timeline', { token: this.token, params, timeout: 8000 }).catch(() => {});
+  }
+
+  // Drop it from Continue Watching without changing its watched state.
+  removeFromContinueWatching(ratingKey) {
+    return request(this.uri + '/actions/removeFromContinueWatching', {
+      method: 'PUT', token: this.token, params: { ratingKey }, raw: true, timeout: 8000,
+    });
   }
 
   scrobble(ratingKey) {

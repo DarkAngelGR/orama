@@ -16,14 +16,15 @@ import { parseSubtitles, CueTrack } from '../player/subtitles.js';
 import {
   TEXT_SUBS, streamsOf, audioLabel, subtitleLabel, qualitiesFor, qualityById, effectiveQuality, defaultQuality, forceDirect, audioExtras,
 } from '../player/options.js';
-import { subOffset, setSubOffset, offsetLabel, preferredSub } from '../player/subprefs.js';
+import { subOffset, setSubOffset, offsetLabel } from '../player/subprefs.js';
 import * as lang from '../util/lang.js';
+import { NATIVE_AUDIO, pickTracks, rememberShowTracks, showKeyOf } from '../player/tracks.js';
 
 // What a 2022 Samsung (Tizen 6.5) decodes natively. No DTS on 2018+ models.
 const DIRECT = {
   container: { mp4: 1, m4v: 1, mov: 1, mkv: 1, webm: 1, ts: 1, mpegts: 1, avi: 1 },
   video: { h264: 1, hevc: 1, vp9: 1, av1: 1, mpeg4: 1, mpeg2video: 1, vc1: 1 },
-  audio: { aac: 1, ac3: 1, eac3: 1, mp3: 1, mp2: 1, flac: 1, opus: 1, vorbis: 1, pcm: 1 },
+  audio: NATIVE_AUDIO,
 };
 const OSD_HIDE_MS = 4000;
 const SEEK_COMMIT_MS = 900;
@@ -519,25 +520,14 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       mediaIdx = Math.max(0, medias.indexOf(media));
       part = media && media.Part && media.Part[0];
       if (!part) throw new Error('No playable media');
-      const audios = streamsOf(part, 2);
-      const texts = streamsOf(part, 3);
-      audioStream = (audioStreamID != null && audios.find(s => s.id === audioStreamID)) ||
-        audios.find(s => s.selected) || audios[0] || null;
-      subStream = subtitleStreamID === 0 ? null :
-        (subtitleStreamID != null && texts.find(s => s.id === subtitleStreamID)) || null;
-      // Nothing picked on the detail page: Plex's selection, adjusted to the
-      // Subtitle language setting.
-      if (subtitleStreamID == null) subStream = preferredSub(texts, texts.find(s => s.selected) || null);
-      // Next episode: same languages as the one before, when available.
-      if (langs && audioStreamID == null && langs.audio) {
-        audioStream = audios.find(s => langOf(s) === langs.audio) || audioStream;
-      }
-      if (langs && subtitleStreamID == null) {
-        if (langs.sub === null) subStream = null; // they were off
-        else if (langs.sub) {
-          const same = texts.filter(s => langOf(s) === langs.sub);
-          subStream = same.find(s => !!s.forced === !!langs.subForced) || same[0] || subStream;
-        }
+      // Picked on the detail page, else this show's remembered languages (or the
+      // previous episode's), else Plex's selection; and audio the TV can play.
+      const picked = pickTracks(item, part, { audioStreamID, subtitleStreamID, langs });
+      audioStream = picked.audio;
+      subStream = picked.sub;
+      if (picked.switched) {
+        setTimeout(() => toast('Playing ' + audioLabel(audioStream) + ': the TV can\'t play ' +
+          ((picked.switched.codec || '').toUpperCase() === 'DCA' ? 'DTS' : audioLabel(picked.switched))), 1500);
       }
       quality = effectiveQuality(quality.id, media);
       markers = (item.Marker || []).filter(m => (m.type === 'intro' || m.type === 'credits') &&
@@ -717,6 +707,9 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     }
     if (col === 0) audioStream = opt.stream;
     else subStream = opt.stream;
+    // Remember the language for the rest of this show.
+    if (col === 0) rememberShowTracks(showKeyOf(item), { audio: langOf(audioStream) });
+    else rememberShowTracks(showKeyOf(item), { sub: subStream ? langOf(subStream) : null, subForced: !!(subStream && subStream.forced) });
     server.selectStreams(part.id, {
       audioStreamID: audioStream ? audioStream.id : undefined,
       subtitleStreamID: subStream ? subStream.id : 0,

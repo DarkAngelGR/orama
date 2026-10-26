@@ -12,3 +12,9 @@ export function notice(text, ms = 7000) {
   clearTimeout(timer);
   timer = setTimeout(() => toggleClass(el, 'on', false), ms);
 }
+
+export function hideNotice() {
+  if (!el) return;
+  clearTimeout(timer);
+  toggleClass(el, 'on', false);
+}

@@ -18,11 +18,13 @@ import { error } from '../util/log.js';
 import {
   streamsOf, audioLabel, subtitleLabel, qualitiesFor, effectiveQuality, defaultQuality, versionLabel,
 } from '../player/options.js';
-import { preferredSub } from '../player/subprefs.js';
 import { ConfirmScreen } from './confirm.js';
+import { pickTracks, rememberShowTracks, showKeyOf, langsOf } from '../player/tracks.js';
 import { ownsServer } from '../session.js';
 import { removeFromWatchlist } from '../plex/discover.js';
-import { notice } from '../ui/notice.js';
+import { notice, hideNotice } from '../ui/notice.js';
+import { subLang } from '../player/subprefs.js';
+import * as lang from '../util/lang.js';
 
 const SHIFT = 400;    // how far the body slides up to reveal seasons/episodes
 const OPTIONS_H = 64; // .detail-options height + margin, added to SHIFT when shown
@@ -153,6 +155,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     if (item.type === 'episode' && item.grandparentRatingKey) {
       add(icons.tv, 'Go to show', () => router.push(DetailScreen({ ratingKey: item.grandparentRatingKey, type: 'show', title: item.grandparentTitle })));
     }
+    if (trailer) add(icons.film, 'Trailer', () => playItem(trailer, { offset: 0 }));
     add(icons.info, 'More info', openInfo);
     if ((item.type === 'movie' || item.type === 'show') && session.server && session.server.owned !== false) {
       add(icons.trash, 'Delete', askDelete);
@@ -178,16 +181,19 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     return m && m.Part && m.Part[0];
   }
 
-  // Start from what the server has selected for this version (the user's
-  // language preferences, or what they last picked in any Plex app).
+  // Start from the same tracks the player would pick: this show's remembered
+  // languages, else the server's selection, with audio the TV can play.
   function resetStreams() {
+    const picked = pickTracks(choice.full, currentPart());
+    choice.audioId = picked.audio ? picked.audio.id : undefined;
+    choice.subId = picked.sub ? picked.sub.id : 0;
+  }
+
+  function rememberPick() {
     const part = currentPart();
-    const audios = streamsOf(part, 2);
-    const a = audios.find(s => s.selected) || audios[0];
-    const texts = streamsOf(part, 3);
-    const s = preferredSub(texts, texts.find(x => x.selected) || null);
-    choice.audioId = a ? a.id : undefined;
-    choice.subId = s ? s.id : 0;
+    const a = streamsOf(part, 2).find(x => x.id === choice.audioId);
+    const sub = choice.subId ? streamsOf(part, 3).find(x => x.id === choice.subId) : null;
+    rememberShowTracks(showKeyOf(choice.full), langsOf(a, sub));
   }
 
   async function prepareChoice() {
@@ -285,13 +291,98 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
 
   function pickAudio() {
     const opts = streamsOf(currentPart(), 2).map(s => ({ label: audioLabel(s), on: s.id === choice.audioId, value: s.id }));
-    picker.open('Audio', opts, id => { choice.audioId = id; saveStreams(); renderOptions(); });
+    picker.open('Audio', opts, id => { choice.audioId = id; saveStreams(); rememberPick(); renderOptions(); });
   }
 
   function pickSubtitles() {
     const opts = [{ label: 'Off', on: !choice.subId, value: 0 }]
       .concat(streamsOf(currentPart(), 3).map(s => ({ label: subtitleLabel(s), on: s.id === choice.subId, value: s.id })));
-    picker.open('Subtitles', opts, id => { choice.subId = id; saveStreams(); renderOptions(); });
+    if (watchlist.baseUrl() && (choice.full.type === 'movie' || choice.full.type === 'episode')) {
+      opts.push({ label: 'Find more subtitles (Bazarr)…', value: 'bazarr' });
+    }
+    picker.open('Subtitles', opts, id => {
+      if (id === 'bazarr') { findSubtitles(); return; }
+      choice.subId = id; saveStreams(); rememberPick(); renderOptions();
+    });
+  }
+
+  // --- More subtitles through Bazarr (via watchlist-sync) ---------------------
+
+  const LANG_NAMES = { el: 'Greek', en: 'English', es: 'Spanish', fr: 'French', de: 'German', it: 'Italian',
+    pt: 'Portuguese', nl: 'Dutch', ru: 'Russian', tr: 'Turkish' };
+  const langName = c => LANG_NAMES[c] || String(c || '?').toUpperCase();
+  let searching = false;
+
+  async function subtitleQuery(t) {
+    if (t.type === 'movie') return { kind: 'movie', tmdb: Number(guidOf(t, 'tmdb')) || 0, imdb: guidOf(t, 'imdb') };
+    const show = await session.server.metadata(t.grandparentRatingKey);
+    return { kind: 'episode', tvdb: Number(guidOf(show || {}, 'tvdb')) || 0, imdb: guidOf(show || {}, 'imdb'),
+      season: t.parentIndex, episode: t.index };
+  }
+
+  async function findSubtitles() {
+    if (searching || !choice) return;
+    const t = choice.full;
+    const pref = subLang().id;
+    const want = pref === 'auto' || pref === 'off' ? '' : pref;
+    searching = true;
+    notice('Searching for ' + (want ? langName(want) + ' ' : '') + 'subtitles… this can take a minute', 170000);
+    try {
+      const q = Object.assign(await subtitleQuery(t), { lang: want });
+      const r = await watchlist.searchSubtitles(q);
+      if (!alive || !choice || choice.full !== t) return;
+      hideNotice();
+      if (!r.results.length) {
+        notice('Bazarr found no ' + (want ? langName(want) + ' ' : '') + 'subtitles for this', 6000);
+        return;
+      }
+      const opts = r.results.map((x, i) => ({
+        value: i,
+        label: x.score + '%  ·  ' + langName(x.language) + (x.hi ? ' (HI)' : '') + (x.forced ? ' (forced)' : '') +
+          '  ·  ' + x.provider + (x.release ? '  ·  ' + x.release : ''),
+      }));
+      picker.open((want ? langName(want) + ' ' : '') + 'subtitles · Bazarr', opts, i => getSubtitle(t, r.token, i, r.results[i]));
+    } catch (e) {
+      error('subtitle search failed', e);
+      notice(e.message || 'Subtitle search failed', 8000);
+    } finally {
+      searching = false;
+    }
+  }
+
+  // Download it, then wait for Plex to see the new file and select it.
+  async function getSubtitle(t, token, index, result) {
+    const server = session.server;
+    notice('Downloading ' + langName(result.language) + ' subtitles…', 60000);
+    try {
+      const before = new Set(streamsOf(currentPart(), 3).map(s => s.id));
+      await watchlist.downloadSubtitle(token, index);
+      await server.refresh(t.ratingKey);
+      for (let tries = 0; tries < 10 && alive; tries++) {
+        await new Promise(res => setTimeout(res, 3000));
+        server.invalidate();
+        const full = await server.metadata(t.ratingKey);
+        if (!alive || !choice || choice.key !== t.ratingKey || !full) return;
+        const media = (full.Media || [])[choice.mediaIndex] || (full.Media || [])[0];
+        const part = media && media.Part && media.Part[0];
+        const fresh = streamsOf(part, 3).find(s => !before.has(s.id) && lang.ofStream(s) === result.language) ||
+          streamsOf(part, 3).find(s => !before.has(s.id));
+        if (fresh) {
+          fullCache.set(t.ratingKey, full);
+          choice.full = full;
+          choice.subId = fresh.id;
+          saveStreams();
+          rememberPick();
+          renderOptions();
+          notice(langName(result.language) + ' subtitles added and selected', 5000);
+          return;
+        }
+      }
+      notice('Downloaded. Plex hasn\'t picked the file up yet: check again in a minute.', 8000);
+    } catch (e) {
+      error('subtitle download failed', e);
+      notice(e.message || 'Download failed', 8000);
+    }
   }
 
   // --------------------------------------------------------------------------
@@ -557,6 +648,19 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     renderFocus();
   }
 
+  // The first trailer among the title's extras, if any.
+  let trailer = null;
+  async function loadTrailer() {
+    if (item.type !== 'movie' && item.type !== 'show') return;
+    try {
+      const extras = await session.server.extras(item.ratingKey);
+      const t = extras.find(x => x.extraType === 1 || x.subtype === 'trailer' || x.extraType === '1') || null;
+      if (!alive || (t && trailer && t.ratingKey === trailer.ratingKey)) return;
+      trailer = t;
+      renderButtons();
+    } catch (e) { /* no extras: no button */ }
+  }
+
   async function load() {
     try {
       let key = item.ratingKey;
@@ -572,6 +676,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
       renderHeader();
       renderCast();
       renderCollection();
+      loadTrailer();
       playTheme();
       if (isShowLike()) {
         seasons = (await session.server.children(item.ratingKey)).filter(s => s.type === 'season');
