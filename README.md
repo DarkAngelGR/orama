@@ -15,7 +15,7 @@
 <p align="center">
   <a href="https://github.com/DarkAngelGR/orama/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/DarkAngelGR/orama?label=release&color=8B7CFF&style=flat-square"></a>
   <img alt="Works with Plex and Jellyfin" src="https://img.shields.io/badge/works%20with-Plex%20%C2%B7%20Jellyfin-171724?style=flat-square">
-  <img alt="Samsung Tizen" src="https://img.shields.io/badge/Samsung-Tizen%205.5%2B-171724?style=flat-square">
+  <img alt="Samsung Tizen" src="https://img.shields.io/badge/Samsung-Tizen%206.5%2B-171724?style=flat-square">
   <a href="LICENSE"><img alt="License: GPL-3.0" src="https://img.shields.io/badge/license-GPL--3.0-171724?style=flat-square"></a>
 </p>
 
@@ -45,7 +45,7 @@ work, so your server barely notices you're watching.
 
 ## Install
 
-You need a Samsung smart TV (2020 or newer recommended, Tizen 5.5+) and a Plex Media Server or
+You need a Samsung smart TV running Tizen 6.5 or newer (2022 models onward) and a Plex Media Server or
 a Jellyfin server (10.8 or newer).
 
 ### Easiest: a release and Apps2Samsung
@@ -257,7 +257,7 @@ scripts/        setup.sh, deploy.sh, make-logo.py
 tools/          dev server, TV eval, network remote
 ```
 
-The TV's browser (Chromium 69+ on Tizen 5.5+) runs ES modules natively; `deploy.sh` adds
+The TV's browser (Chromium 85+ on Tizen 6.5+) runs ES modules natively; `deploy.sh` adds
 `<link rel="modulepreload">` tags so every module loads in parallel.
 </details>
 
