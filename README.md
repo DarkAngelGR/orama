@@ -1,19 +1,31 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: light)" srcset="assets/brand/lockup-horizontal-dark-1920x640.png">
-    <img src="assets/brand/lockup-horizontal-light-1920x640.png" alt="Orama" width="520">
+    <img src="assets/brand/lockup-horizontal-light-1920x640.png" alt="Orama" width="480">
   </picture>
 </p>
 
+<h3 align="center">The fast, good-looking way to watch Plex and Jellyfin on a Samsung TV.</h3>
+
 <p align="center">
-  <b>A fast, good-looking player for your Plex or Jellyfin library on Samsung TVs.</b><br>
-  Instant browsing, hardware playback, and the extras the official app is missing.
+  Opens in a second. Plays almost everything straight through the TV's hardware decoder.<br>
+  Has the extras the official apps never got around to.
 </p>
 
 <p align="center">
-  <a href="https://github.com/DarkAngelGR/orama/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/DarkAngelGR/orama?label=release&color=8B7CFF"></a>
-  <img alt="Samsung Tizen" src="https://img.shields.io/badge/Samsung-Tizen%205.5%2B-1f1f2e">
-  <a href="LICENSE"><img alt="License: GPL-3.0" src="https://img.shields.io/badge/license-GPL--3.0-1f1f2e"></a>
+  <a href="https://github.com/DarkAngelGR/orama/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/DarkAngelGR/orama?label=release&color=8B7CFF&style=flat-square"></a>
+  <img alt="Works with Plex and Jellyfin" src="https://img.shields.io/badge/works%20with-Plex%20%C2%B7%20Jellyfin-171724?style=flat-square">
+  <img alt="Samsung Tizen" src="https://img.shields.io/badge/Samsung-Tizen%205.5%2B-171724?style=flat-square">
+  <a href="LICENSE"><img alt="License: GPL-3.0" src="https://img.shields.io/badge/license-GPL--3.0-171724?style=flat-square"></a>
+</p>
+
+<p align="center">
+  <a href="#install">Install</a> ·
+  <a href="#features">Features</a> ·
+  <a href="#using-the-remote">Remote</a> ·
+  <a href="#plex-or-jellyfin">Plex or Jellyfin</a> ·
+  <a href="#optional-companions">Companions</a> ·
+  <a href="#for-developers">Developers</a>
 </p>
 
 <p align="center">
@@ -24,85 +36,42 @@
   <img src="assets/readme/library.jpg" alt="The Movies library as a poster grid" width="436">
 </p>
 
-Orama (όραμα, Greek for "vision") replaces the official Plex app on Samsung smart TVs. The
-official app takes up to a minute to open and lags on every key press; Orama opens in about a
-second, scrolls smoothly, and plays almost everything straight through the TV's hardware
-decoder, so your server barely has to work.
+---
 
-It works with **Plex** and with **Jellyfin**: the same screens, the same remote, either server.
+**Orama** (όραμα, Greek for *vision*) replaces the official Plex app on Samsung smart TVs, and
+speaks Jellyfin too. The official app can take up to a minute to open and lags on every key
+press. Orama opens in about a second, scrolls smoothly, and lets the TV's own decoder do the
+work, so your server barely notices you're watching.
 
-## Highlights
+## Install
 
-**Fast**
-- Home in under a second, smooth scrolling everywhere, search results as you type.
-- Direct play through Samsung's hardware decoder. Only what the TV really can't play is converted,
-  and the player tells you exactly what's happening: *Direct Play*, *Direct Stream* or *Transcoding*.
-
-**Made for watching**
-- Pick quality, audio and subtitles before you press play, or make Greek or English subtitles
-  the default for everything.
-- Skip intro and credits, subtitle timing, size (up to Huge) and colour (white, greys, yellow),
-  up next with your languages kept, and each show remembers the audio and subtitle languages
-  you picked for it.
-- Preview pictures while you seek (when Plex makes them: Settings › Library › *Generate video
-  preview thumbnails*), ⏪ ⏩ jump 30 seconds, and the previous or next episode is one press
-  away under ▼ (or ⏮ ⏭ on remotes that have them).
-- HDR films get slightly dimmer subtitles and controls, so white text doesn't glare.
-- A file the TV refused to play directly is remembered, so next time Plex converts it straight
-  away instead of failing first.
-- Audio the TV can't play (like DTS) is swapped for another track in the same language
-  when the file has one, so nothing needs converting.
-- Anime starts in Japanese with Greek (else English) subtitles, the full dialogue track rather
-  than "Signs & Songs", and translated signs show at the top of the screen.
-- Movie and show pages with ratings (IMDb, Rotten Tomatoes, TMDB), cast with photos, trailers,
-  the rest of a movie's collection, episode descriptions, theme music and a full "More info" page.
-- Continue Watching tiles say which episode and how much is left ("S3 · E4 · 18m left"); OK
-  opens the page or, if you prefer (Settings), keeps watching right away. Hold OK to remove a
-  tile, mark it watched or clear its progress.
-- Each library remembers its sort and whether it shows everything or only unwatched titles,
-  per profile.
-
-**Made for your server**
-- Search beyond your library: find any movie or show and add it to your Plex Watchlist.
-- With [watchlist-sync](#optional-companions), Watchlist adds reach Sonarr and Radarr in seconds,
-  and a *Downloading* row shows their progress live.
-- The home screen shows library scans as they happen and picks up new media by itself.
-- Delete a movie or show from its page (server owner only). With watchlist-sync it's removed from
-  Radarr or Sonarr too, so it won't download again.
-- With watchlist-sync and Bazarr: search for more subtitles from the TV and pick one, and a
-  *Coming up* row shows episodes airing this week.
-
-**Made for the household**
-- Plex Home profiles, with PINs and an optional "Who's watching?" at start.
-- Updates from GitHub Releases, installed from the TV itself with the optional
-  [Orama installer](installer/).
-
-## Getting started
-
-You need a Samsung smart TV (2020 or newer recommended; Tizen 5.5+) and a Plex Media Server or
+You need a Samsung smart TV (2020 or newer recommended, Tizen 5.5+) and a Plex Media Server or
 a Jellyfin server (10.8 or newer).
 
-### Option 1: install a release with Apps2Samsung (easiest)
+### Easiest: a release and Apps2Samsung
 
-1. Download `Orama-x.y.z.wgt` from the [latest release](https://github.com/DarkAngelGR/orama/releases/latest).
-2. Install it with [Apps2Samsung](https://github.com/Apps2Samsung/Apps2Samsung) (Windows, macOS
-   or Linux): turn on Developer Mode on the TV (see below), pick the TV in Apps2Samsung, and
-   install your own `.wgt`.
-3. Open Orama on the TV, go to **[plex.tv/link](https://plex.tv/link)** on your phone and type the
-   code it shows, or scan the QR code.
+1. Download `Orama-x.y.z.wgt` from the **[latest release](https://github.com/DarkAngelGR/orama/releases/latest)**.
+2. Turn on [Developer Mode](#developer-mode) on the TV.
+3. Open [Apps2Samsung](https://github.com/Apps2Samsung/Apps2Samsung) (Windows, macOS or Linux),
+   pick your TV and install the `.wgt`.
+4. Open Orama, go to **[plex.tv/link](https://plex.tv/link)** on your phone and enter the code, or
+   scan the QR code. Using Jellyfin? See [Signing in with Jellyfin](#signing-in-with-jellyfin).
 
-### Option 2: build and install from source (macOS or Linux)
+Once it's installed, the optional [Orama installer](installer/) keeps it up to date from the TV.
+
+### From source (macOS or Linux)
 
 ```sh
-git clone https://github.com/DarkAngelGR/orama.git orama
+git clone https://github.com/DarkAngelGR/orama.git
 cd orama
 ./scripts/setup.sh     # Samsung's command-line tools, finds the TV, creates a signing certificate
 ./scripts/deploy.sh    # builds, installs and opens Orama on the TV
 ```
 
-`setup.sh` stops and explains what to do if Developer Mode isn't on yet, and picks up where it
-left off when you run it again.
+`setup.sh` explains what to do if Developer Mode isn't on yet, and picks up where it left off
+when you run it again.
 
+<a id="developer-mode"></a>
 <details>
 <summary><b>Turning on Developer Mode</b></summary>
 
@@ -127,77 +96,133 @@ The Apps screen shows **Develop mode** at the top when it's on.
 | The sign-in code expired | Press **OK** on the sign-in screen for a new one. |
 </details>
 
-### Signing in with Jellyfin
+## Features
 
-On the sign-in screen, press **Down** and pick **Use a Jellyfin server instead**, then type your
-server's address (for example `192.168.1.10`; port 8096 is added for you). If Quick Connect is on
-(Jellyfin › Dashboard › General), the TV shows a code: on your phone open Jellyfin, go to your
-profile › **Quick Connect** and enter it. Otherwise, or if you press OK, sign in with your user
-name and password. To switch back to Plex, use **Settings › Sign out**.
+### ⚡ Fast
+- **Home in under a second**, smooth scrolling everywhere, search results as you type.
+- **Direct play** through Samsung's hardware decoder. Only what the TV really can't play is
+  converted, and the player says exactly what's happening: *Direct Play*, *Direct Stream* or
+  *Transcoding*.
+- A file the TV once refused is remembered, so next time it's converted straight away instead of
+  failing first.
+- Audio the TV can't play (like DTS) is swapped for another track in the same language when the
+  file has one, so nothing needs converting.
 
-Everything works the same, with a few things that only Plex has:
+### 🎬 Made for watching
+- **Pick before you play:** version, quality, audio and subtitles, or make Greek or English
+  subtitles the default for everything.
+- **Clear versions.** When a title has several files, each one is named for what it is, e.g.
+  *Final Cut · 4K Dolby Vision* with *HEVC · TrueHD Atmos 7.1 · 58 GB* underneath. The player
+  shows which one is on, you can switch mid-film, and Resume picks up the same file.
+- **Skip intro and credits**, up next with your languages kept, and every show remembers the
+  audio and subtitle languages you picked for it.
+- **Subtitles your way:** timing, size (up to Huge) and colour (white, greys, yellow).
+- **Seek with pictures** (when Plex makes them: Settings › Library › *Generate video preview
+  thumbnails*), ⏪ ⏩ to jump 30 seconds, and the previous or next episode one press away.
+- **HDR-aware:** subtitles and controls dim slightly so white text doesn't glare.
+- **Anime-aware:** Japanese audio with Greek (else English) subtitles, the full dialogue track
+  rather than "Signs & Songs", and translated signs at the top of the screen.
+- **Rich pages:** IMDb, Rotten Tomatoes and TMDB ratings, cast with photos, trailers, the rest of
+  a collection, episode descriptions, theme music and a full *More info* page.
+- **Continue Watching that tells you things:** "S3 · E4 · 18m left". Hold OK to remove a tile,
+  mark it watched or clear its progress.
+- Each library remembers its sort and its all / unwatched filter, per profile.
 
-| | Plex | Jellyfin |
-|---|---|---|
-| Home, libraries, search, resume, watched state | ✓ | ✓ |
-| Direct play, converting only what the TV can't play | ✓ | ✓ |
-| Subtitles (text ones drawn by Orama, picture ones burned in) | ✓ | ✓ |
-| Skip intro / credits | ✓ | ✓ with media segments (Jellyfin 10.10+, e.g. the Intro Skipper plugin) |
-| Theme music, trailers, cast, delete | ✓ | ✓ (delete needs an administrator) |
-| watchlist-sync extras (downloads, collections, Bazarr subtitles) | ✓ | ✓ |
-| Search outside your library and the Watchlist | ✓ | – |
-| Home profiles with PINs | ✓ | – (sign out to change user) |
-| Preview pictures while seeking | ✓ | – |
+### 🗄️ Made for your server
+- **Search beyond your library:** find any movie or show and add it to your Plex Watchlist.
+- With [watchlist-sync](#optional-companions), Watchlist adds reach Sonarr and Radarr in seconds,
+  and a *Downloading* row shows their progress live.
+- Library scans show up on the home screen as they happen, and new media appears by itself.
+- **Delete** a movie or show from its page (server owner only). With watchlist-sync it's removed
+  from Radarr or Sonarr too, so it won't come back.
+- With watchlist-sync and Bazarr: search for more subtitles from the TV, and a *Coming up* row
+  shows episodes airing this week.
 
-## Optional companions
+### 🏠 Made for the household
+- Plex Home profiles with PINs, and an optional *Who's watching?* at start.
+- Updates from GitHub Releases, installed from the TV itself with the optional
+  [Orama installer](installer/).
 
-Orama works on its own. Two small services on your server add more:
-
-- **[watchlist-sync](https://github.com/DarkAngelGR/watchlist-sync)** sends the Plex Watchlists of
-  your household and friends to Sonarr and Radarr. Orama then syncs Watchlist adds instantly,
-  shows download progress and upcoming episodes, lists the parts of a collection you don't have
-  yet, searches Bazarr for subtitles, and removes deleted titles from Sonarr/Radarr.
-- **[Orama installer](installer/)** keeps Orama up to date: when a new release is out, install it
-  from **Settings › Updates** on the TV or from a web page on your phone.
-
-Both run in Docker and are found automatically when they run on the same machine as your Plex or Jellyfin server.
-
-## Using Orama
+## Using the remote
 
 | Remote | What it does |
 | --- | --- |
 | Arrows / OK | Move around / select |
-| Hold OK on a home tile | Options: remove from Continue Watching, watched / unwatched |
+| Hold OK on a home tile | Remove from Continue Watching, mark watched / unwatched |
 | Play/Pause | Play whatever is focused; pause and resume |
 | Back | Go back (while watching, the first press hides the controls) |
-| ▲ while watching | Show the info bar: title, progress and how it's playing |
-| ▼ while watching | Audio, subtitles, quality and (for episodes) previous / next episode |
+| ▲ while watching | Info bar: title, version, progress and how it's playing |
+| ▼ while watching | Audio, subtitles, version and quality, previous / next episode |
 | ◀ ▶ while watching | Seek 10 s; hold to go faster |
 | ⏪ ⏩ while watching | Jump 30 s; hold to go faster |
-| ⏮ ⏭ while watching | Previous / next episode (remotes that have these keys) |
+| ⏮ ⏭ while watching | Previous / next episode (on remotes that have them) |
 | CH ▲ / CH ▼ while watching | Subtitles on or off |
-| ▲ from the first row of a library | Sort (A–Z, recently added, release date, rating) and Show (all / unwatched) |
+| ▲ from a library's first row | Sort (A–Z, recently added, release date, rating) and show all / unwatched |
 | CH ▲ / CH ▼ in a library | Jump by letter |
 
 Everything else lives in **Settings**: profiles, default quality, subtitle language and style,
 audio formats your TV can play, force direct play, theme music, downloads and updates.
 
+## Plex or Jellyfin
+
+Orama looks and works the same with either server.
+
+### Signing in with Jellyfin
+
+On the sign-in screen, press **Down** and pick **Use a Jellyfin server instead**, then type your
+server's address (for example `192.168.1.10`; port 8096 is added for you).
+
+- **Quick Connect** on (Jellyfin › Dashboard › General): the TV shows a code. On your phone, open
+  Jellyfin, go to your profile › **Quick Connect** and enter it.
+- **Otherwise**, or if you press OK, sign in with your user name and password.
+
+To switch back to Plex, use **Settings › Sign out**.
+
+### What each server supports
+
+| | Plex | Jellyfin |
+|---|:---:|:---:|
+| Home, libraries, search, resume, watched state | ✓ | ✓ |
+| Direct play, converting only what the TV can't play | ✓ | ✓ |
+| Subtitles (text drawn by Orama, pictures burned in) | ✓ | ✓ |
+| Several versions of a title, clearly named | ✓ | ✓ |
+| Skip intro / credits | ✓ | ✓ ¹ |
+| Theme music, trailers, cast, delete | ✓ | ✓ ² |
+| watchlist-sync extras (downloads, collections, Bazarr subtitles) | ✓ | ✓ |
+| Search outside your library, Watchlist | ✓ | – |
+| Home profiles with PINs | ✓ | – ³ |
+| Preview pictures while seeking | ✓ | – |
+
+¹ With media segments (Jellyfin 10.10+, e.g. the Intro Skipper plugin).
+² Deleting needs an administrator.
+³ Sign out to change user.
+
+## Optional companions
+
+Orama works on its own. Two small Docker services on your server add more, and they're found
+automatically when they run on the same machine as Plex or Jellyfin.
+
+| | |
+| --- | --- |
+| **[watchlist-sync](https://github.com/DarkAngelGR/watchlist-sync)** | Sends your household's and friends' Plex Watchlists to Sonarr and Radarr. Orama then syncs Watchlist adds instantly, shows download progress and upcoming episodes, lists the parts of a collection you're missing, searches Bazarr for subtitles, and removes deleted titles from Sonarr / Radarr. |
+| **[Orama installer](installer/)** | Keeps Orama up to date: when a release is out, install it from **Settings › Updates** on the TV or from a web page on your phone. |
+
 ## Why it's fast
 
-Samsung TVs only run web apps, but the web engine is quick if you treat it like a game engine:
-every animation is a GPU transform or fade, lists recycle a fixed set of tiles, the focus ring
-stays still while content slides under it, a held key never queues up work, and Plex resizes
-every image to exactly the pixels on screen.
+Samsung TVs only run web apps, but their web engine is quick if you treat it like a game engine:
 
-The biggest single win was replacing a full-screen CSS gradient, which took almost two seconds
-to repaint on the TV's CPU, with a 2×2-pixel WebGL texture the GPU stretches for free:
+- every animation is a GPU transform or fade;
+- lists recycle a fixed set of tiles;
+- the focus ring stays still while content slides under it;
+- a held key never queues up work;
+- the server resizes every image to exactly the pixels on screen.
 
-<p align="center">
-  <img src="assets/readme/frame-trace.png" alt="Frame times for the same 12 button presses: the old renderer froze for about 2 seconds on every press and took 24.4 s; the new one finished in 3.7 s and never went above 66 ms" width="720">
-</p>
+The biggest single win was the background: a full-screen CSS gradient took almost two seconds
+to repaint on the TV's CPU, so it was replaced with a 2×2-pixel WebGL texture that the GPU
+stretches for free.
 
 <details>
-<summary><b>Measurements</b> (2022 Samsung Q60B, Tizen 6.5, measured by the original SamSUCKS author)</summary>
+<summary><b>Measurements</b> (2022 Samsung Q60B, Tizen 6.5)</summary>
 
 | | Official Plex app | Orama |
 | --- | --- | --- |
@@ -223,9 +248,9 @@ On a real 3,952-item library, 98.7% of titles play without any transcoding.
 ```
 app/            the TV app (plain ES modules, no framework, no bundler)
   js/screens/   home, library, detail, player, search, settings, profiles…
-  js/ui/        rows, grids, tiles, image loader, backdrop, theme music
-  js/plex/      plex.tv sign-in, Plex Media Server, Jellyfin (jellyfin.js), Discover,
-                watchlist-sync, updates
+  js/player/    track, version and quality choices, subtitles, seek previews
+  js/ui/        rows, grids, tiles, pickers, image loader, backdrop, theme music
+  js/plex/      plex.tv sign-in, Plex Media Server, Jellyfin, Discover, watchlist-sync, updates
   js/platform/  Tizen keys and device info, AVPlay / <video> player
 installer/      the Orama installer (Docker)
 scripts/        setup.sh, deploy.sh, make-logo.py
@@ -269,13 +294,16 @@ with any static server (it uses a `<video>` element instead of AVPlay there).
   **Settings › Audio formats** says your setup (e.g. a soundbar over eARC) can play it.
 </details>
 
+Found a bug? [Open an issue](https://github.com/DarkAngelGR/orama/issues/new/choose).
+
 ## Credits
 
 Orama started as a fork of [SamSUCKS](https://github.com/rfaile313/samsucks) by rfaile313 and was
 inspired by [plx-native](https://github.com/GLinnik21/plx-native), a native Plex client for LG TVs.
-Font: [Outfit](https://fonts.google.com/specimen/Outfit) (SIL Open Font License). QR codes:
-[qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) by Kazuhiko Arase (MIT).
-Installs and updates use [Apps2Samsung](https://github.com/Apps2Samsung/Apps2Samsung).
+
+- Font: [Outfit](https://fonts.google.com/specimen/Outfit) (SIL Open Font License)
+- QR codes: [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) by Kazuhiko Arase (MIT)
+- Installs and updates: [Apps2Samsung](https://github.com/Apps2Samsung/Apps2Samsung)
 
 ## License
 
@@ -284,6 +312,6 @@ version of SamSUCKS, copyright © 2026 rfaile313; changes copyright © 2026 Agge
 You can use, study, change and share it; anything you distribute that's built on it must stay
 open source under the same license.
 
-Orama is an independent project, not made by, endorsed by or affiliated with Plex, Inc., the
+<sub>Orama is an independent project, not made by, endorsed by or affiliated with Plex, Inc., the
 Jellyfin project or Samsung. "Plex" is a trademark of Plex, Inc., used only to say which media
-servers Orama works with.
+servers Orama works with.</sub>
