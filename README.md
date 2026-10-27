@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/DarkAngelGR/FlexPlex/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/DarkAngelGR/FlexPlex?label=release&color=8B7CFF"></a>
+  <a href="https://github.com/DarkAngelGR/orama/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/DarkAngelGR/orama?label=release&color=8B7CFF"></a>
   <img alt="Samsung Tizen" src="https://img.shields.io/badge/Samsung-Tizen%205.5%2B-1f1f2e">
   <a href="LICENSE"><img alt="License: GPL-3.0" src="https://img.shields.io/badge/license-GPL--3.0-1f1f2e"></a>
 </p>
@@ -84,7 +84,7 @@ a Jellyfin server (10.8 or newer).
 
 ### Option 1: install a release with Apps2Samsung (easiest)
 
-1. Download `Orama-x.y.z.wgt` from the [latest release](https://github.com/DarkAngelGR/FlexPlex/releases/latest).
+1. Download `Orama-x.y.z.wgt` from the [latest release](https://github.com/DarkAngelGR/orama/releases/latest).
 2. Install it with [Apps2Samsung](https://github.com/Apps2Samsung/Apps2Samsung) (Windows, macOS
    or Linux): turn on Developer Mode on the TV (see below), pick the TV in Apps2Samsung, and
    install your own `.wgt`.
@@ -94,7 +94,7 @@ a Jellyfin server (10.8 or newer).
 ### Option 2: build and install from source (macOS or Linux)
 
 ```sh
-git clone https://github.com/DarkAngelGR/FlexPlex.git orama
+git clone https://github.com/DarkAngelGR/orama.git orama
 cd orama
 ./scripts/setup.sh     # Samsung's command-line tools, finds the TV, creates a signing certificate
 ./scripts/deploy.sh    # builds, installs and opens Orama on the TV

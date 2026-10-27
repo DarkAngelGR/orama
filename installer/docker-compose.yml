@@ -13,6 +13,6 @@ services:
       # CHECK_HOURS: "6"
       # PASSWORD: ""                 # protect the web page / API
       # ALLOW_REINSTALL: "true"      # let it remove and reinstall if the TV insists (erases Orama's settings)
-      # GITHUB_REPO: "DarkAngelGR/FlexPlex"
+      # GITHUB_REPO: "DarkAngelGR/orama"
     volumes:
       - ./data:/data                 # put Apps2Samsung's Certificate folder in data/apps2samsung/

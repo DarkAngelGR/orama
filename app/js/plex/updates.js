@@ -7,7 +7,7 @@ import { VERSION } from '../config.js';
 import { plexLanHost } from './watchlist.js';
 
 export const DEFAULT_PORT = 8790;
-export const GITHUB_REPO = 'DarkAngelGR/FlexPlex';
+export const GITHUB_REPO = 'DarkAngelGR/orama';
 
 function parse(v) {
   return String(v || '').replace(/^v/i, '').split('.').map(n => parseInt(n, 10) || 0);

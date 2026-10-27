@@ -53,7 +53,7 @@ Orama finds it automatically when it runs on the same machine as Plex.
 | `CHECK_HOURS` | `6` | How often to look for a new release |
 | `PASSWORD` | (none) | Protects the web page and API; enter it in Settings › Updates on the TV |
 | `ALLOW_REINSTALL` | `false` | Let Apps2Samsung go past its pre-install warnings and, if the TV refuses an update (e.g. a different certificate), uninstall and install fresh, which erases Orama's settings and sign-in |
-| `GITHUB_REPO` | `DarkAngelGR/FlexPlex` | Where releases come from |
+| `GITHUB_REPO` | `DarkAngelGR/orama` | Where releases come from |
 | `GITHUB_TOKEN` | (none) | Required if the repo is private (read-only token, see above) |
 | `PORT` | `8790` | Web page and API |
 | `ALLOWED_HOSTS` | (none) | Extra host names it answers to, comma-separated (IP addresses, `localhost`, bare machine names, `*.local` and Tailscale `*.ts.net` names always work) |

@@ -36,7 +36,7 @@ def env(name, default=""):
 CFG = {
     "tv_ip": env("TV_IP"),
     "tv_port": int(env("TV_SDB_PORT", "26101") or 26101),
-    "repo": env("GITHUB_REPO", "DarkAngelGR/FlexPlex"),
+    "repo": env("GITHUB_REPO", "DarkAngelGR/orama"),
     "github_api": env("GITHUB_API", "https://api.github.com").rstrip("/"),
     "github_token": env("GITHUB_TOKEN"),
     "check_hours": float(env("CHECK_HOURS", "6") or 6),
