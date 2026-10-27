@@ -16,7 +16,8 @@ import { InfoScreen } from './info.js';
 import * as themeMusic from '../ui/theme-music.js';
 import { error } from '../util/log.js';
 import {
-  streamsOf, audioLabel, subtitleLabel, qualitiesFor, effectiveQuality, defaultQuality, versionLabel,
+  streamsOf, audioLabel, subtitleLabel, qualitiesFor, effectiveQuality, defaultQuality,
+  versionTitle, versionRows, rememberedVersion, rememberVersion,
 } from '../player/options.js';
 import { ConfirmScreen } from './confirm.js';
 import { pickTracks, rememberShowTracks, showKeyOf, langsOf, rememberShowGenres, learnShowGenres } from '../player/tracks.js';
@@ -214,7 +215,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     await learnShowGenres(full, session.server);
     const now = target();
     if (!alive || !now || now.ratingKey !== t.ratingKey) return;
-    choice = { key: t.ratingKey, full, mediaIndex: 0, audioId: undefined, subId: 0 };
+    choice = { key: t.ratingKey, full, mediaIndex: rememberedVersion(full), audioId: undefined, subId: 0 };
     if (!currentPart()) { choice = null; renderOptions(); return; }
     resetStreams();
     renderOptions();
@@ -241,7 +242,10 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
       h('span', 'opt-value', o).textContent = value;
       options.push({ el: o, open });
     };
-    add(icons.quality, 'Quality', q.kbps ? q.label : (multiVersion ? versionLabel(media) : 'Original'), pickQuality);
+    if (multiVersion) {
+      add(icons.versions, 'Version', versionTitle(media) + '  (' + (choice.mediaIndex + 1) + ' of ' + choice.full.Media.length + ')', pickVersion);
+    }
+    add(icons.quality, 'Quality', q.kbps ? q.label : 'Original', pickQuality);
     const audios = streamsOf(part, 2);
     if (audios.length > 1) {
       const a = audios.find(s => s.id === choice.audioId);
@@ -264,30 +268,26 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     session.server.selectStreams(part.id, { audioStreamID: choice.audioId, subtitleStreamID: choice.subId || 0 });
   }
 
-  function pickQuality() {
-    const media = currentMedia();
-    const medias = choice.full.Media || [];
-    const cur = effectiveQuality(quality, media);
-    const opts = [];
-    if (medias.length > 1) {
-      medias.forEach((m, i) => opts.push({
-        label: 'Original · ' + versionLabel(m),
-        on: !cur.kbps && i === choice.mediaIndex,
-        value: { mediaIndex: i, quality: 'original' },
-      }));
-    } else {
-      opts.push({ label: 'Original', on: !cur.kbps, value: { mediaIndex: 0, quality: 'original' } });
-    }
-    qualitiesFor(media).filter(x => x.kbps).forEach(x => opts.push({
-      label: x.label, on: cur.id === x.id, value: { mediaIndex: choice.mediaIndex, quality: x.id },
+  // Which file to play, when the server has more than one.
+  function pickVersion() {
+    const opts = versionRows(choice.full.Media).map((r, i) => ({
+      label: r.label, detail: r.detail, on: i === choice.mediaIndex, value: i,
     }));
-    picker.open('Quality', opts, v => {
-      const versionChanged = v.mediaIndex !== choice.mediaIndex;
-      choice.mediaIndex = v.mediaIndex;
-      quality = v.quality;
-      if (versionChanged) resetStreams();
+    picker.open('Version', opts, i => {
+      if (i === choice.mediaIndex) return;
+      choice.mediaIndex = i;
+      rememberVersion(choice.full, i);
+      resetStreams();
       renderOptions();
     });
+  }
+
+  // Original, or converted down to a cap.
+  function pickQuality() {
+    const media = currentMedia();
+    const cur = effectiveQuality(quality, media);
+    const opts = qualitiesFor(media).map(x => ({ label: x.label, on: cur.id === x.id, value: x.id }));
+    picker.open('Quality', opts, id => { quality = id; renderOptions(); });
   }
 
   function pickAudio() {

@@ -482,6 +482,12 @@ html.subs-bg .subs-text {
 .tracks-opt.on { color: var(--cream); }
 .tracks-opt.on::before { content: '✓  '; color: var(--accent); }
 .tracks-opt.focus { background: var(--cream); color: var(--bg); }
+/* A version: what it is on top, its codec, audio and size underneath. */
+.tracks-opt.two-line, .choice-picker .tracks-opt.two-line { padding: 4px 22px 0; line-height: 32px; }
+.tracks-opt.two-line::before { content: none; }
+.tracks-opt-label, .tracks-opt-detail { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tracks-opt.on .tracks-opt-label::before { content: '✓  '; color: var(--accent); }
+.tracks-opt-detail { font-size: 19px; line-height: 24px; opacity: 0.7; }
 
 .upnext {
   position: absolute; right: 96px; bottom: 120px; width: 660px; padding: 34px 40px;

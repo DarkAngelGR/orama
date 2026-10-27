@@ -28,8 +28,13 @@ export class Picker {
     this.index = Math.max(0, options.findIndex(o => o.on));
     this.list.innerHTML = '';
     options.forEach(o => {
-      o.el = h('div', 'tracks-opt', this.list);
-      o.el.textContent = o.label;
+      o.el = h('div', 'tracks-opt' + (o.detail ? ' two-line' : ''), this.list);
+      if (o.detail) {
+        h('div', 'tracks-opt-label', o.el).textContent = o.label;
+        h('div', 'tracks-opt-detail', o.el).textContent = o.detail;
+      } else {
+        o.el.textContent = o.label;
+      }
       toggleClass(o.el, 'on', !!o.on);
     });
     this.el.classList.remove('hidden');

@@ -7,6 +7,7 @@ import { session } from '../session.js';
 import { metaLine, duration, episodeLabel } from '../util/format.js';
 import { scores } from '../util/ratings.js';
 import * as router from '../router.js';
+import { versionRows } from '../player/options.js';
 
 const VIEW_H = 780;  // visible height of the scrolling area
 const STEP = 320;    // px per Up/Down press
@@ -39,7 +40,12 @@ function resolution(r) {
 
 // One line per version on the server, e.g.
 // "4K HEVC Dolby Vision  ·  MKV  ·  28.4 GB  ·  42 Mbps".
+// With several versions, numbered and named as in the Version picker:
+// "2. Final Cut · 4K Dolby Vision  ·  HEVC · TrueHD Atmos 7.1 · 58 GB".
 function fileLines(item) {
+  if ((item.Media || []).length > 1) {
+    return versionRows(item.Media).map((r, i) => (i + 1) + '. ' + r.label + '  ·  ' + r.detail);
+  }
   return (item.Media || []).map(m => {
     const part = (m.Part || [])[0] || {};
     const video = (part.Stream || []).find(s => s.streamType === 1);

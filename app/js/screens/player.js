@@ -15,7 +15,7 @@ import { request } from '../plex/client.js';
 import { parseSubtitles, CueTrack, cleanCue, NO_CUE } from '../player/subtitles.js';
 import {
   TEXT_SUBS, streamsOf, audioLabel, subtitleLabel, qualitiesFor, qualityById, effectiveQuality, defaultQuality, forceDirect, audioExtras,
-  directRefused, rememberDirectRefused,
+  directRefused, rememberDirectRefused, versionTitle, versionRows, rememberedVersion, rememberVersion,
 } from '../player/options.js';
 import { parseBif, bifIndex, bifPicture } from '../player/bif.js';
 import { subOffset, setSubOffset, offsetLabel } from '../player/subprefs.js';
@@ -56,7 +56,7 @@ function isSidecarText(sub) {
 // left out falls back to the server's selection and the default quality.
 // `langs` ({ audio, sub, subForced }) comes from the previous episode: pick
 // tracks in the same languages when no explicit ids are given.
-export function PlayerScreen(initial, { offset = null, quality: qualityId, mediaIndex = 0, audioStreamID, subtitleStreamID, langs } = {}) {
+export function PlayerScreen(initial, { offset = null, quality: qualityId, mediaIndex, audioStreamID, subtitleStreamID, langs } = {}) {
   const el = h('div', 'screen player');
   const stage = h('div', 'player-stage', el);
   const subs = h('div', 'subs', el);
@@ -321,13 +321,17 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   function renderTitles() {
     hintEl.innerHTML = '▼ Audio, subtitles, quality' + (item.type === 'episode' ? ' &amp; episodes' : '') +
       ' &nbsp;&nbsp; ⏪ ⏩ Jump 30 s &nbsp;&nbsp; CH ▲▼ Subtitles on/off';
-    if (item.type === 'episode') {
-      setText(osdTitle, item.grandparentTitle);
-      setText(osdSub, episodeLabel(item) + '   ' + item.title);
-    } else {
-      setText(osdTitle, item.title);
-      setText(osdSub, item.year || '');
-    }
+    const sub = item.type === 'episode' ? episodeLabel(item) + '   ' + item.title : String(item.year || '');
+    setText(osdTitle, item.type === 'episode' ? item.grandparentTitle : item.title);
+    setText(osdSub, [sub, versionNote()].filter(Boolean).join('   ·   '));
+  }
+
+  // Which file is playing, when there's more than one:
+  // "Director's Cut · 4K Dolby Vision (version 2 of 3)".
+  function versionNote() {
+    const medias = (item && item.Media) || [];
+    if (medias.length < 2 || !media) return '';
+    return versionTitle(media) + '  (version ' + (mediaIdx + 1) + ' of ' + medias.length + ')';
   }
 
   function toast(text) {
@@ -599,8 +603,10 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       item = full;
       duration = item.duration || duration;
       const medias = item.Media || [];
-      media = medias[mediaIndex] || medias[0];
+      // The version picked on the detail page, else the one played last time.
+      media = medias[mediaIndex == null ? rememberedVersion(item) : mediaIndex] || medias[0];
       mediaIdx = Math.max(0, medias.indexOf(media));
+      rememberVersion(item, mediaIdx);
       part = media && media.Part && media.Part[0];
       if (!part) throw new Error('No playable media');
       await learnShowGenres(item, session.server);  // is it anime? (once per show)
@@ -728,19 +734,28 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   let panelIndex = [0, 0, 0];
   let panelLists = [[], [], []];
 
+  // With more than one version, the Quality column starts with them; the
+  // conversions listed under them apply to the version playing.
+  function versionOptions() {
+    const medias = item.Media || [];
+    if (medias.length < 2) return [];
+    return versionRows(medias).map((r, i) => ({ label: r.label, detail: r.detail, version: i, on: i === mediaIdx }));
+  }
+
   function openPanel() {
     const audios = streamsOf(part, 2);
     const texts = streamsOf(part, 3);
     panelLists = [
       audios.map(s => ({ label: audioLabel(s), stream: s, on: s === audioStream })),
       [{ label: 'Off', stream: null, on: !subStream }].concat(texts.map(s => ({ label: subtitleLabel(s), stream: s, on: s === subStream }))),
-      qualitiesFor(media).map(q => ({ label: q.label, quality: q, on: q === quality })),
+      versionOptions().concat(qualitiesFor(media).map(q => ({ label: q.label, quality: q, on: q === quality }))),
     ];
     const eps = [];
     if (neighbors.prev) eps.push({ label: 'Previous  ·  ' + episodeLabel(neighbors.prev) + '  ' + neighbors.prev.title, episode: neighbors.prev });
     if (neighbors.next) eps.push({ label: 'Next  ·  ' + episodeLabel(neighbors.next) + '  ' + neighbors.next.title, episode: neighbors.next });
     if (eps.length) panelLists.push(eps);
     panelCols = PANEL_COLS.slice(0, panelLists.length);
+    if (panelLists[2].some(o => o.version != null)) panelCols[2] = { name: 'Version', icon: icons.versions };
     toggleClass(panel, 'tracks-4', panelCols.length > 3);
     // External subtitle files are drawn by us, so their timing can be nudged.
     if (isSidecarText(subStream)) panelLists[1].push({ offset: true, label: timingLabel() });
@@ -785,8 +800,13 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       toggleClass(clip, 'more-down', first + PANEL_VISIBLE < n);
       if (first) setTransform(listEl, 'translateY(' + (-first * PANEL_ROW) + 'px)');
       panelLists[c].forEach((opt, i) => {
-        const row = h('div', 'tracks-opt' + (opt.offset ? ' tracks-adjust' : ''), listEl);
-        row.textContent = opt.label;
+        const row = h('div', 'tracks-opt' + (opt.offset ? ' tracks-adjust' : '') + (opt.detail ? ' two-line' : ''), listEl);
+        if (opt.detail) {
+          h('div', 'tracks-opt-label', row).textContent = opt.label;
+          h('div', 'tracks-opt-detail', row).textContent = opt.detail;
+        } else {
+          row.textContent = opt.label;
+        }
         toggleClass(row, 'on', opt.on);
         toggleClass(row, 'focus', c === panelCol && i === panelIndex[c]);
       });
@@ -796,6 +816,11 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   async function choose(col, opt) {
     const server = session.server;
     if (col === 3) { playEpisode(opt.episode); return; }
+    if (col === 2 && opt.version != null) {
+      panel.classList.add('hidden');
+      if (opt.version !== mediaIdx) switchVersion(opt.version);
+      return;
+    }
     if (col === 2) {
       panel.classList.add('hidden');
       if (opt.quality === quality) return;
@@ -940,6 +965,17 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       subForced: !!(subStream && subStream.forced),
     };
     router.replace(PlayerScreen(ep, { offset: 0, quality: requestedQuality, langs }));
+  }
+
+  // Another file of the same title, from the same point and in the same languages.
+  function switchVersion(i) {
+    const langs = {
+      audio: langOf(audioStream),
+      sub: subStream ? langOf(subStream) : null,
+      subForced: !!(subStream && subStream.forced),
+    };
+    rememberVersion(item, i);
+    router.replace(PlayerScreen(item, { offset: position, quality: requestedQuality, mediaIndex: i, langs }));
   }
 
   function exit() {

@@ -67,12 +67,141 @@ function resolutionLabel(media) {
   return media.height ? media.height + 'p' : '';
 }
 
-// Describes one version of a title, e.g. "4K · HEVC · 58 Mbps".
-export function versionLabel(media) {
+function partOf(media) {
+  return media && media.Part && media.Part[0];
+}
+
+function hdrLabel(media) {
+  const v = streamsOf(partOf(media), 1)[0];
+  if (!v) return '';
+  const t = (v.displayTitle || '') + ' ' + (v.title || '');
+  if (v.DOVIPresent || /dolby vision|dovi/i.test(t)) return 'Dolby Vision';
+  if (/hdr10\+/i.test(t)) return 'HDR10+';
+  if (/smpte2084|arib-std-b67/i.test(v.colorTrc || '') || /hdr|hlg/i.test(t)) return 'HDR';
+  return '';
+}
+
+const AUDIO_NAMES = { eac3: 'Dolby Digital+', ac3: 'Dolby Digital', truehd: 'TrueHD', dca: 'DTS', dts: 'DTS',
+  'dca-ma': 'DTS-HD MA', aac: 'AAC', flac: 'FLAC', opus: 'Opus', mp3: 'MP3', pcm: 'PCM' };
+
+// The version's main audio track, e.g. "TrueHD Atmos 7.1".
+function audioSummary(media) {
+  const audios = streamsOf(partOf(media), 2);
+  const a = audios.find(s => s.selected) || audios[0];
+  if (!a) return '';
+  const t = (a.displayTitle || '') + ' ' + (a.title || '');
+  const codec = String(a.codec || '').toLowerCase();
+  let name = AUDIO_NAMES[codec] || codec.toUpperCase();
+  if (codec === 'dca' && /dts-hd ma|dts-hd master/i.test(t)) name = 'DTS-HD MA';
+  if (/dts:x/i.test(t)) name = 'DTS:X';
+  if (/atmos/i.test(t)) name += ' Atmos';
+  const ch = a.audioChannelLayout ? String(a.audioChannelLayout).replace(/\(.*\)/, '')
+    : a.channels === 6 ? '5.1' : a.channels === 8 ? '7.1' : a.channels === 2 ? 'Stereo' : '';
+  return [name, ch].filter(Boolean).join(' ');
+}
+
+function sizeLabel(bytes) {
+  if (!bytes) return '';
+  const gb = bytes / 1073741824;
+  return gb >= 1 ? gb.toFixed(gb >= 10 ? 0 : 1) + ' GB' : Math.round(bytes / 1048576) + ' MB';
+}
+
+function fileName(media) {
+  const f = String((partOf(media) || {}).file || '');
+  return f.split(/[\\/]/).pop().replace(/\.[a-z0-9]{2,4}$/i, '');
+}
+
+const EDITIONS = [
+  [/director'?s[ ._-]?cut/i, 'Director\'s Cut'], [/extended/i, 'Extended'], [/theatrical/i, 'Theatrical'],
+  [/unrated/i, 'Unrated'], [/uncut/i, 'Uncut'], [/final[ ._-]?cut/i, 'Final Cut'], [/ultimate/i, 'Ultimate'],
+  [/imax/i, 'IMAX'], [/remaster/i, 'Remastered'], [/criterion/i, 'Criterion'], [/special[ ._-]?edition/i, 'Special Edition'],
+  [/\b3d\b/i, '3D'], [/remux/i, 'Remux'],
+];
+
+// What the version is, beyond its picture: Plex's {edition-…} file naming,
+// Jellyfin's version name, or a well-known word in the file name.
+export function versionEdition(media) {
   if (!media) return '';
-  const parts = [resolutionLabel(media), (media.videoCodec || '').toUpperCase()];
-  if (media.bitrate) parts.push(Math.round(media.bitrate / 1000) + ' Mbps');
-  return parts.filter(Boolean).join(' · ');
+  const name = fileName(media);
+  const tagged = /\{edition-([^}]+)\}/i.exec(name);
+  if (tagged) return tagged[1].trim();
+  if (media.title) return media.title;
+  const found = EDITIONS.filter(([re]) => re.test(name)).map(([, label]) => label);
+  return found.join(' · ');
+}
+
+// The picture alone, e.g. "4K Dolby Vision".
+export function versionPicture(media) {
+  if (!media) return '';
+  return [resolutionLabel(media), hdrLabel(media)].filter(Boolean).join(' ');
+}
+
+// What the version is, at a glance: "Director's Cut · 4K Dolby Vision".
+export function versionTitle(media) {
+  if (!media) return '';
+  return [versionEdition(media), versionPicture(media)].filter(Boolean).join(' · ') ||
+    (media.videoCodec || '').toUpperCase() || 'Original';
+}
+
+// The rest: "HEVC · TrueHD Atmos 7.1 · 58 GB".
+function versionDetail(media) {
+  if (!media) return '';
+  const size = sizeLabel((partOf(media) || {}).size);
+  return [(media.videoCodec || '').toUpperCase(), audioSummary(media),
+    size || (media.bitrate ? Math.round(media.bitrate / 1000) + ' Mbps' : '')].filter(Boolean).join(' · ');
+}
+
+// Describes one version of a title, e.g.
+// "Director's Cut · 4K Dolby Vision · HEVC · TrueHD Atmos 7.1 · 58 GB".
+export function versionLabel(media) {
+  return [versionTitle(media), versionDetail(media)].filter(Boolean).join(' · ');
+}
+
+// { label, detail } per version, worded so no two read the same: a version
+// that would look like another gets its bitrate, then its file name.
+export function versionRows(medias) {
+  medias = medias || [];
+  const rows = medias.map(m => ({ label: versionTitle(m), detail: versionDetail(m) }));
+  const key = r => r.label + '|' + r.detail;
+  const clash = r => rows.filter(x => key(x) === key(r)).length > 1;
+  const extra = [
+    m => m.bitrate ? Math.round(m.bitrate / 1000) + ' Mbps' : '',
+    m => fileName(m),
+  ];
+  extra.forEach(more => {
+    const twins = rows.map(r => clash(r) ? rows.filter(x => key(x) === key(r)) : []);
+    rows.forEach((r, i) => {
+      const x = more(medias[i]);
+      // Only when it tells this one apart from its twins.
+      const helps = twins[i].some(t => more(medias[rows.indexOf(t)]) !== x);
+      if (x && helps) r.detail = [r.detail, x].filter(Boolean).join(' · ');
+    });
+  });
+  return rows;
+}
+
+// The version last played or picked for a title (by media id), so resuming
+// picks up the same file. Newest last.
+const MAX_VERSIONS = 300;
+
+export function rememberedVersion(item) {
+  const medias = (item && item.Media) || [];
+  if (medias.length < 2) return 0;
+  const id = (store.get('versions', {}) || {})[item.ratingKey];
+  const i = medias.findIndex(m => String(m.id) === String(id));
+  return i >= 0 ? i : 0;
+}
+
+export function rememberVersion(item, mediaIndex) {
+  const medias = (item && item.Media) || [];
+  const m = medias[mediaIndex];
+  if (medias.length < 2 || !m || m.id == null || !item.ratingKey) return;
+  const all = store.get('versions', {}) || {};
+  delete all[item.ratingKey];
+  all[item.ratingKey] = m.id;
+  const keys = Object.keys(all);
+  keys.slice(0, Math.max(0, keys.length - MAX_VERSIONS)).forEach(k => delete all[k]);
+  store.set('versions', all);
 }
 
 // Force direct play: always send the original file straight to the TV, never

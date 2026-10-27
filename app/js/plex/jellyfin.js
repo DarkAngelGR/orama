@@ -127,7 +127,7 @@ function mediaOf(it) {
     const v = streams.find(s => s.streamType === 1) || {};
     const container = String(src.Container || '').split(',')[0].toLowerCase();
     return {
-      id: src.Id, container, videoCodec: v.codec || '', bitrate: src.Bitrate ? Math.round(src.Bitrate / 1000) : 0,
+      id: src.Id, container, videoCodec: v.codec || '', title: (it.MediaSources || []).length > 1 ? src.Name || '' : '', bitrate: src.Bitrate ? Math.round(src.Bitrate / 1000) : 0,
       width: v.width, height: v.height, videoResolution: resolution(v.width || 0, v.height || 0),
       Part: [{
         id: src.Id, container, size: src.Size, file: src.Path || '',
