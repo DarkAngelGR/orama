@@ -16,6 +16,7 @@ import * as downloads from '../plex/downloads.js';
 import { notice } from '../ui/notice.js';
 import { Picker } from '../ui/picker.js';
 import * as watchlist from '../plex/watchlist.js';
+import { cwOpens } from '../player/options.js';
 
 // Once per app start, a few seconds after home appears: is there a newer
 // Orama? Mentioned once per version.
@@ -265,6 +266,8 @@ export function HomeScreen() {
   function selectItem(item) {
     if (item.upcoming) { openCatalogLookup({ title: item.title, year: item.year, kind: 'show' }).catch(e => error('show lookup failed', e)); return; }
     if (item.download) openDownload(item.download);
+    // Settings › OK on Continue Watching: resume straight away.
+    else if (cwOpens() === 'play' && isContinueRow(rows[rowIndex]) && (item.type === 'episode' || item.type === 'movie')) playItem(item);
     else openItem(item);
   }
 

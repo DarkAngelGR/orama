@@ -1,8 +1,10 @@
 // A whole library as a virtualized poster grid, loaded page by page.
-// Up from the top row reaches the sort button (OK / Left / Right change it; the
-// yellow button does too, on remotes that have one). CH▲/CH▼ jump by letter
+// Up from the top row reaches the Sort and Show buttons (Left / Right pick one,
+// OK changes it; the yellow button changes the sort too, on remotes that have
+// one). Both are remembered per library and profile. CH▲/CH▼ jump by letter
 // (title sort) or by page.
 import { h, setText, toggleClass } from '../util/dom.js';
+import * as store from '../util/store.js';
 import { Grid } from '../ui/grid.js';
 import { useAmbience } from '../ui/backdrop.js';
 import { session } from '../session.js';
@@ -20,6 +22,27 @@ const SORTS = [
   { id: 'audienceRating:desc', label: 'Rating' },
 ];
 
+// Sort and filter per library and profile, newest last, capped.
+const MAX_VIEWS = 100;
+
+function viewKey(section) {
+  return ((session.user && session.user.uuid) || '') + ':' + (session.server ? session.server.name : '') + ':' + section.key;
+}
+
+function savedView(section) {
+  return (store.get('libView', {}) || {})[viewKey(section)] || {};
+}
+
+function saveView(section, view) {
+  const all = store.get('libView', {}) || {};
+  const key = viewKey(section);
+  delete all[key];
+  if (view.sort !== SORTS[0].id || view.unwatched) all[key] = view;
+  const keys = Object.keys(all);
+  keys.slice(0, Math.max(0, keys.length - MAX_VIEWS)).forEach(k => delete all[k]);
+  store.set('libView', keys.length ? all : undefined);
+}
+
 export function LibraryScreen(section) {
   const el = h('div', 'screen library');
   const ambience = useAmbience();
@@ -27,12 +50,16 @@ export function LibraryScreen(section) {
   h('h1', 'lib-title', head).textContent = section.title;
   const count = h('div', 'lib-count', head);
   const sortEl = h('div', 'lib-sort', head);
+  const filterEl = h('div', 'lib-sort lib-filter', head);
   const focusInfo = h('div', 'lib-focus', el);
   const hint = h('div', 'lib-hint', el);
-  hint.textContent = '▲ Sort   ·   CH ▲▼ Jump';
+  hint.textContent = '▲ Sort & filter   ·   CH ▲▼ Jump';
 
-  let sortIndex = 0;
-  let onSort = false;        // focus on the sort button instead of the grid
+  const saved = savedView(section);
+  let sortIndex = Math.max(0, SORTS.findIndex(s => s.id === saved.sort));
+  let unwatched = !!saved.unwatched;
+  let onSort = false;        // focus on the Sort / Show buttons instead of the grid
+  let headIndex = 0;         // 0 = Sort, 1 = Show
   let pages = new Map();     // page -> 'loading' | true
   let items = [];
   let letters = [];          // [{ title: 'A', start: 0 }]
@@ -81,15 +108,15 @@ export function LibraryScreen(section) {
     const gen = generation;
     if (p === 0 && !items.length) status('Loading ' + section.title + '…');
     try {
-      const res = await session.server.items(section.key, p * PAGE, PAGE, { sort: SORTS[sortIndex].id, type });
+      const res = await session.server.items(section.key, p * PAGE, PAGE, { sort: SORTS[sortIndex].id, type, unwatched });
       if (gen !== generation) return;
       res.items.forEach((it, i) => { items[p * PAGE + i] = it; });
       pages.set(p, true);
       failures = 0;
-      if (p === 0 && !res.items.length) status(section.title + ' is empty');
+      if (p === 0 && !res.items.length) status(unwatched ? 'Nothing unwatched in ' + section.title : section.title + ' is empty');
       if (grid.total !== res.total) {
         grid.setTotal(res.total);
-        setText(count, res.total + (section.type === 'show' ? ' shows' : ' movies'));
+        setText(count, res.total + (unwatched ? ' unwatched' : '') + (section.type === 'show' ? ' show' : ' movie') + (res.total === 1 ? '' : 's'));
       } else {
         grid.refresh();
       }
@@ -115,7 +142,9 @@ export function LibraryScreen(section) {
     letters = [];
     if (SORTS[sortIndex].id !== 'titleSort') return;
     try {
-      const mc = await session.server.get('/library/sections/' + section.key + '/firstCharacter', { type });
+      const params = { type };
+      if (unwatched) params[type === 2 ? 'unwatchedLeaves' : 'unwatched'] = 1;
+      const mc = await session.server.get('/library/sections/' + section.key + '/firstCharacter', params);
       let start = 0;
       letters = (mc.Directory || []).map(d => {
         const l = { title: d.title, start };
@@ -132,6 +161,8 @@ export function LibraryScreen(section) {
     pages = new Map();
     items = [];
     setText(sortEl, 'Sort: ' + SORTS[sortIndex].label);
+    setText(filterEl, 'Show: ' + (unwatched ? 'Unwatched' : 'All'));
+    setText(count, '');
     grid.total = 0;
     grid.index = 0;
     grid.refresh();
@@ -142,12 +173,20 @@ export function LibraryScreen(section) {
 
   function setSortFocus(on) {
     onSort = on;
-    toggleClass(sortEl, 'focus', on);
+    toggleClass(sortEl, 'focus', on && headIndex === 0);
+    toggleClass(filterEl, 'focus', on && headIndex === 1);
     toggleClass(grid.ring, 'on', !on);
   }
 
   function cycleSort(dir) {
     sortIndex = (sortIndex + dir + SORTS.length) % SORTS.length;
+    saveView(section, { sort: SORTS[sortIndex].id, unwatched });
+    reload();
+  }
+
+  function toggleUnwatched() {
+    unwatched = !unwatched;
+    saveView(section, { sort: SORTS[sortIndex].id, unwatched });
     reload();
   }
 
@@ -171,8 +210,8 @@ export function LibraryScreen(section) {
     onKey(action) {
       if (onSort) {
         switch (action) {
-          case 'enter': case 'right': cycleSort(1); return true;
-          case 'left': cycleSort(-1); return true;
+          case 'enter': if (headIndex === 0) cycleSort(1); else toggleUnwatched(); return true;
+          case 'left': case 'right': headIndex = action === 'left' ? 0 : 1; setSortFocus(true); return true;
           case 'yellow': cycleSort(1); return true;
           case 'down': case 'back': setSortFocus(false); return true;
           case 'up': return true;

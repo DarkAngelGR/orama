@@ -15,7 +15,9 @@ import { request } from '../plex/client.js';
 import { parseSubtitles, CueTrack, cleanCue, NO_CUE } from '../player/subtitles.js';
 import {
   TEXT_SUBS, streamsOf, audioLabel, subtitleLabel, qualitiesFor, qualityById, effectiveQuality, defaultQuality, forceDirect, audioExtras,
+  directRefused, rememberDirectRefused,
 } from '../player/options.js';
+import { parseBif, bifIndex, bifPicture } from '../player/bif.js';
 import { subOffset, setSubOffset, offsetLabel } from '../player/subprefs.js';
 import * as lang from '../util/lang.js';
 import { NATIVE_AUDIO, pickTracks, rememberShowTracks, showKeyOf, learnShowGenres } from '../player/tracks.js';
@@ -32,6 +34,8 @@ const TIMELINE_MS = 10000;
 const TOAST_MS = 1800;
 const SUB_OFFSET_STEP = 250;
 const SUB_OFFSET_MAX = 10000;
+const THUMBS_AFTER_MS = 3000;   // fetch seek previews once playback has settled
+const THUMB_W = 320;
 
 // Language of a stream, for carrying the user's track choice to the next episode.
 function langOf(s) {
@@ -76,12 +80,14 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   const barFill = h('div', 'osd-fill', bar);
   const knob = h('div', 'osd-knob', bar);
   const seekLabel = h('div', 'osd-seek', knob);
+  const thumbEl = h('div', 'osd-thumb', osdBottom);
+  const thumbImg = h('img', '', thumbEl);
+  thumbImg.alt = '';
   const times = h('div', 'osd-times', osdBottom);
   const tNow = h('span', 'osd-now', times);
   const tInfo = h('span', 'osd-info', times);
   const tLeft = h('span', 'osd-left', times);
-  const hintEl = h('div', 'osd-hint', osdBottom);
-  hintEl.innerHTML = '▼ Audio, subtitles &amp; quality &nbsp;&nbsp; CH ▲▼ Subtitles on/off';
+  const hintEl = h('div', 'osd-hint', osdBottom);   // filled by renderTitles()
 
   const skipBtn = h('div', 'skip hidden', el);
   const toastEl = h('div', 'toast', el);
@@ -125,6 +131,12 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   let markers = [];         // intro / credits ranges from Plex
   let activeMarker = null;
   let toastTimer = 0;
+  let failMsg = '';         // why direct play failed, remembered once the fallback plays
+  let thumbs = null;        // parsed seek previews (BIF)
+  let thumbsTimer = 0;
+  let thumbIdx = -1;
+  let thumbUrl = '';
+  let neighbors = { prev: null, next: null }; // episodes before and after this one
   const playSession = uuid();
 
   const player = createPlayer(stage, {
@@ -193,6 +205,49 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     toggleClass(el, 'osd-on', false);
   }
 
+  // --- Seek previews ------------------------------------------------------
+
+  let thumbsFor = null;
+  function loadThumbs() {
+    if (thumbsFor === part || !part) return;   // once per file (each HLS seek reopens)
+    const forPart = thumbsFor = part;
+    thumbsTimer = setTimeout(() => {
+      session.server.previewThumbs(forPart)
+        .then(buf => {
+          if (!alive || part !== forPart || !buf) return;
+          thumbs = parseBif(buf);
+          log('seek previews', thumbs ? thumbs.count + ' pictures' : 'unreadable');
+        })
+        .catch(e => warn('seek previews failed', e.message));
+    }, THUMBS_AFTER_MS);
+  }
+
+  function showThumb(ms) {
+    if (!thumbs) return;
+    const i = bifIndex(thumbs, ms);
+    if (i !== thumbIdx) {
+      const pic = bifPicture(thumbs, i);
+      if (!pic) return;
+      thumbIdx = i;
+      if (thumbUrl) URL.revokeObjectURL(thumbUrl);
+      thumbUrl = URL.createObjectURL(pic);
+      thumbImg.src = thumbUrl;
+    }
+    // Centred over the knob, kept on screen at both ends.
+    const p = duration ? Math.max(0, Math.min(1, ms / duration)) : 0;
+    const x = Math.max(24, Math.min(1920 - THUMB_W - 24, Math.round(96 + p * 1728 - THUMB_W / 2)));
+    setTransform(thumbEl, 'translateX(' + x + 'px)');
+    toggleClass(thumbEl, 'has', true);
+  }
+
+  function dropThumbs() {
+    clearTimeout(thumbsTimer);
+    thumbs = null;
+    thumbIdx = -1;
+    toggleClass(thumbEl, 'has', false);
+    if (thumbUrl) { URL.revokeObjectURL(thumbUrl); thumbUrl = ''; }
+  }
+
   // --- What's actually happening to the stream -------------------------------
 
   function codecName(c) {
@@ -255,12 +310,17 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       info.push('subtitles ' + (subStream.language || subStream.languageCode || '?') + ' (' + (isBurn ? 'burned in' : how) + ')');
       if (!mc && how === 'image') info.push('image subtitles can\'t show with direct play');
     }
+    if (mc && !quality.kbps && directRefused(part.id)) info.push('the TV refused this file before');
     setText(osdPlayMode, modeText);
     setText(osdPlayInfo, info.filter(Boolean).join('  ·  '));
     ['direct', 'stream', 'transcode'].forEach(k => toggleClass(osdPlay, k, k === kind));
+    // HDR is much brighter than the UI expects (a conversion is tone-mapped).
+    toggleClass(el, 'hdr', !!hdr && kind !== 'transcode');
   }
 
   function renderTitles() {
+    hintEl.innerHTML = '▼ Audio, subtitles, quality' + (item.type === 'episode' ? ' &amp; episodes' : '') +
+      ' &nbsp;&nbsp; ⏪ ⏩ Jump 30 s &nbsp;&nbsp; CH ▲▼ Subtitles on/off';
     if (item.type === 'episode') {
       setText(osdTitle, item.grandparentTitle);
       setText(osdSub, episodeLabel(item) + '   ' + item.title);
@@ -339,6 +399,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     // A lower quality than the file means Plex has to convert it.
     if (quality.kbps) return 'hls';
     if (forceDirect()) return 'direct';
+    if (directRefused(part.id)) return 'hls';
     const directOk = DIRECT.container[media.container] && DIRECT.video[media.videoCodec] && audioDirectOk();
     const subsOk = !subStream || isEmbeddedText(subStream) || isSidecarText(subStream);
     return directOk && subsOk ? 'direct' : 'hls';
@@ -403,8 +464,11 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     toggleClass(el, 'paused', false);
     toggleClass(spinner, 'on', false);
     log('playing after ' + (Date.now() - t0) + 'ms (' + mode + ')');
+    // Direct play failed and the conversion works: next time, convert right away.
+    if (failMsg && mode === 'hls') { rememberDirectRefused(part.id, failMsg); failMsg = ''; }
     report('playing');
     startTimeline();
+    loadThumbs();
   }
 
   // Map Plex's chosen streams onto AVPlay's track list (same file order).
@@ -550,6 +614,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       renderProgress(position);
       showOsd();
       await open(offset);
+      loadNeighbors();
     } catch (e) {
       failed(e.message || String(e));
     }
@@ -568,6 +633,9 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       // The file looked direct-playable but the TV choked: let Plex convert it.
       warn('direct play failed (' + msg + '), falling back to HLS');
       triedFallback = true;
+      // Only a refusal before the first picture says the file can't play
+      // directly; a failure later on may just be the network.
+      failMsg = started ? '' : msg || 'failed';
       mode = 'hls';
       open(position).catch(e => failed(e.message));
       return;
@@ -595,17 +663,20 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     report(paused ? 'paused' : 'playing');
   }
 
-  function seekBy(dir) {
+  // ◀ ▶ step 10 s, ⏪ ⏩ 30 s; held or pressed quickly, the steps grow.
+  function seekBy(dir, big) {
     if (!started) return;
     const now = Date.now();
     seekCount = now - lastSeekAt < 700 ? seekCount + 1 : 0;
     lastSeekAt = now;
-    const step = seekCount < 3 ? 10000 : seekCount < 8 ? 30000 : seekCount < 16 ? 60000 : 180000;
+    const step = big ? (seekCount < 4 ? 30000 : seekCount < 12 ? 60000 : 180000)
+      : seekCount < 3 ? 10000 : seekCount < 8 ? 30000 : seekCount < 16 ? 60000 : 180000;
     const from = seekTarget == null ? position : seekTarget;
     seekTarget = Math.max(0, Math.min(duration - 3000, from + dir * step));
     toggleClass(el, 'seeking', true);
     setText(seekLabel, clock(seekTarget));
     renderProgress(seekTarget);
+    showThumb(seekTarget);
     showOsd(true);
     clearTimeout(seekTimer);
     seekTimer = setTimeout(commitSeek, SEEK_COMMIT_MS);
@@ -640,7 +711,9 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     { name: 'Audio', icon: icons.audio },
     { name: 'Subtitles', icon: icons.subtitles },
     { name: 'Quality', icon: icons.quality },
+    { name: 'Episode', icon: icons.tv },
   ];
+  let panelCols = PANEL_COLS.slice(0, 3); // Episode only for episodes with neighbours
   let panelCol = 0;
   let panelIndex = [0, 0, 0];
   let panelLists = [[], [], []];
@@ -653,6 +726,12 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       [{ label: 'Off', stream: null, on: !subStream }].concat(texts.map(s => ({ label: subtitleLabel(s), stream: s, on: s === subStream }))),
       qualitiesFor(media).map(q => ({ label: q.label, quality: q, on: q === quality })),
     ];
+    const eps = [];
+    if (neighbors.prev) eps.push({ label: 'Previous  ·  ' + episodeLabel(neighbors.prev) + '  ' + neighbors.prev.title, episode: neighbors.prev });
+    if (neighbors.next) eps.push({ label: 'Next  ·  ' + episodeLabel(neighbors.next) + '  ' + neighbors.next.title, episode: neighbors.next });
+    if (eps.length) panelLists.push(eps);
+    panelCols = PANEL_COLS.slice(0, panelLists.length);
+    toggleClass(panel, 'tracks-4', panelCols.length > 3);
     // External subtitle files are drawn by us, so their timing can be nudged.
     if (isSidecarText(subStream)) panelLists[1].push({ offset: true, label: timingLabel() });
     panelIndex = panelLists.map(l => Math.max(0, l.findIndex(x => x.on)));
@@ -682,7 +761,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
 
   function renderPanel() {
     panel.innerHTML = '';
-    PANEL_COLS.forEach((spec, c) => {
+    panelCols.forEach((spec, c) => {
       const col = h('div', 'tracks-col', panel);
       const head = h('div', 'tracks-head', col);
       head.innerHTML = spec.icon;
@@ -706,6 +785,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
 
   async function choose(col, opt) {
     const server = session.server;
+    if (col === 3) { playEpisode(opt.episode); return; }
     if (col === 2) {
       panel.classList.add('hidden');
       if (opt.quality === quality) return;
@@ -773,7 +853,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       if (action === 'enter') { panel.classList.add('hidden'); return true; }
     }
     if (action === 'left') panelCol = Math.max(0, panelCol - 1);
-    if (action === 'right') panelCol = Math.min(PANEL_COLS.length - 1, panelCol + 1);
+    if (action === 'right') panelCol = Math.min(panelCols.length - 1, panelCol + 1);
     if (action === 'up') panelIndex[panelCol]--;
     if (action === 'down') panelIndex[panelCol] = Math.min(panelLists[panelCol].length - 1, panelIndex[panelCol] + 1);
     if (action === 'enter') {
@@ -787,15 +867,27 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
 
   // --- Ending -----------------------------------------------------------
 
-  async function nextEpisode() {
+  // The episode before (dir -1) or after (+1) this one, across seasons
+  // (Specials only when watching Specials).
+  async function neighborEpisode(dir) {
     const server = session.server;
     const eps = await server.children(item.parentRatingKey);
     const i = eps.findIndex(e => e.ratingKey === item.ratingKey);
-    if (i >= 0 && i < eps.length - 1) return eps[i + 1];
-    const seasons = (await server.children(item.grandparentRatingKey)).filter(s => s.type === 'season');
+    if (i >= 0 && eps[i + dir]) return eps[i + dir];
+    const seasons = (await server.children(item.grandparentRatingKey))
+      .filter(s => s.type === 'season' && (s.index > 0 || item.parentIndex === 0));
     const si = seasons.findIndex(s => s.ratingKey === item.parentRatingKey);
-    if (si >= 0 && si < seasons.length - 1) return (await server.children(seasons[si + 1].ratingKey))[0] || null;
-    return null;
+    const other = si >= 0 ? seasons[si + dir] : null;
+    if (!other) return null;
+    const list = await server.children(other.ratingKey);
+    return (dir > 0 ? list[0] : list[list.length - 1]) || null;
+  }
+
+  // For the Episode column and the ⏮ ⏭ keys, looked up once playback runs.
+  function loadNeighbors() {
+    if (item.type !== 'episode') return;
+    Promise.all([neighborEpisode(-1).catch(() => null), neighborEpisode(1).catch(() => null)])
+      .then(([prev, next]) => { if (alive) neighbors = { prev, next }; });
   }
 
   async function finished() {
@@ -806,7 +898,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     clearInterval(timelineTimer);
     player.close();
     if (item.type !== 'episode') { exit(); return; }
-    try { nextItem = await nextEpisode(); } catch (e) { nextItem = null; }
+    try { nextItem = neighbors.next || await neighborEpisode(1); } catch (e) { nextItem = null; }
     if (!alive) return;
     if (!nextItem) { exit(); return; }
     let left = 10;
@@ -826,14 +918,18 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   }
 
   function playNext() {
+    playEpisode(nextItem);
+  }
+
+  // Keep the quality and the track languages the user was watching with.
+  function playEpisode(ep) {
     clearInterval(upnextTimer);
-    // Keep the quality and the track languages the user was watching with.
     const langs = {
       audio: langOf(audioStream),
       sub: subStream ? langOf(subStream) : null,
       subForced: !!(subStream && subStream.forced),
     };
-    router.replace(PlayerScreen(nextItem, { offset: 0, quality: requestedQuality, langs }));
+    router.replace(PlayerScreen(ep, { offset: 0, quality: requestedQuality, langs }));
   }
 
   function exit() {
@@ -845,6 +941,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     alive = false;
     if (started && position < duration) report('stopped');
     [seekTimer, osdTimer, subTimer, signTimer, toastTimer].forEach(clearTimeout);
+    dropThumbs();
     clearInterval(timelineTimer);
     clearInterval(upnextTimer);
     clearInterval(cueTimer);
@@ -893,8 +990,12 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
         case 'playpause': if (seekTarget != null) commitSeek(); else togglePause(); return true;
         case 'play': if (paused) togglePause(); return true;
         case 'pause': if (!paused) togglePause(); return true;
-        case 'left': case 'rw': seekBy(-1); return true;
-        case 'right': case 'ff': seekBy(1); return true;
+        case 'left': seekBy(-1); return true;
+        case 'right': seekBy(1); return true;
+        case 'rw': seekBy(-1, true); return true;
+        case 'ff': seekBy(1, true); return true;
+        case 'prev': if (neighbors.prev) playEpisode(neighbors.prev); else toast('This is the first episode'); return true;
+        case 'next': if (neighbors.next) playEpisode(neighbors.next); else toast('This is the last episode'); return true;
         case 'up': case 'info': showOsd(); return true;
         case 'down': if (part) openPanel(); return true;
         // Green on remotes that have colour keys; CH ▲/▼ on the ones that don't.

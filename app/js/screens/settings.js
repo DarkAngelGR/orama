@@ -8,8 +8,10 @@ import * as router from '../router.js';
 import { ServerPicker } from './login.js';
 import { error } from '../util/log.js';
 import { useAmbience, setLegacyGradients, legacyGradients } from '../ui/backdrop.js';
-import { QUALITIES, qualityById, defaultQuality, setDefaultQuality, forceDirect, setForceDirect, audioExtras, cycleAudioExtras } from '../player/options.js';
-import { subSize, subBackground, cycleSubSize, toggleSubBackground, subLang, cycleSubLang } from '../player/subprefs.js';
+import {
+  QUALITIES, qualityById, defaultQuality, setDefaultQuality, forceDirect, setForceDirect, audioExtras, cycleAudioExtras, cwOpens, cycleCwOpens,
+} from '../player/options.js';
+import { subSize, subBackground, cycleSubSize, toggleSubBackground, subLang, cycleSubLang, subColor, cycleSubColor } from '../player/subprefs.js';
 import * as watchlist from '../plex/watchlist.js';
 import { DownloadsScreen } from './downloads.js';
 import { UpdatesScreen } from './updates.js';
@@ -53,7 +55,9 @@ export function SettingsScreen() {
       { label: 'Theme music', value: themeMusic.enabled() ? 'On' : 'Off', run: () => { themeMusic.setEnabled(!themeMusic.enabled()); build(); } },
       { label: 'Subtitle language', value: subLang().label, run: () => { cycleSubLang(); build(); } },
       { label: 'Subtitle size', value: subSize().label, run: () => { cycleSubSize(); build(); } },
+      { label: 'Subtitle colour', value: subColor().label, run: () => { cycleSubColor(); build(); } },
       { label: 'Subtitle background', value: subBackground() ? 'On' : 'Off', run: () => { toggleSubBackground(); build(); } },
+      { label: 'OK on Continue Watching', value: cwOpens() === 'play' ? 'Keep watching' : 'Open the page', run: () => { cycleCwOpens(); build(); } },
       { label: 'Updates', value: updates.newer(store.get('upLatest'), VERSION) ? store.get('upLatest') + ' available' : 'Orama ' + VERSION,
         run: () => router.push(UpdatesScreen()) },
       { label: 'Downloads (watchlist-sync)', value: watchlist.mode() === 'off' ? 'Off' : watchlist.baseUrl() ? watchlist.baseUrl().replace(/^https?:\/\//, '') : 'Not set',

@@ -86,6 +86,34 @@ export function setForceDirect(on) {
   store.set('forceDirect', on ? true : undefined);
 }
 
+// What OK does on a Continue Watching tile: 'page' (the title's page) or
+// 'play' (resume right away).
+export function cwOpens() {
+  return store.get('cwOpens') === 'play' ? 'play' : 'page';
+}
+
+export function cycleCwOpens() {
+  store.set('cwOpens', cwOpens() === 'play' ? undefined : 'play');
+}
+
+// Files the TV refused to play directly (by Plex part id), so next time they
+// go straight to Plex's conversion instead of failing first. Newest last.
+const MAX_REFUSED = 200;
+
+export function directRefused(partId) {
+  return !!partId && !!(store.get('directRefused', {}) || {})[partId];
+}
+
+export function rememberDirectRefused(partId, why) {
+  if (!partId) return;
+  const all = store.get('directRefused', {}) || {};
+  delete all[partId];
+  all[partId] = String(why || '').slice(0, 60);
+  const keys = Object.keys(all);
+  keys.slice(0, Math.max(0, keys.length - MAX_REFUSED)).forEach(k => delete all[k]);
+  store.set('directRefused', all);
+}
+
 // Audio formats this TV (or its soundbar, over eARC) plays without help, on
 // top of the standard ones. Samsung's own decoder skips these, but many setups
 // pass them through fine: Force direct play is the way to check.

@@ -39,15 +39,26 @@ decoder, so your server barely has to work.
 **Made for watching**
 - Pick quality, audio and subtitles before you press play, or make Greek or English subtitles
   the default for everything.
-- Skip intro and credits, subtitle timing and size, up next with your languages kept, and
-  each show remembers the audio and subtitle languages you picked for it.
+- Skip intro and credits, subtitle timing, size (up to Huge) and colour (white, greys, yellow),
+  up next with your languages kept, and each show remembers the audio and subtitle languages
+  you picked for it.
+- Preview pictures while you seek (when Plex makes them: Settings › Library › *Generate video
+  preview thumbnails*), ⏪ ⏩ jump 30 seconds, and the previous or next episode is one press
+  away under ▼ (or ⏮ ⏭ on remotes that have them).
+- HDR films get slightly dimmer subtitles and controls, so white text doesn't glare.
+- A file the TV refused to play directly is remembered, so next time Plex converts it straight
+  away instead of failing first.
 - Audio the TV can't play (like DTS) is swapped for another track in the same language
   when the file has one, so nothing needs converting.
 - Anime starts in Japanese with Greek (else English) subtitles, the full dialogue track rather
   than "Signs & Songs", and translated signs show at the top of the screen.
 - Movie and show pages with ratings (IMDb, Rotten Tomatoes, TMDB), cast with photos, trailers,
   the rest of a movie's collection, episode descriptions, theme music and a full "More info" page.
-- Hold OK on a Continue Watching tile to remove it, mark it watched or clear its progress.
+- Continue Watching tiles say which episode and how much is left ("S3 · E4 · 18m left"); OK
+  opens the page or, if you prefer (Settings), keeps watching right away. Hold OK to remove a
+  tile, mark it watched or clear its progress.
+- Each library remembers its sort and whether it shows everything or only unwatched titles,
+  per profile.
 
 **Made for your server**
 - Search beyond your library: find any movie or show and add it to your Plex Watchlist.
@@ -135,10 +146,12 @@ Both run in Docker and are found automatically when they run on the same machine
 | Play/Pause | Play whatever is focused; pause and resume |
 | Back | Go back (while watching, the first press hides the controls) |
 | ▲ while watching | Show the info bar: title, progress and how it's playing |
-| ▼ while watching | Audio, subtitles and quality |
-| ◀ ▶ while watching | Seek; hold to go faster |
+| ▼ while watching | Audio, subtitles, quality and (for episodes) previous / next episode |
+| ◀ ▶ while watching | Seek 10 s; hold to go faster |
+| ⏪ ⏩ while watching | Jump 30 s; hold to go faster |
+| ⏮ ⏭ while watching | Previous / next episode (remotes that have these keys) |
 | CH ▲ / CH ▼ while watching | Subtitles on or off |
-| ▲ from the first row of a library | Sort (A–Z, recently added, release date, rating) |
+| ▲ from the first row of a library | Sort (A–Z, recently added, release date, rating) and Show (all / unwatched) |
 | CH ▲ / CH ▼ in a library | Jump by letter |
 
 Everything else lives in **Settings**: profiles, default quality, subtitle language and style,

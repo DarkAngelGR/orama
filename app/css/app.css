@@ -229,6 +229,15 @@ html.playing .ambience { display: none; }
   font: 700 20px/36px var(--body); text-align: center;
 }
 .tile-badge.done { background: rgba(11, 11, 18, 0.78); color: var(--cream); }
+/* "S3 · E4 · 18m left" on Continue Watching tiles, above the progress bar */
+.tile-note {
+  position: absolute; left: 0; right: 0; bottom: 0; padding: 40px 16px 26px;
+  background: linear-gradient(0deg, rgba(0, 0, 0, 0.78), transparent);
+  font: 600 20px var(--body); color: var(--cream);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tile-note:empty { display: none; }
+.tile-wide .tile-ph { padding-bottom: 64px; } /* the title waiting for art stays clear of the note */
 .tile-cap {
   margin-top: 14px; font: 600 22px var(--body); color: var(--cream);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -252,6 +261,7 @@ html.fast .row-track, html.fast .rows-track, html.fast .grid-track, html.fast .r
   background: var(--faint); font: 600 24px/52px var(--body); color: var(--cream);
 }
 .lib-sort.focus { background: var(--cream); color: var(--bg); }
+.lib-sort.lib-filter { margin-left: 16px; }
 .lib-focus {
   position: absolute; top: 146px; left: 96px; width: 1300px;
   font: 500 26px var(--body); color: var(--cream);
@@ -376,6 +386,14 @@ html.fast .row-track, html.fast .rows-track, html.fast .grid-track, html.fast .r
   background: var(--cream); color: var(--bg); font: 700 28px var(--body); white-space: nowrap;
 }
 .seeking .osd-seek { display: block; }
+/* Preview picture of the seek target, above the time label */
+.osd-thumb {
+  display: none; position: absolute; left: 0; bottom: 230px; width: 320px; height: 180px;
+  border-radius: 12px; overflow: hidden; background: #000;
+  box-shadow: 0 0 0 3px var(--cream), 0 8px 30px rgba(0, 0, 0, 0.6); will-change: transform;
+}
+.osd-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.seeking .osd-thumb.has { display: block; }
 .osd-times {
   position: absolute; left: 96px; width: 1728px; bottom: 90px;
   display: flex; justify-content: space-between; font: 500 26px var(--body);
@@ -412,6 +430,13 @@ html.fast .row-track, html.fast .rows-track, html.fast .grid-track, html.fast .r
 /* Subtitle size / background (Settings), as classes on <html> */
 html.subs-s .subs { font-size: 38px; }
 html.subs-l .subs { font-size: 56px; }
+html.subs-xl .subs { font-size: 68px; }
+html.subs-c-lgrey .subs { color: #d9d9d9; }
+html.subs-c-grey .subs { color: #b0b0b0; }
+html.subs-c-yellow .subs { color: #ffe14d; }
+/* HDR video is much brighter: tone the text and controls down */
+.player.hdr .subs { opacity: 0.8; }
+.player.hdr.osd-on .osd { opacity: 0.85; }
 html.subs-bg .subs-text {
   padding: 2px 16px; border-radius: 8px; background: rgba(0, 0, 0, 0.72); text-shadow: none;
   -webkit-box-decoration-break: clone; box-decoration-break: clone;
@@ -439,6 +464,7 @@ html.subs-bg .subs-text {
   padding: 110px 72px; display: flex;
   background: rgba(11, 11, 18, 0.94);
 }
+.tracks.tracks-4 { width: 1640px; }
 .tracks-col { flex: 1; margin-right: 32px; overflow: hidden; }
 .tracks-head { display: flex; align-items: center; margin-bottom: 24px; font: 600 24px var(--body); color: var(--dim); letter-spacing: 0.08em; text-transform: uppercase; }
 .tracks-head svg { width: 30px; height: 30px; margin-right: 12px; }

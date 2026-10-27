@@ -58,13 +58,16 @@ export class Server {
     return (mc.Hub || []).filter(h => h.size > 0 && SUPPORTED_HUB_TYPES[h.type] && h.Metadata);
   }
 
-  async items(sectionId, start, size, { sort = 'titleSort', type } = {}) {
-    const mc = await this.get('/library/sections/' + sectionId + '/all', {
+  // unwatched: only titles not watched yet (shows: with unwatched episodes).
+  async items(sectionId, start, size, { sort = 'titleSort', type, unwatched = false } = {}) {
+    const params = {
       sort, type,
       'X-Plex-Container-Start': start,
       'X-Plex-Container-Size': size,
       excludeFields: 'summary,tagline',
-    }, { timeout: 40000 }); // a big library on a busy server can be slow
+    };
+    if (unwatched) params[type === 2 ? 'unwatchedLeaves' : 'unwatched'] = 1;
+    const mc = await this.get('/library/sections/' + sectionId + '/all', params, { timeout: 40000 }); // a big library on a busy server can be slow
     return { total: mc.totalSize != null ? mc.totalSize : mc.size, items: mc.Metadata || [] };
   }
 
@@ -97,6 +100,15 @@ export class Server {
   async extras(ratingKey) {
     const mc = await this.get('/library/metadata/' + ratingKey + '/extras', null, { maxAge: 600000 });
     return mc.Metadata || [];
+  }
+
+  // The seek preview pictures Plex made for a file (a BIF file), when it has
+  // any (Settings › Library › "Generate video preview thumbnails").
+  async previewThumbs(part) {
+    if (!part || !part.id || !/sd/.test(part.indexes || '')) return null;
+    const r = await fetch(this.url('/library/parts/' + part.id + '/indexes/sd'));
+    if (!r.ok) throw new Error('Plex answered ' + r.status);
+    return r.arrayBuffer();
   }
 
   async children(ratingKey) {

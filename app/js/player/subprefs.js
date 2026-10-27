@@ -1,4 +1,4 @@
-// How subtitles look (size, background box) and per-file timing offsets.
+// How subtitles look (size, colour, background box) and per-file timing offsets.
 // Style is a class on <html>, set once, so playback does no extra work.
 import * as store from '../util/store.js';
 import * as lang from '../util/lang.js';
@@ -7,7 +7,28 @@ export const SUB_SIZES = [
   { id: 's', label: 'Small' },
   { id: 'm', label: 'Medium' },
   { id: 'l', label: 'Large' },
+  { id: 'xl', label: 'Huge' },
 ];
+
+// Grey is easier on the eyes than bright white, especially on OLED.
+export const SUB_COLORS = [
+  { id: 'white', label: 'White' },
+  { id: 'lgrey', label: 'Light grey' },
+  { id: 'grey', label: 'Grey' },
+  { id: 'yellow', label: 'Yellow' },
+];
+
+export function subColor() {
+  const id = store.get('subColor', 'white');
+  return SUB_COLORS.find(c => c.id === id) || SUB_COLORS[0];
+}
+
+export function cycleSubColor() {
+  const i = SUB_COLORS.indexOf(subColor());
+  const next = SUB_COLORS[(i + 1) % SUB_COLORS.length].id;
+  store.set('subColor', next === 'white' ? undefined : next);
+  applySubtitleStyle();
+}
 
 export function subSize() {
   const id = store.get('subSize', 'm');
@@ -22,6 +43,8 @@ export function applySubtitleStyle() {
   const root = document.documentElement;
   const size = subSize().id;
   SUB_SIZES.forEach(s => root.classList.toggle('subs-' + s.id, s.id === size));
+  const color = subColor().id;
+  SUB_COLORS.forEach(c => root.classList.toggle('subs-c-' + c.id, c.id === color && c.id !== 'white'));
   root.classList.toggle('subs-bg', subBackground());
 }
 

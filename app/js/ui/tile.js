@@ -3,7 +3,7 @@
 import { h, setText, show, setTransform, toggleClass } from '../util/dom.js';
 import { load } from './images.js';
 import { session } from '../session.js';
-import { progress, episodeLabel } from '../util/format.js';
+import { progress, episodeLabel, duration } from '../util/format.js';
 
 export const KINDS = {
   poster: { w: 220, h: 330 },
@@ -23,6 +23,8 @@ export function createTile(kind, { caption = false } = {}) {
   const ph = h('div', 'tile-ph', frame);
   img.alt = '';
   const badge = h('div', 'tile-badge', frame);
+  // Wide tiles (Continue Watching) say which episode and how much is left.
+  const note = kind === 'wide' ? h('div', 'tile-note', frame) : null;
   const bar = h('div', 'tile-bar', frame);
   const fill = h('i', '', bar);
   let cap = null;
@@ -33,7 +35,15 @@ export function createTile(kind, { caption = false } = {}) {
     sub = h('div', 'tile-sub', el);
     sub.style.width = size.w + 'px';
   }
-  return { el, img, ph, badge, bar, fill, cap, sub, kind, size, item: null };
+  return { el, img, ph, badge, note, bar, fill, cap, sub, kind, size, item: null };
+}
+
+// "S3 · E4 · 18m left", "1h 12m left", or just "S3 · E4".
+export function noteFor(item) {
+  const parts = [];
+  if (item.type === 'episode') parts.push(episodeLabel(item));
+  if (item.viewOffset && item.duration > item.viewOffset) parts.push(duration(Math.max(60000, item.duration - item.viewOffset)) + ' left');
+  return parts.join(' · ');
 }
 
 function initials(name) {
@@ -76,6 +86,7 @@ export function fillTile(tile, item) {
     show(tile.bar, false);
     show(tile.badge, false);
     if (tile.cap) { setText(tile.cap, ''); setText(tile.sub, ''); }
+    if (tile.note) setText(tile.note, '');
     return;
   }
   const kind = tile.kind;
@@ -88,6 +99,7 @@ export function fillTile(tile, item) {
   const p = progress(item);
   show(tile.bar, p > 0.01);
   if (p > 0.01) setTransform(tile.fill, 'scaleX(' + p.toFixed(3) + ')');
+  if (tile.note) setText(tile.note, item.download || item.upcoming ? '' : noteFor(item));
 
   // Unwatched episode count on shows/seasons, check on watched items.
   let badge = '';
