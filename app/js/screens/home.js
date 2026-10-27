@@ -308,7 +308,7 @@ export function HomeScreen() {
       layoutRows();
     }
     renderRows();
-    setText(empty, rows.length ? '' : 'Nothing here yet. Add some media to your Plex server.');
+    setText(empty, rows.length ? '' : 'Nothing here yet. Add some media to your server.');
     const cur = rows[rowIndex] && rows[rowIndex].current();
     if (cur) showHero(cur);
     if (!reportedPaint && rows.length) {
@@ -414,7 +414,7 @@ export function HomeScreen() {
         load();
       } catch (e) {
         error('tile action failed', e);
-        notice('Plex didn\'t accept that (' + e.message + ')', 5000);
+        notice('The server didn\'t accept that (' + e.message + ')', 5000);
       }
     });
   }

@@ -14,7 +14,7 @@ export function DownloadsScreen() {
   const foot = h('div', 'settings-foot downloads-foot', el);
   foot.textContent = 'Titles you add to your Watchlist from search go to Sonarr/Radarr through '
     + 'watchlist-sync. Orama asks it to sync right away. It\'s found automatically when it runs '
-    + 'on the same machine as Plex (port ' + watchlist.DEFAULT_PORT + ').';
+    + 'on the same machine as your media server (port ' + watchlist.DEFAULT_PORT + ').';
 
   let index = 0;
   let items = [];
@@ -34,7 +34,7 @@ export function DownloadsScreen() {
     const gen = ++generation;
     const base = watchlist.baseUrl();
     if (!base) {
-      status = watchlist.mode() === 'off' ? 'Off' : 'No local Plex address to try; set the address below';
+      status = watchlist.mode() === 'off' ? 'Off' : 'No local server address to try; set the address below';
       build();
       return;
     }

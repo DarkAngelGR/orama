@@ -1,7 +1,7 @@
 // Account, server and diagnostics.
 import { DEV, VERSION } from '../config.js';
 import { h, toggleClass, setTransform } from '../util/dom.js';
-import { session, signOut, useServer } from '../session.js';
+import { session, signOut, useServer, isJellyfin } from '../session.js';
 import { getServers, connect } from '../plex/auth.js';
 import { setHud, hudEnabled } from '../ui/hud.js';
 import * as router from '../router.js';
@@ -44,11 +44,17 @@ export function SettingsScreen() {
 
   function build() {
     list.innerHTML = '';
-    items = [
+    items = [].concat(isJellyfin() ? [
+      // Jellyfin: one server per sign-in, no Plex Home profiles.
+      { label: 'Server', value: session.server.name + ' (Jellyfin)', run: () => {} },
+      { label: 'User', value: session.user ? session.user.title : '—', run: () => {} },
+      { label: 'Sign out', value: 'To switch server or user', run: doSignOut },
+    ] : [
       { label: 'Server', value: session.server ? session.server.name : '—', run: switchServer },
       { label: 'Profile', value: session.user ? session.user.title : '—', run: () => router.push(UsersScreen()), action: 'Switch' },
       { label: 'Who\'s watching at start', value: store.get('askProfile') ? 'Ask' : 'Last profile', run: () => { store.set('askProfile', store.get('askProfile') ? undefined : true); build(); } },
       { label: 'Sign out', value: '', run: doSignOut },
+    ]).concat([
       { label: 'Default quality', value: qualityById(defaultQuality()).label, run: () => { nextDefaultQuality(); build(); } },
       { label: 'Audio formats', value: audioExtras().label, run: () => { cycleAudioExtras(); build(); } },
       { label: 'Force direct play', value: forceDirect() ? 'On · never convert' : 'Off · convert only when needed', run: () => { setForceDirect(!forceDirect()); build(); } },
@@ -65,7 +71,7 @@ export function SettingsScreen() {
       { label: 'Performance overlay', value: hudEnabled() ? 'On' : 'Off', run: () => { setHud(!hudEnabled()); build(); } },
       // For before/after recordings: brings back the full-screen gradients that took ~2s per repaint.
       { label: 'Demo: original slow renderer', value: legacyGradients() ? 'On' : 'Off', run: () => { setLegacyGradients(!legacyGradients()); build(); } },
-    ];
+    ]);
     items.forEach(it => {
       it.el = h('div', 'setting', list);
       h('span', 'setting-label', it.el).textContent = it.label;

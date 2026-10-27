@@ -379,7 +379,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
           return;
         }
       }
-      notice('Downloaded. Plex hasn\'t picked the file up yet: check again in a minute.', 8000);
+      notice('Downloaded. Your server hasn\'t picked the file up yet: check again in a minute.', 8000);
     } catch (e) {
       error('subtitle download failed', e);
       notice(e.message || 'Download failed', 8000);
@@ -455,7 +455,9 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     const title = item.title;
     say('Checking…');
     const owned = await ownsServer();
-    if (owned === false) throw new Error('Only the server owner can delete. Switch to their profile first.');
+    const jf = server.kind === 'jellyfin';
+    const app = jf ? 'Jellyfin' : 'Plex';
+    if (owned === false) throw new Error(jf ? 'Only a Jellyfin administrator can delete. Sign in as one first.' : 'Only the server owner can delete. Switch to their profile first.');
     if (owned === null) throw new Error('Couldn\'t check with plex.tv who owns this server. Nothing was deleted.');
     let full = item;
     if (!full.Guid) full = (await server.metadata(item.ratingKey)) || item;
@@ -473,13 +475,13 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
         const absent = e.status === 0 && watchlist.mode() === 'auto' && !/in time/.test(e.message);
         if (!absent) {
           if (e.status === 404) throw new Error('Update watchlist-sync on your server to delete from ' + svc + '. Nothing was deleted.');
-          throw new Error(e.message + '. Nothing was deleted: removing it from Plex alone would make ' + svc + ' download it again.');
+          throw new Error(e.message + '. Nothing was deleted: removing it from ' + app + ' alone would make ' + svc + ' download it again.');
         }
       }
       if (arr && arr.dry_run) throw new Error('watchlist-sync is in dry-run mode, so ' + svc + ' would download it again. Nothing was deleted.');
     }
 
-    say('Removing from Plex…');
+    say('Removing from ' + app + '…');
     let after = '';
     try {
       await server.deleteItem(item.ratingKey);
@@ -487,15 +489,15 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
       if (arr && arr.deleted) {
         // The files are gone already; a scan lets Plex notice.
         if (full.librarySectionID) server.scanSection(full.librarySectionID);
-        after = ' Plex will drop it after its scan.';
+        after = ' ' + app + ' will drop it after its scan.';
       } else if (e.status === 401 || e.status === 403) {
-        throw new Error('Plex refused: turn on "Allow media deletion" in Plex › Settings › Library.');
+        throw new Error(jf ? 'Jellyfin refused: give your user "Allow media deletion" in Jellyfin › Dashboard › Users.' : 'Plex refused: turn on "Allow media deletion" in Plex › Settings › Library.');
       } else {
-        throw new Error('Plex couldn\'t delete it (' + e.message + ').');
+        throw new Error(app + ' couldn\'t delete it (' + e.message + ').');
       }
     }
     const catalogId = (/^plex:\/\/\w+\/(\w+)/.exec(full.guid || '') || [])[1];
-    if (catalogId) removeFromWatchlist(catalogId).catch(() => {});
+    if (catalogId && !jf) removeFromWatchlist(catalogId).catch(() => {});
     server.invalidate();
 
     router.back(); // the confirmation

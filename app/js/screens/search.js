@@ -2,7 +2,7 @@
 // keyboard; results update as you type.
 import { h, setText, setTransform } from '../util/dom.js';
 import { Row } from '../ui/row.js';
-import { session } from '../session.js';
+import { session, isJellyfin } from '../session.js';
 import { openItem, playItem, openCatalog } from '../nav.js';
 import * as discover from '../plex/discover.js';
 import { error, warn } from '../util/log.js';
@@ -40,7 +40,8 @@ export function SearchScreen() {
     setText(status, 'Searching…');
     // Plex's catalog is searched alongside your server; its row joins below
     // your results when it arrives, so typing stays as quick as before.
-    const catalog = discover.search(q).catch(e => { warn('catalog search failed', e.message); return []; });
+    // (Plex only: Jellyfin has no catalog of titles you don't have.)
+    const catalog = isJellyfin() ? Promise.resolve([]) : discover.search(q).catch(e => { warn('catalog search failed', e.message); return []; });
     let hubs = [];
     try {
       hubs = await session.server.search(q);

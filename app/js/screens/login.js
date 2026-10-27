@@ -7,6 +7,8 @@ import { signIn, useServer, session } from '../session.js';
 import * as router from '../router.js';
 import { error, log } from '../util/log.js';
 import { useAmbience } from '../ui/backdrop.js';
+import { toggleClass } from '../util/dom.js';
+import { JellyfinLoginScreen } from './jellyfin-login.js';
 
 export function LoginScreen({ onDone }) {
   const el = h('div', 'screen login');
@@ -24,9 +26,12 @@ export function LoginScreen({ onDone }) {
   const qrBox = h('div', 'login-qr-box', qrWrap);
   h('div', 'login-qr-label', qrWrap).textContent = 'or scan to sign in';
   const status = h('div', 'login-status', panel);
+  const other = h('div', 'btn login-other', panel);
+  h('span', '', other).textContent = 'Use a Jellyfin server instead';
 
   let timer = 0;
   let alive = true;
+  let onOther = false;
 
   async function start() {
     clearTimeout(timer);
@@ -86,7 +91,12 @@ export function LoginScreen({ onDone }) {
     name: 'login',
     onShow() { ambience.restore(); },
     onKey(action) {
-      if (action === 'enter') { start(); return true; }
+      if (action === 'down' || action === 'up') { onOther = action === 'down'; toggleClass(other, 'focus', onOther); return true; }
+      if (action === 'enter') {
+        if (onOther) router.push(JellyfinLoginScreen({ onDone }));
+        else start();
+        return true;
+      }
       return false;
     },
     destroy() {

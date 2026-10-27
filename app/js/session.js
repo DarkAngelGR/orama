@@ -2,6 +2,7 @@
 // goes straight to the home screen.
 import * as store from './util/store.js';
 import { Server } from './plex/server.js';
+import { JellyfinServer } from './plex/jellyfin.js';
 import { getServers, connect } from './plex/auth.js';
 import { log } from './util/log.js';
 
@@ -10,7 +11,7 @@ export const session = {
   user: store.get('user'),
   // The token the household's account signed in with: Plex only lets that one
   // switch between Home profiles. `token` is the profile currently watching.
-  accountToken: store.get('accountToken') || store.get('token'),
+  accountToken: (store.get('server') || {}).kind === 'jellyfin' ? null : (store.get('accountToken') || store.get('token')),
   server: null,
   skipProfileOnce: false,
 };
@@ -19,7 +20,32 @@ export const session = {
 if (session.accountToken && !store.get('accountToken')) store.set('accountToken', session.accountToken);
 
 const saved = store.get('server');
-if (saved) session.server = new Server(saved);
+// A saved server record makes the right kind of server.
+export function makeServer(rec) {
+  return rec && rec.kind === 'jellyfin' ? new JellyfinServer(rec) : new Server(rec);
+}
+
+if (saved) session.server = makeServer(saved);
+
+export function isJellyfin() {
+  return !!(session.server && session.server.kind === 'jellyfin');
+}
+
+// Signed in to a Jellyfin server: auth = Jellyfin's AuthenticationResult.
+export function useJellyfin(uri, info, auth) {
+  const u = auth.User || {};
+  const rec = { kind: 'jellyfin', uri, token: auth.AccessToken, name: info.ServerName || 'Jellyfin',
+    id: auth.ServerId || info.Id, userId: u.Id, admin: !!(u.Policy && u.Policy.IsAdministrator) };
+  session.token = auth.AccessToken;
+  session.accountToken = null; // no Plex Home profiles
+  session.user = { title: u.Name || 'Jellyfin', uuid: u.Id };
+  session.server = makeServer(rec);
+  store.set('token', session.token);
+  store.set('accountToken', undefined);
+  store.set('user', session.user);
+  store.set('server', rec);
+  store.set('homeCache', undefined);
+}
 
 export function signIn(token, user) {
   session.token = token;
@@ -43,7 +69,7 @@ export function useProfile(token, user) {
 
 export function useServer(resource, uri) {
   const rec = { uri, token: resource.accessToken, name: resource.name, id: resource.clientIdentifier, owned: !!resource.owned };
-  session.server = new Server(rec);
+  session.server = makeServer(rec);
   store.set('server', rec);
 }
 
@@ -79,6 +105,7 @@ export function signOut() {
 
 // The saved URI can go stale (DHCP, remote vs. home). Re-resolve it from plex.tv.
 export async function reconnect() {
+  if (isJellyfin()) throw new Error('Can\'t reach ' + session.server.name + ' at ' + session.server.uri);
   const servers = await getServers(session.token);
   const current = session.server && servers.find(s => s.clientIdentifier === session.server.id);
   const resource = current || servers[0];

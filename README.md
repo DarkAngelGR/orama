@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <b>A fast, good-looking player for your Plex library on Samsung TVs.</b><br>
+  <b>A fast, good-looking player for your Plex or Jellyfin library on Samsung TVs.</b><br>
   Instant browsing, hardware playback, and the extras the official app is missing.
 </p>
 
@@ -28,6 +28,8 @@ Orama (όραμα, Greek for "vision") replaces the official Plex app on Samsung
 official app takes up to a minute to open and lags on every key press; Orama opens in about a
 second, scrolls smoothly, and plays almost everything straight through the TV's hardware
 decoder, so your server barely has to work.
+
+It works with **Plex** and with **Jellyfin**: the same screens, the same remote, either server.
 
 ## Highlights
 
@@ -77,7 +79,8 @@ decoder, so your server barely has to work.
 
 ## Getting started
 
-You need a Samsung smart TV (2020 or newer recommended; Tizen 5.5+) and a Plex Media Server.
+You need a Samsung smart TV (2020 or newer recommended; Tizen 5.5+) and a Plex Media Server or
+a Jellyfin server (10.8 or newer).
 
 ### Option 1: install a release with Apps2Samsung (easiest)
 
@@ -124,6 +127,28 @@ The Apps screen shows **Develop mode** at the top when it's on.
 | The sign-in code expired | Press **OK** on the sign-in screen for a new one. |
 </details>
 
+### Signing in with Jellyfin
+
+On the sign-in screen, press **Down** and pick **Use a Jellyfin server instead**, then type your
+server's address (for example `192.168.1.10`; port 8096 is added for you). If Quick Connect is on
+(Jellyfin › Dashboard › General), the TV shows a code: on your phone open Jellyfin, go to your
+profile › **Quick Connect** and enter it. Otherwise, or if you press OK, sign in with your user
+name and password. To switch back to Plex, use **Settings › Sign out**.
+
+Everything works the same, with a few things that only Plex has:
+
+| | Plex | Jellyfin |
+|---|---|---|
+| Home, libraries, search, resume, watched state | ✓ | ✓ |
+| Direct play, converting only what the TV can't play | ✓ | ✓ |
+| Subtitles (text ones drawn by Orama, picture ones burned in) | ✓ | ✓ |
+| Skip intro / credits | ✓ | ✓ with media segments (Jellyfin 10.10+, e.g. the Intro Skipper plugin) |
+| Theme music, trailers, cast, delete | ✓ | ✓ (delete needs an administrator) |
+| watchlist-sync extras (downloads, collections, Bazarr subtitles) | ✓ | ✓ |
+| Search outside your library and the Watchlist | ✓ | – |
+| Home profiles with PINs | ✓ | – (sign out to change user) |
+| Preview pictures while seeking | ✓ | – |
+
 ## Optional companions
 
 Orama works on its own. Two small services on your server add more:
@@ -135,7 +160,7 @@ Orama works on its own. Two small services on your server add more:
 - **[Orama installer](installer/)** keeps Orama up to date: when a new release is out, install it
   from **Settings › Updates** on the TV or from a web page on your phone.
 
-Both run in Docker and are found automatically when they run on the same machine as Plex.
+Both run in Docker and are found automatically when they run on the same machine as your Plex or Jellyfin server.
 
 ## Using Orama
 
@@ -199,7 +224,8 @@ On a real 3,952-item library, 98.7% of titles play without any transcoding.
 app/            the TV app (plain ES modules, no framework, no bundler)
   js/screens/   home, library, detail, player, search, settings, profiles…
   js/ui/        rows, grids, tiles, image loader, backdrop, theme music
-  js/plex/      plex.tv sign-in, Plex Media Server, Discover, watchlist-sync, updates
+  js/plex/      plex.tv sign-in, Plex Media Server, Jellyfin (jellyfin.js), Discover,
+                watchlist-sync, updates
   js/platform/  Tizen keys and device info, AVPlay / <video> player
 installer/      the Orama installer (Docker)
 scripts/        setup.sh, deploy.sh, make-logo.py
@@ -258,5 +284,6 @@ version of SamSUCKS, copyright © 2026 rfaile313; changes copyright © 2026 Agge
 You can use, study, change and share it; anything you distribute that's built on it must stay
 open source under the same license.
 
-Orama is an independent project, not made by, endorsed by or affiliated with Plex, Inc. or
-Samsung. "Plex" is a trademark of Plex, Inc., used only to say which media server Orama works with.
+Orama is an independent project, not made by, endorsed by or affiliated with Plex, Inc., the
+Jellyfin project or Samsung. "Plex" is a trademark of Plex, Inc., used only to say which media
+servers Orama works with.

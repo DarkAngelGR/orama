@@ -426,19 +426,29 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       base = atMs;
       // Burn in only what we can't draw ourselves (image subs, embedded text).
       const burn = subStream && !isSidecarText(subStream);
-      url = server.transcodeUrl(item, {
-        session: playSession, offsetMs: atMs, mediaIndex: mediaIdx,
+      const opts = {
+        session: playSession, offsetMs: atMs, mediaIndex: mediaIdx, mediaSourceId: media.id,
         maxBitrate: quality.kbps || undefined,
         resolution: quality.resolution || undefined,
         audioStreamID: audioStream && audioStream.id,
         subtitleStreamID: burn ? subStream.id : undefined,
-      });
-      hlsStarted = true;
-      // PMS 1.42+ rejects start.m3u8 unless a decision was made for the session first.
-      const decision = await request(url.replace('/start.m3u8', '/decision'));
-      const mc = decision.MediaContainer || {};
-      if (mc.generalDecisionCode && mc.generalDecisionCode >= 2000) throw new Error(mc.generalDecisionText || 'Server refused to convert this file');
-      showPlayback(mc);
+      };
+      if (server.prepareTranscode) {
+        // Jellyfin: it decides how to convert and hands back the stream address.
+        if (hlsStarted) server.stopTranscode(playSession);
+        const prepared = await server.prepareTranscode(item, opts);
+        url = prepared.url;
+        hlsStarted = true;
+        showPlayback(prepared.decision);
+      } else {
+        url = server.transcodeUrl(item, opts);
+        hlsStarted = true;
+        // PMS 1.42+ rejects start.m3u8 unless a decision was made for the session first.
+        const decision = await request(url.replace('/start.m3u8', '/decision'));
+        const mc = decision.MediaContainer || {};
+        if (mc.generalDecisionCode && mc.generalDecisionCode >= 2000) throw new Error(mc.generalDecisionText || 'Server refused to convert this file');
+        showPlayback(mc);
+      }
     }
     if (mode === 'direct') showPlayback(null);
     log('play', mode, quality.id, item.title, media.container + '/' + media.videoCodec + '/' + (audioStream && audioStream.codec), 'at', clock(atMs));
@@ -626,7 +636,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       error('direct play failed (forced)', msg);
       toggleClass(spinner, 'on', false);
       errorEl.classList.remove('hidden');
-      setText(errorEl, 'The TV couldn\'t play this file directly (' + msg + '). Turn off Force direct play in Settings to let Plex convert it.');
+      setText(errorEl, 'The TV couldn\'t play this file directly (' + msg + '). Turn off Force direct play in Settings to let your server convert it.');
       return;
     }
     if (mode === 'direct' && !triedFallback && media) {

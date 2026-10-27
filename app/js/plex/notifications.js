@@ -93,6 +93,7 @@ function wsUrl(s) {
 
 function connect() {
   server = session.server;
+  if (server && server.kind === 'jellyfin') return; // Plex's notification feed only
   if (!server || typeof WebSocket === 'undefined') { startPolling(); return; }
   let opened = false;
   try {

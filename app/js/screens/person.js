@@ -57,7 +57,7 @@ export function PersonScreen(person) {
 
   async function load() {
     const params = filterParams();
-    if (!Object.keys(params).length) { setText(sub, 'Plex has no filmography for this person'); return; }
+    if (!Object.keys(params).length) { setText(sub, 'No filmography for this person'); return; }
     try {
       const sections = await session.server.sections();
       const found = await Promise.all(sections.map(s =>
