@@ -16,6 +16,7 @@ import * as downloads from '../plex/downloads.js';
 import { notice } from '../ui/notice.js';
 import { Picker } from '../ui/picker.js';
 import * as watchlist from '../plex/watchlist.js';
+import * as together from '../plex/together.js';
 import { cwOpens } from '../player/options.js';
 import * as motion from '../ui/motion.js';
 
@@ -117,6 +118,8 @@ export function HomeScreen() {
   let dlItems = [];        // downloads in progress, as tiles
   let upItems = [];        // episodes airing soon (Sonarr's calendar), as tiles
   let upLoadedAt = 0;
+  let togetherItems = [];  // Watch Together sessions you're invited to, at the top
+  let togetherTimer = 0;
   let discoverHubs = [];   // titles you don't have yet (watchlist-sync), at the bottom
   let discoverLoadedAt = 0;
 
@@ -225,6 +228,9 @@ export function HomeScreen() {
   // and a "Coming up" row after the recently added ones.
   function composed() {
     let hubs = plexHubs;
+    if (togetherItems.length) {
+      hubs = [{ hubIdentifier: 'flexplex.together', title: 'Watch Together', type: 'movie', size: togetherItems.length, Metadata: togetherItems }].concat(hubs);
+    }
     if (dlItems.length) {
       const at = hubs.findIndex(hb => !/continue|ondeck/i.test(hb.hubIdentifier));
       const i = at < 0 ? hubs.length : at;
@@ -239,6 +245,43 @@ export function HomeScreen() {
     }
     if (discoverHubs.length && watchlist.discoverEnabled()) hubs = hubs.concat(discoverHubs);
     return hubs;
+  }
+
+  // Watch Together invitations (Plex): checked now and every minute while Home is up.
+  const togetherMeta = new Map();
+  const togetherSeen = new Set();
+  async function loadTogether() {
+    clearTimeout(togetherTimer);
+    if (!together.available()) return;
+    togetherTimer = setTimeout(loadTogether, 60000);
+    try {
+      const rooms = await together.rooms();
+      const acct = await together.myAccount().catch(() => null);
+      const items = [];
+      for (const room of rooms) {
+        const rk = together.ratingKeyOf(room.sourceUri);
+        if (!rk) continue;                      // on someone else's server
+        let meta = togetherMeta.get(rk);
+        if (!meta) {
+          meta = await session.server.metadata(rk).catch(() => null);
+          if (!meta) continue;
+          togetherMeta.set(rk, meta);
+        }
+        const host = (room.users || []).find(u => u.id === room.createdBy);
+        const mine = acct && room.createdBy === acct.id;
+        items.push(Object.assign({}, meta, {
+          ratingKey: 'together-' + room.id, together: room, togetherItem: meta,
+          note: mine ? 'Your session' : 'From ' + ((host && (host.title || host.username)) || 'a friend'),
+        }));
+      }
+      // A new invitation: say so (it's in the Watch Together row at the top).
+      const fresh = items.find(i => !togetherSeen.has(i.ratingKey) && !/^Your/.test(i.note));
+      items.forEach(i => togetherSeen.add(i.ratingKey));
+      if (fresh && visible) notice(fresh.note.replace(/^From /, '') + ' invited you to watch ' + (fresh.together.title || fresh.title) + ' together · it\'s at the top of Home', 8000);
+      const changed = items.map(i => i.ratingKey).join() !== togetherItems.map(i => i.ratingKey).join();
+      togetherItems = items;
+      if (changed) setHubs(composed());
+    } catch (e) { /* plex.tv unreachable: try again next minute */ }
   }
 
   // Trending and recommended titles you don't have, from Radarr/Sonarr via
@@ -287,6 +330,11 @@ export function HomeScreen() {
   function selectItem(item) {
     if (item.upcoming) { openCatalogLookup({ title: item.title, year: item.year, kind: 'show', id: item.upcoming.tvdb }).catch(e => error('show lookup failed', e)); return; }
     if (item.arr) { openCatalog(item); return; }
+    if (item.together) {
+      const room = item.together;
+      playItem(item.togetherItem, { offset: 0, together: { room, uri: room.sourceUri, host: false } });
+      return;
+    }
     if (item.download) openDownload(item.download);
     // Settings › OK on Continue Watching: resume straight away.
     else if (cwOpens() === 'play' && isContinueRow(rows[rowIndex]) && (item.type === 'episode' || item.type === 'movie')) playItem(item);
@@ -350,6 +398,7 @@ export function HomeScreen() {
       store.set('homeCache', { server: server.id, sections, hubs: hubs.map(slimHub) });
       loadUpcoming();
       loadDiscover();
+      loadTogether();
     } catch (e) {
       error('home load failed', e);
       if (!rows.length) setText(empty, 'Couldn\'t load from ' + server.name + '. Press OK to retry.');
@@ -463,8 +512,10 @@ export function HomeScreen() {
     onHide() {
       visible = false;
       if (unsubDownloads) { unsubDownloads(); unsubDownloads = null; } // no polling behind other screens
+      clearTimeout(togetherTimer);
     },
     destroy() {
+      clearTimeout(togetherTimer);
       unsubscribe();
       if (unsubDownloads) unsubDownloads();
     },

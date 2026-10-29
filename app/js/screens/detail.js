@@ -11,6 +11,7 @@ import * as icons from '../ui/icons.js';
 import * as router from '../router.js';
 import { playItem, openPerson, openItem, openCatalogLookup } from '../nav.js';
 import * as watchlist from '../plex/watchlist.js';
+import * as together from '../plex/together.js';
 import * as downloads from '../plex/downloads.js';
 import { InfoScreen } from './info.js';
 import * as themeMusic from '../ui/theme-music.js';
@@ -136,6 +137,38 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     if (t) playItem(t, playOpts(t, offset));
   }
 
+  // Plex Watch Together: pick a friend, start a session, and play paused until
+  // they join (they get an invite in Plex, e.g. Plex Web on a PC).
+  async function watchTogether(t) {
+    let people;
+    try {
+      notice('Looking up your Plex friends…', 3000);
+      people = await together.friends();
+    } catch (e) {
+      notice('Couldn\'t reach plex.tv (' + e.message + ')', 5000);
+      return;
+    }
+    hideNotice();
+    if (!alive) return;
+    if (!people.length) { notice('Add them as a friend on Plex first (plex.tv › Friends)', 6000); return; }
+    picker.open('Watch together with', people.map(p => ({ label: p.title, value: p.id })), async id => {
+      notice('Starting Watch Together…', 4000);
+      try {
+        const title = t.type === 'episode'
+          ? (t.grandparentTitle || '') + ' – S' + (t.parentIndex || 0) + ' • E' + (t.index || 0) + ' – ' + t.title : t.title;
+        const room = await together.createRoom(t, title);
+        const invited = await together.invite(room.id, [id]).catch(() => room);
+        hideNotice();
+        if (!alive) return;
+        playItem(t, Object.assign(playOpts(t, t.viewOffset || 0), {
+          together: { room: Object.assign({}, room, invited && invited.users ? { users: invited.users } : {}), uri: together.sourceUriOf(t), host: true },
+        }));
+      } catch (e) {
+        notice('Couldn\'t start Watch Together (' + e.message + ')', 6000);
+      }
+    });
+  }
+
   function renderButtons() {
     buttonsEl.innerHTML = '';
     buttons = [];
@@ -161,6 +194,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
       add(icons.tv, 'Go to show', () => router.push(DetailScreen({ ratingKey: item.grandparentRatingKey, type: 'show', title: item.grandparentTitle })));
     }
     if (trailer) add(icons.film, 'Trailer', () => playItem(trailer, { offset: 0 }));
+    if (t && together.available()) add(icons.together, 'Watch together', () => watchTogether(t));
     add(icons.info, 'More info', openInfo);
     if ((item.type === 'movie' || item.type === 'show') && session.server && session.server.owned !== false) {
       add(icons.trash, 'Delete', askDelete);

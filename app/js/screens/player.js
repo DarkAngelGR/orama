@@ -12,6 +12,7 @@ import * as icons from '../ui/icons.js';
 import * as router from '../router.js';
 import { log, warn, error } from '../util/log.js';
 import { request } from '../plex/client.js';
+import { TogetherLink } from '../plex/together.js';
 import { parseSubtitles, CueTrack, cleanCue, NO_CUE } from '../player/subtitles.js';
 import {
   TEXT_SUBS, streamsOf, audioLabel, subtitleLabel, qualitiesFor, qualityById, effectiveQuality, defaultQuality, forceDirect, audioExtras,
@@ -56,7 +57,7 @@ function isSidecarText(sub) {
 // left out falls back to the server's selection and the default quality.
 // `langs` ({ audio, sub, subForced }) comes from the previous episode: pick
 // tracks in the same languages when no explicit ids are given.
-export function PlayerScreen(initial, { offset = null, quality: qualityId, mediaIndex, audioStreamID, subtitleStreamID, langs } = {}) {
+export function PlayerScreen(initial, { offset = null, quality: qualityId, mediaIndex, audioStreamID, subtitleStreamID, langs, together = null } = {}) {
   const el = h('div', 'screen player');
   const stage = h('div', 'player-stage', el);
   const subs = h('div', 'subs', el);
@@ -95,6 +96,9 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   const panel = h('div', 'tracks hidden', el);
   const upnext = h('div', 'upnext hidden', el);
   const errorEl = h('div', 'player-error hidden', el);
+  // Watch Together: who's here (top right) and the waiting room before it starts.
+  const togetherEl = h('div', 'together-chip hidden', el);
+  const lobbyEl = h('div', 'together-lobby hidden', el);
 
   let item = initial;
   let media = null;
@@ -139,6 +143,13 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   let thumbUrl = '';
   let neighbors = { prev: null, next: null }; // episodes before and after this one
   const playSession = uuid();
+  let buffering = false;
+  // Watch Together (plex/together.js): { room, uri, host }.
+  let link = null;
+  let syncBusy = false;     // a jump to a friend's position is under way
+  let pendingRemote = null; // a friend's state that arrived before we were playing
+  let lobby = !!together;   // waiting for everyone before playing
+  let roster = [];
 
   const player = createPlayer(stage, {
     onTime(ms) {
@@ -149,7 +160,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
         updateSkip(position);
       }
     },
-    onBuffering(on) { toggleClass(spinner, 'on', on); },
+    onBuffering(on) { buffering = on; toggleClass(spinner, 'on', on); },
     onEnd() { finished(); },
     onError(msg) { failed(msg); },
     onSubtitle(text, ms) {
@@ -660,7 +671,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       renderProgress(position);
       showOsd();
       await open(offset);
-      loadNeighbors();
+      if (together) startTogether(); else loadNeighbors();
     } catch (e) {
       failed(e.message || String(e));
     }
@@ -694,8 +705,9 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
 
   // --- Controls ---------------------------------------------------------
 
-  function togglePause() {
+  function togglePause(fromRemote) {
     if (!started) return;
+    if (lobby && paused && fromRemote !== true) endLobby();
     if (paused) {
       player.play();
       paused = false;
@@ -707,6 +719,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     }
     toggleClass(el, 'paused', paused);
     report(paused ? 'paused' : 'playing');
+    if (link && fromRemote !== true) link.local({ paused });
   }
 
   // ◀ ▶ step 10 s, ⏪ ⏩ 30 s; held or pressed quickly, the steps grow.
@@ -736,18 +749,100 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     toggleClass(el, 'seeking', false);
     showOsd();
     position = target;
+    if (link) link.local({ seek: true });
     try {
       if (mode === 'direct') {
         toggleClass(spinner, 'on', true);
         await player.seek(target);
         toggleClass(spinner, 'on', false);
-        if (paused) togglePause();
+        if (paused && !link) togglePause();
       } else {
         await open(target);
       }
     } catch (e) {
       warn('seek failed, reopening', e.message);
       open(target).catch(err => failed(err.message));
+    }
+  }
+
+  // --- Watch Together ---------------------------------------------------
+  // Everyone starts paused at the same spot; it plays once the others are
+  // ready, or when someone presses play. After that, whoever pauses, plays or
+  // jumps moves everyone, and small drifts are corrected by a quiet jump.
+
+  function startTogether() {
+    if (!paused) { player.pause(); paused = true; toggleClass(el, 'paused', true); }
+    renderLobby();
+    link = new TogetherLink(together.room, together.uri, {
+      state: () => ({ positionMs: seekTarget == null ? position : seekTarget, paused, ready: started && !buffering && !syncBusy }),
+      apply: applyRemote,
+      roster: list => { roster = list; renderTogether(); },
+      notice: text => toast(text),
+    });
+    link.connect().catch(e => { warn('watch together failed', e.message); toast('Couldn\'t join Watch Together (' + e.message + ')'); });
+  }
+
+  function endLobby() {
+    lobby = false;
+    toggleClass(lobbyEl, 'hidden', true);
+    toggleClass(el, 'in-lobby', false);
+  }
+
+  function renderLobby() {
+    if (!lobby) return;
+    const others = roster.filter(u => !u.self);
+    lobbyEl.innerHTML = '';
+    h('div', 'together-lobby-title', lobbyEl).textContent = together.host
+      ? (others.length ? 'Everyone\'s here' : 'Waiting for your friends to join…')
+      : 'Joined ' + (together.room.title || 'Watch Together');
+    const hostUser = (together.room.users || []).find(u => u.id === together.room.createdBy);
+    h('div', 'together-lobby-people', lobbyEl).textContent = others.length
+      ? others.map(u => u.name + (u.ready ? ' ✓' : ' · getting ready')).join('   ·   ')
+      : together.host ? 'They\'ll see an invite in Plex' : 'Waiting for ' + ((hostUser && (hostUser.title || hostUser.username)) || 'your friend') + ' to start';
+    h('div', 'together-lobby-hint', lobbyEl).textContent = 'Press OK to start for everyone';
+    toggleClass(lobbyEl, 'hidden', false);
+    toggleClass(el, 'in-lobby', true);
+  }
+
+  function renderTogether() {
+    const others = roster.filter(u => !u.self);
+    setText(togetherEl, 'Watching together' + (others.length ? ' with ' + others.map(u => u.name).join(', ') : ' · waiting'));
+    toggleClass(togetherEl, 'hidden', !link);
+    renderLobby();
+    // The host starts by itself once everyone invited is in and ready.
+    if (lobby && together.host && others.length && others.every(u => u.ready) && paused && started) {
+      toast('Everyone\'s ready');
+      togglePause();
+    }
+  }
+
+  async function applyRemote(r) {
+    if (!started || syncBusy || seekTarget != null) { pendingRemote = r; return; }
+    pendingRemote = null;
+    if (r.paused !== paused) {
+      if (lobby) endLobby();
+      togglePause(true);
+      toast(r.by + (r.paused ? ' paused' : ' pressed play'));
+    }
+    const diff = (position - r.positionMs) / 1000;
+    const far = r.seek ? Math.abs(diff) > 1.5 : r.paused ? Math.abs(diff) > 2 : (diff >= 4 || diff <= -1.75);
+    if (!far) return;
+    if (r.seek) toast(r.by + ' jumped to ' + clock(r.positionMs));
+    syncBusy = true;
+    try {
+      position = Math.max(0, r.positionMs);
+      renderProgress(position);
+      if (mode === 'direct') {
+        await player.seek(position);
+      } else {
+        await open(position);
+        if (paused || r.paused) { player.pause(); paused = true; toggleClass(el, 'paused', true); }
+      }
+    } catch (e) {
+      warn('together seek failed', e.message);
+    } finally {
+      syncBusy = false;
+      if (pendingRemote) applyRemote(pendingRemote);
     }
   }
 
@@ -962,7 +1057,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     report('stopped');
     clearInterval(timelineTimer);
     player.close();
-    if (item.type !== 'episode') { exit(); return; }
+    if (item.type !== 'episode' || link) { exit(); return; }
     try { nextItem = neighbors.next || await neighborEpisode(1); } catch (e) { nextItem = null; }
     if (!alive) return;
     if (!nextItem) { exit(); return; }
@@ -1022,6 +1117,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     clearInterval(upnextTimer);
     clearInterval(cueTimer);
     player.destroy();
+    if (link) link.close();
     if (hlsStarted) session.server.stopTranscode(playSession);
     document.documentElement.classList.remove('playing');
     setScreenSaver(true);
@@ -1070,8 +1166,8 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
         case 'right': seekBy(1); return true;
         case 'rw': seekBy(-1, true); return true;
         case 'ff': seekBy(1, true); return true;
-        case 'prev': if (neighbors.prev) playEpisode(neighbors.prev); else toast('This is the first episode'); return true;
-        case 'next': if (neighbors.next) playEpisode(neighbors.next); else toast('This is the last episode'); return true;
+        case 'prev': if (link) toast('Not while watching together'); else if (neighbors.prev) playEpisode(neighbors.prev); else toast('This is the first episode'); return true;
+        case 'next': if (link) toast('Not while watching together'); else if (neighbors.next) playEpisode(neighbors.next); else toast('This is the last episode'); return true;
         case 'up': case 'info': showOsd(); return true;
         case 'down': if (part) openPanel(); return true;
         // Green on remotes that have colour keys; CH ▲/▼ on the ones that don't.

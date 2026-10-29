@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets" id="https://github.com/DarkAngelGR/samsucks" version="0.25.0" viewmodes="maximized">
+<widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets" id="https://github.com/DarkAngelGR/samsucks" version="0.26.0" viewmodes="maximized">
     <tizen:application id="FlexPlexDA.flexplex" package="FlexPlexDA" required_version="6.5"/>
     <content src="index.html"/>
     <icon src="icon-orama.png"/>
     <name>Orama</name>
-    <description>A fast Plex client for Samsung TVs</description>
+    <description>A fast Plex and Jellyfin client for Samsung TVs</description>
     <author href="https://github.com/DarkAngelGR">Aggelos (DarkAngelGR)</author>
     <feature name="http://tizen.org/feature/screen.size.all"/>
     <tizen:profile name="tv-samsung"/>

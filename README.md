@@ -146,6 +146,11 @@ The Apps screen shows **Develop mode** at the top when it's on.
 
 ### 🏠 Made for the household
 - Plex Home profiles with PINs, and an optional *Who's watching?* at start.
+- **Watch Together** (Plex): press *Watch together* on a title, pick a Plex friend, and you both
+  watch in sync, even if they're on Plex Web on a PC. Whoever pauses, plays or skips moves
+  everyone. Invitations show up as a row at the top of Home. Uses Plex's own Watch Together
+  service, which Plex keeps for its web app; based on the protocol notes in
+  [plex-for-kodi](https://github.com/pannal/plex-for-kodi/pull/300).
 - Updates from GitHub Releases, installed from the TV itself with the optional
   [Orama installer](installer/).
 
@@ -197,6 +202,7 @@ To switch back to Plex, use **Settings › Sign out**.
 | watchlist-sync extras (downloads, collections, Bazarr subtitles) | ✓ | ✓ |
 | Search outside your library and get it | ✓ Watchlist | ✓ Request ⁴ |
 | Smart search, Discover rows | ✓ | ✓ |
+| Watch Together | ✓ | – |
 | Home profiles with PINs | ✓ | – ³ |
 | Preview pictures while seeking | ✓ | ✓ ⁵ |
 

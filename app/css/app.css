@@ -731,3 +731,21 @@ html.no-motion .screen, html.no-motion .hero-info, html.no-motion .choice-picker
 html.no-motion .btn { animation: none !important; }
 html.no-motion .btn, html.no-motion .opt, html.no-motion .nav-item, html.no-motion .lib-sort,
 html.no-motion .tracks-opt, html.no-motion .setting, html.no-motion .pill { transition: none; }
+
+/* ---------- Watch Together (player) ---------- */
+.together-chip {
+  position: absolute; top: 56px; right: 72px; height: 48px; padding: 0 22px; border-radius: 24px;
+  background: rgba(11, 11, 18, 0.72); color: var(--cream); font: 600 22px/48px var(--body);
+  white-space: nowrap; max-width: 900px; overflow: hidden; text-overflow: ellipsis;
+  opacity: 0; transition: opacity 250ms ease;
+}
+.osd-on .together-chip, .paused .together-chip { opacity: 1; }
+.together-chip::before { content: ''; display: inline-block; width: 12px; height: 12px; margin-right: 12px; border-radius: 6px; background: var(--accent); vertical-align: 1px; }
+.together-lobby {
+  position: absolute; left: 460px; top: 380px; width: 1000px; padding: 44px 56px; border-radius: 28px;
+  background: rgba(11, 11, 18, 0.88); text-align: center;
+}
+.together-lobby-title { font: 600 44px var(--display); color: var(--cream); }
+.together-lobby-people { margin-top: 18px; font: 500 28px var(--body); color: var(--dim); }
+.together-lobby-hint { margin-top: 28px; font: 600 24px var(--body); color: var(--accent); }
+.in-lobby .pause-big { display: none; }
