@@ -83,6 +83,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   const thumbEl = h('div', 'osd-thumb', osdBottom);
   const thumbImg = h('img', '', thumbEl);
   thumbImg.alt = '';
+  const thumbSprite = h('div', 'osd-sprite', thumbEl);   // Jellyfin: one cell of a picture sheet
   const times = h('div', 'osd-times', osdBottom);
   const tNow = h('span', 'osd-now', times);
   const tInfo = h('span', 'osd-info', times);
@@ -132,7 +133,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   let activeMarker = null;
   let toastTimer = 0;
   let failMsg = '';         // why direct play failed, remembered once the fallback plays
-  let thumbs = null;        // parsed seek previews (BIF)
+  let thumbs = null;        // seek previews: parsed BIF (Plex) or picture sheets (Jellyfin)
   let thumbsTimer = 0;
   let thumbIdx = -1;
   let thumbUrl = '';
@@ -215,15 +216,41 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       session.server.previewThumbs(forPart)
         .then(buf => {
           if (!alive || part !== forPart || !buf) return;
-          thumbs = parseBif(buf);
+          thumbs = buf.sheets ? buf : parseBif(buf);
+          if (thumbs && thumbs.sheets) preloadSheets(thumbs);
+          toggleClass(thumbEl, 'sprite', !!(thumbs && thumbs.sheets));
           log('seek previews', thumbs ? thumbs.count + ' pictures' : 'unreadable');
         })
         .catch(e => warn('seek previews failed', e.message));
     }, THUMBS_AFTER_MS);
   }
 
+  // Jellyfin's sheets are small (a few per film): load them all up front so
+  // seeking never waits for one. The Image objects keep them in the cache.
+  let sheetImgs = [];
+  function preloadSheets(t) {
+    sheetImgs = [];
+    for (let i = 0; i < t.sheets; i++) { const im = new Image(); im.src = t.url(i); sheetImgs.push(im); }
+  }
+
+  function showSheetCell(i) {
+    const t = thumbs;
+    const per = t.cols * t.rows;
+    const k = i % per;
+    const col = k % t.cols;
+    const row = Math.floor(k / t.cols);
+    const st = thumbSprite.style;
+    st.backgroundImage = 'url("' + t.url(Math.floor(i / per)) + '")';
+    st.backgroundSize = (t.cols * 100) + '% ' + (t.rows * 100) + '%';
+    st.backgroundPosition = (t.cols > 1 ? col / (t.cols - 1) * 100 : 0) + '% ' + (t.rows > 1 ? row / (t.rows - 1) * 100 : 0) + '%';
+  }
+
   function showThumb(ms) {
     if (!thumbs) return;
+    if (thumbs.sheets) {
+      const i = Math.max(0, Math.min(thumbs.count - 1, Math.floor(ms / thumbs.interval)));
+      if (i !== thumbIdx) { thumbIdx = i; showSheetCell(i); }
+    } else {
     const i = bifIndex(thumbs, ms);
     if (i !== thumbIdx) {
       const pic = bifPicture(thumbs, i);
@@ -232,6 +259,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       if (thumbUrl) URL.revokeObjectURL(thumbUrl);
       thumbUrl = URL.createObjectURL(pic);
       thumbImg.src = thumbUrl;
+    }
     }
     // Centred over the knob, kept on screen at both ends.
     const p = duration ? Math.max(0, Math.min(1, ms / duration)) : 0;
@@ -244,6 +272,8 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     clearTimeout(thumbsTimer);
     thumbs = null;
     thumbIdx = -1;
+    sheetImgs = [];
+    toggleClass(thumbEl, 'sprite', false);
     toggleClass(thumbEl, 'has', false);
     if (thumbUrl) { URL.revokeObjectURL(thumbUrl); thumbUrl = ''; }
   }

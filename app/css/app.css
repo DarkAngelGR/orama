@@ -393,6 +393,9 @@ html.fast .row-track, html.fast .rows-track, html.fast .grid-track, html.fast .r
   box-shadow: 0 0 0 3px var(--cream), 0 8px 30px rgba(0, 0, 0, 0.6); will-change: transform;
 }
 .osd-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.osd-sprite { display: none; width: 100%; height: 100%; background-repeat: no-repeat; }
+.osd-thumb.sprite img { display: none; }
+.osd-thumb.sprite .osd-sprite { display: block; }
 .seeking .osd-thumb.has { display: block; }
 .osd-times {
   position: absolute; left: 96px; width: 1728px; bottom: 90px;
@@ -676,3 +679,39 @@ html.subs-bg .subs-text {
 .user-lock svg { width: 22px; height: 22px; margin-left: 10px; vertical-align: -2px; color: var(--dim); }
 .user-current { margin-top: 8px; font: 500 20px var(--body); color: var(--accent); }
 .users-note { position: absolute; left: 0; right: 0; top: 760px; text-align: center; font: 500 26px var(--body); color: var(--cream); }
+
+/* ---------- motion (ui/motion.js) ----------
+   Opacity and transform only, short, and never in the way of a key press:
+   off while a key is held (html.fast) and with Settings › Animations off. */
+
+@keyframes screen-fwd { from { opacity: 0; transform: translate3d(0, 26px, 0) scale(0.985); } to { opacity: 1; transform: none; } }
+@keyframes screen-back { from { opacity: 0; transform: scale(1.012); } to { opacity: 1; transform: none; } }
+.screen.enter-fwd { animation: screen-fwd 260ms var(--ease); }
+.screen.enter-back { animation: screen-back 200ms var(--ease); }
+.screen.player { animation: none; }       /* the video plane sits under it */
+
+@keyframes panel-in { from { opacity: 0; transform: translate3d(48px, 0, 0); } to { opacity: 1; transform: none; } }
+.choice-picker, .tracks { animation: panel-in 200ms var(--ease); }
+
+/* Home: the hero's text settles in when the focused title changes. */
+@keyframes hero-swap-a { from { opacity: 0.25; transform: translate3d(-14px, 0, 0); } to { opacity: 1; transform: none; } }
+@keyframes hero-swap-b { from { opacity: 0.25; transform: translate3d(-14px, 0, 0); } to { opacity: 1; transform: none; } }
+.hero-info.hero-swap-a { animation: hero-swap-a 280ms var(--ease); }
+.hero-info.hero-swap-b { animation: hero-swap-b 280ms var(--ease); }
+
+/* Buttons and options change colour smoothly instead of snapping. */
+.btn, .opt, .nav-item, .lib-sort, .tracks-opt, .setting, .pill {
+  transition: background-color 140ms ease, color 140ms ease;
+}
+/* The focused button gives a small press when OK is pressed. */
+@keyframes press-a { 50% { transform: scale(0.95); } }
+@keyframes press-b { 50% { transform: scale(0.95); } }
+.btn.press-a { animation: press-a 170ms var(--ease); }
+.btn.press-b { animation: press-b 170ms var(--ease); }
+
+html.fast .screen, html.fast .hero-info, html.fast .choice-picker, html.fast .tracks { animation: none; }
+html.fast .btn, html.fast .opt, html.fast .nav-item, html.fast .tracks-opt, html.fast .setting { transition: none; }
+html.no-motion .screen, html.no-motion .hero-info, html.no-motion .choice-picker, html.no-motion .tracks,
+html.no-motion .btn { animation: none !important; }
+html.no-motion .btn, html.no-motion .opt, html.no-motion .nav-item, html.no-motion .lib-sort,
+html.no-motion .tracks-opt, html.no-motion .setting, html.no-motion .pill { transition: none; }

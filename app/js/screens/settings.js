@@ -8,6 +8,7 @@ import * as router from '../router.js';
 import { ServerPicker } from './login.js';
 import { error } from '../util/log.js';
 import { useAmbience, setLegacyGradients, legacyGradients } from '../ui/backdrop.js';
+import * as motion from '../ui/motion.js';
 import {
   QUALITIES, qualityById, defaultQuality, setDefaultQuality, forceDirect, setForceDirect, audioExtras, cycleAudioExtras, cwOpens, cycleCwOpens,
 } from '../player/options.js';
@@ -70,6 +71,7 @@ export function SettingsScreen() {
         run: () => router.push(DownloadsScreen()) },
       { label: 'Performance overlay', value: hudEnabled() ? 'On' : 'Off', run: () => { setHud(!hudEnabled()); build(); } },
       // For before/after recordings: brings back the full-screen gradients that took ~2s per repaint.
+      { label: 'Animations', value: motion.enabled() ? 'On' : 'Off · everything appears at once', run: () => { motion.setEnabled(!motion.enabled()); build(); } },
       { label: 'Demo: original slow renderer', value: legacyGradients() ? 'On' : 'Off', run: () => { setLegacyGradients(!legacyGradients()); build(); } },
     ]);
     items.forEach(it => {

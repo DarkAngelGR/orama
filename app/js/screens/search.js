@@ -5,6 +5,7 @@ import { Row } from '../ui/row.js';
 import { session, isJellyfin } from '../session.js';
 import { openItem, playItem, openCatalog } from '../nav.js';
 import * as discover from '../plex/discover.js';
+import * as watchlist from '../plex/watchlist.js';
 import { error, warn } from '../util/log.js';
 import * as icons from '../ui/icons.js';
 import { useAmbience } from '../ui/backdrop.js';
@@ -40,8 +41,8 @@ export function SearchScreen() {
     setText(status, 'Searching…');
     // Plex's catalog is searched alongside your server; its row joins below
     // your results when it arrives, so typing stays as quick as before.
-    // (Plex only: Jellyfin has no catalog of titles you don't have.)
-    const catalog = isJellyfin() ? Promise.resolve([]) : discover.search(q).catch(e => { warn('catalog search failed', e.message); return []; });
+    // On Jellyfin, which has no catalog, Sonarr/Radarr's (through watchlist-sync).
+    const catalog = (isJellyfin() ? arrSearch(q) : discover.search(q)).catch(e => { warn('catalog search failed', e.message); return []; });
     let hubs = [];
     try {
       hubs = await session.server.search(q);
@@ -59,13 +60,34 @@ export function SearchScreen() {
     setText(status, hubs.length || elsewhere.length ? '' : 'Nothing found for “' + q + '”');
   }
 
+  // Movies and shows from Radarr/Sonarr, alternating, minus what's downloaded.
+  async function arrSearch(q) {
+    if (!watchlist.baseUrl()) return [];
+    const [movies, shows] = await Promise.all([
+      watchlist.lookup('movie', { q }).catch(e => { warn('radarr lookup failed', e.message); return []; }),
+      watchlist.lookup('show', { q }).catch(e => { warn('sonarr lookup failed', e.message); return []; }),
+    ]);
+    const a = (movies || []).filter(m => m.arrStatus !== 'have');
+    const b = (shows || []).filter(m => m.arrStatus !== 'have');
+    const out = [];
+    for (let i = 0; i < Math.max(a.length, b.length); i++) {
+      if (a[i]) out.push(a[i]);
+      if (b[i]) out.push(b[i]);
+    }
+    return out;
+  }
+
   // Catalog results minus what this server already has (matched by plex://
   // guid: first against the results above, then asking the server).
   async function notOwned(items, hubs) {
     if (!items.length) return [];
     const local = new Set();
-    hubs.forEach(hub => hub.Metadata.forEach(m => m.guid && local.add(m.guid)));
-    let rest = items.filter(m => !local.has(m.guid));
+    hubs.forEach(hub => hub.Metadata.forEach(m => {
+      if (m.guid) local.add(m.guid);
+      (m.Guid || []).forEach(g => g.id && local.add(m.type + ':' + g.id));
+    }));
+    let rest = items.filter(m => !(m.guid && local.has(m.guid)) &&
+      !(m.arr && (m.Guid || []).some(g => local.has(m.type + ':' + g.id))));
     try {
       for (const [type, kind] of [[1, 'movie'], [2, 'show']]) {
         const guids = rest.filter(m => m.type === kind && m.guid).map(m => m.guid);

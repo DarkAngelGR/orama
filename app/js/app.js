@@ -11,6 +11,7 @@ import { log, warn } from './util/log.js';
 import * as nav from './nav.js';
 import * as store from './util/store.js';
 import { applySubtitleStyle } from './player/subprefs.js';
+import * as motion from './ui/motion.js';
 
 function goHome() {
   router.reset(HomeScreen());
@@ -90,6 +91,7 @@ export function boot() {
     fitWindow();
     window.addEventListener('resize', fitWindow);
   }
+  motion.apply();
   router.init(document.getElementById('app'));
   initHud(() => (router.top() && router.top().name) || '');
   window.addEventListener('flexplex:restart', start);

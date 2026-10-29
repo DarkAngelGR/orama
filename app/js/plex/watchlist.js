@@ -165,3 +165,44 @@ export async function upcoming(days = 7) {
     throw e;
   }
 }
+
+// --- Finding and requesting titles (Jellyfin has no Watchlist) ----------------
+
+// Movies (Radarr) or shows (Sonarr) matching `q`, or the one with this TMDB
+// (movie) / TVDB (show) id, as catalog items the screens already show. Each
+// has arrStatus: 'have' | 'requested' | 'none'. null when this watchlist-sync
+// is too old to search.
+export async function lookup(kind, { q, id } = {}) {
+  const query = 'kind=' + kind + (id ? '&id=' + encodeURIComponent(id) : '&q=' + encodeURIComponent(q || ''));
+  try {
+    const r = await call('/api/tv/lookup?' + query, { timeout: 15000 });
+    return (r.items || []).map(toCatalog);
+  } catch (e) {
+    if (e.status === 404) return null;
+    throw e;
+  }
+}
+
+export function toCatalog(x) {
+  const ext = x.kind === 'movie' ? x.tmdb : x.tvdb;
+  const Guid = [];
+  if (x.tmdb) Guid.push({ id: 'tmdb://' + x.tmdb });
+  if (x.tvdb) Guid.push({ id: 'tvdb://' + x.tvdb });
+  if (x.imdb) Guid.push({ id: 'imdb://' + x.imdb });
+  return {
+    catalog: true, arr: true, ratingKey: x.kind + ':' + ext, type: x.kind, title: x.title, year: x.year || undefined,
+    summary: x.overview || '', thumb: x.poster || '', art: x.fanart || '', Guid,
+    Genre: (x.genres || []).map(tag => ({ tag })), studio: x.network || '', contentRating: x.certification || '',
+    duration: x.runtime ? x.runtime * 60000 : undefined,
+    audienceRating: x.rating ? Math.round(x.rating * 10) / 10 : undefined,
+    audienceRatingImage: x.rating ? 'themoviedb://image.rating' : undefined,
+    tmdb: x.tmdb || 0, tvdb: x.tvdb || 0, imdb: x.imdb || '', arrStatus: x.status || 'none',
+  };
+}
+
+// Add it to Radarr/Sonarr. { ok, status: 'added' | 'already-there' | 'dry-run', service }.
+export async function requestTitle(item, user) {
+  const body = { kind: item.type === 'show' ? 'show' : 'movie', user: user || '' };
+  if (body.kind === 'movie') body.tmdb = item.tmdb; else body.tvdb = item.tvdb;
+  return call('/api/tv/request', { method: 'POST', body, timeout: 60000 });
+}

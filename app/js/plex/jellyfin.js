@@ -130,7 +130,8 @@ function mediaOf(it) {
       id: src.Id, container, videoCodec: v.codec || '', title: (it.MediaSources || []).length > 1 ? src.Name || '' : '', bitrate: src.Bitrate ? Math.round(src.Bitrate / 1000) : 0,
       width: v.width, height: v.height, videoResolution: resolution(v.width || 0, v.height || 0),
       Part: [{
-        id: src.Id, container, size: src.Size, file: src.Path || '',
+        id: src.Id, itemId: it.Id, container, size: src.Size, file: src.Path || '',
+        trickplay: (it.Trickplay || {})[src.Id] || null,
         key: '/Videos/' + it.Id + '/stream?static=true&mediaSourceId=' + encodeURIComponent(src.Id),
         Stream: streams,
       }],
@@ -370,7 +371,31 @@ export class JellyfinServer {
     return (Array.isArray(list) ? list : []).map(it => Object.assign(toPlex(it), { extraType: 1, subtype: 'trailer' }));
   }
 
-  async previewThumbs() { return null; }       // Jellyfin's trickplay isn't a BIF file
+  // Seek previews from Jellyfin's trickplay (10.9+): sheets of pictures, each
+  // `cols` x `rows`, one picture every `interval` ms. null when there are none.
+  async previewThumbs(part) {
+    if (!part || !part.itemId) return null;
+    let sizes = part.trickplay;
+    if (!sizes) {
+      const r = await this.req(this.u('/Items'), { params: { Ids: part.itemId, Fields: 'Trickplay', EnableImages: false }, timeout: 8000 });
+      const it = (r.Items || [])[0] || {};
+      const all = it.Trickplay || {};
+      sizes = all[part.id] || all[Object.keys(all)[0]] || null;
+    }
+    const widths = Object.keys(sizes || {}).map(Number).filter(Boolean);
+    if (!widths.length) return null;
+    // The size closest to the 320 px the player shows.
+    const w = widths.sort((a, b) => Math.abs(a - 320) - Math.abs(b - 320))[0];
+    const t = sizes[w];
+    const cols = t.TileWidth || 10;
+    const rows = t.TileHeight || 10;
+    const count = t.ThumbnailCount || 0;
+    if (!count || !t.Interval) return null;
+    return {
+      sheets: Math.ceil(count / (cols * rows)), count, cols, rows, interval: t.Interval,
+      url: i => this.url('/Videos/' + part.itemId + '/Trickplay/' + w + '/' + i + '.jpg', { mediaSourceId: part.id }),
+    };
+  }
   async ownedGuids() { return new Set(); }     // Plex's catalog only
 
   // --- watched state, progress ---

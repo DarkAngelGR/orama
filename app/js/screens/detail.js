@@ -545,7 +545,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
         if (m) return m;
       }
       return { ratingKey: 'coll-' + p.tmdb, type: 'movie', title: p.title, year: p.year, thumb: p.poster || '',
-        note: partNote(p), lookup: { title: p.title, year: p.year, kind: 'movie' } };
+        note: partNote(p), lookup: { title: p.title, year: p.year, kind: 'movie', id: p.tmdb } };
     }));
     if (!alive) return;
     if (collWrap.parentNode !== body) body.insertBefore(collWrap, castWrap.parentNode === body ? castWrap : seasonsEl);

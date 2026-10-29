@@ -42,16 +42,21 @@ export function openPerson(person) {
 }
 
 // A title's catalog page (details, Add to Watchlist), found by title and year.
-export async function openCatalogLookup({ title, year, kind }) {
+export async function openCatalogLookup({ title, year, kind, id }) {
   if (session.server && session.server.kind === 'jellyfin') {
     // No catalog on Jellyfin: open it from the library if it's there already.
     const type = kind === 'show' ? 'show' : 'movie';
     const hubs = await session.server.search(title);
     const all = [].concat(...hubs.map(hb => hb.Metadata || []));
     const m = all.find(x => x.type === type && (!year || Math.abs((x.year || 0) - year) <= 1));
-    if (m) openItem(m);
-    else notice(title + ' isn\'t on ' + session.server.name + ' yet', 4000);
-    return !!m;
+    if (m) { openItem(m); return true; }
+    // Not there yet: Radarr/Sonarr's record, to request it.
+    const { lookup, baseUrl } = await import('./plex/watchlist.js');
+    const found = baseUrl() ? await lookup(type, id ? { id } : { q: title }).catch(() => null) : null;
+    const c = (found || []).find(x => !year || !x.year || Math.abs(x.year - year) <= 1);
+    if (c) { openCatalog(c); return true; }
+    notice(title + ' isn\'t on ' + session.server.name + ' yet', 4000);
+    return false;
   }
   const { search } = await import('./plex/discover.js');
   const found = await search(title, { limit: 10 });
@@ -62,8 +67,8 @@ export async function openCatalogLookup({ title, year, kind }) {
 }
 
 export function openCatalog(item) {
-  if (session.server && session.server.kind === 'jellyfin') {
-    notice('Requesting new titles works with Plex (its Watchlist)', 4000);
+  if (session.server && session.server.kind === 'jellyfin' && !item.arr) {
+    notice('Set up watchlist-sync (Settings › Downloads) to request titles', 4000);
     return;
   }
   router.push(CatalogScreen(item));

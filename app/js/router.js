@@ -4,6 +4,7 @@
 // A screen is { el, onKey(action) -> bool?, onShow?(), onHide?(), destroy?() }.
 import { setHandler, setHoldCheck } from './input.js';
 import { exitApp } from './platform/tizen.js';
+import { enter, replay } from './ui/motion.js';
 
 const stack = [];
 let root = null;
@@ -14,6 +15,10 @@ export function init(container, onGlobalKey) {
   globalKey = onGlobalKey;
   setHandler(action => {
     const top = stack[stack.length - 1];
+    if (action === 'enter' && top) {
+      const b = top.el.querySelector('.btn.focus');
+      if (b) replay(b, 'press');
+    }
     if (top && top.onKey && top.onKey(action) === true) return;
     if (globalKey && globalKey(action) === true) return;
     if (action === 'back') back();
@@ -29,7 +34,8 @@ function hide(screen) {
   if (screen.onHide) screen.onHide();
 }
 
-function reveal(screen) {
+function reveal(screen, dir) {
+  enter(screen.el, dir);
   screen.el.classList.remove('hidden');
   if (screen.onShow) screen.onShow();
 }
@@ -66,7 +72,7 @@ export function back() {
     return;
   }
   destroy(stack.pop());
-  reveal(stack[stack.length - 1]);
+  reveal(stack[stack.length - 1], 'back');
 }
 
 export function top() {

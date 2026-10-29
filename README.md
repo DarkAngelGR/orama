@@ -129,7 +129,8 @@ The Apps screen shows **Develop mode** at the top when it's on.
 - Each library remembers its sort and its all / unwatched filter, per profile.
 
 ### 🗄️ Made for your server
-- **Search beyond your library:** find any movie or show and add it to your Plex Watchlist.
+- **Search beyond your library:** find any movie or show and add it to your Plex Watchlist, or on
+  Jellyfin, **Request** it straight into Sonarr/Radarr (with watchlist-sync).
 - With [watchlist-sync](#optional-companions), Watchlist adds reach Sonarr and Radarr in seconds,
   and a *Downloading* row shows their progress live.
 - Library scans show up on the home screen as they happen, and new media appears by itself.
@@ -189,13 +190,15 @@ To switch back to Plex, use **Settings › Sign out**.
 | Skip intro / credits | ✓ | ✓ ¹ |
 | Theme music, trailers, cast, delete | ✓ | ✓ ² |
 | watchlist-sync extras (downloads, collections, Bazarr subtitles) | ✓ | ✓ |
-| Search outside your library, Watchlist | ✓ | – |
+| Search outside your library and get it | ✓ Watchlist | ✓ Request ⁴ |
 | Home profiles with PINs | ✓ | – ³ |
-| Preview pictures while seeking | ✓ | – |
+| Preview pictures while seeking | ✓ | ✓ ⁵ |
 
 ¹ With media segments (Jellyfin 10.10+, e.g. the Intro Skipper plugin).
 ² Deleting needs an administrator.
 ³ Sign out to change user.
+⁴ Through watchlist-sync 1.3+, which searches Sonarr/Radarr and adds the title there.
+⁵ From Jellyfin's trickplay images (Jellyfin 10.9+, turned on per library).
 
 ## Optional companions
 
@@ -211,7 +214,8 @@ automatically when they run on the same machine as Plex or Jellyfin.
 
 Samsung TVs only run web apps, but their web engine is quick if you treat it like a game engine:
 
-- every animation is a GPU transform or fade;
+- every animation is a GPU transform or fade, short, and skipped while a key is held (or all of
+  them, with Settings › Animations off);
 - lists recycle a fixed set of tiles;
 - the focus ring stays still while content slides under it;
 - a held key never queues up work;

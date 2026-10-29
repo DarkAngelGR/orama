@@ -1,6 +1,7 @@
-// A movie or show from Plex's catalog that isn't on your server: details and
-// "Add to Watchlist". With watchlist-sync running, an add is synced right away
-// so Sonarr/Radarr start on it within seconds.
+// A movie or show that isn't on your server: details and a way to get it.
+// From Plex's catalog: "Add to Watchlist" (with watchlist-sync running, the add
+// is synced right away so Sonarr/Radarr start on it within seconds). From
+// Sonarr/Radarr (Jellyfin, through watchlist-sync): "Request" adds it there.
 import { h, setText, toggleClass, setTransform } from '../util/dom.js';
 import { useAmbience, HeroArt } from '../ui/backdrop.js';
 import { session } from '../session.js';
@@ -40,7 +41,9 @@ export function CatalogScreen(initial) {
   let buttons = [];
   let buttonIndex = 0;
   let alive = true;
-  const id = initial.ratingKey; // the 24-hex catalog id
+  const id = initial.ratingKey; // the 24-hex catalog id (Plex) or 'movie:TMDB' / 'show:TVDB'
+  const arr = !!initial.arr;    // from Sonarr/Radarr: requested there directly
+  const svc = initial.type === 'show' ? 'Sonarr' : 'Radarr';
 
   function renderInfo() {
     setText(title, item.title);
@@ -66,6 +69,9 @@ export function CatalogScreen(initial) {
       buttons.push({ el: b, run });
     };
     if (busy) add(icons.uncheck, 'One moment…', () => {});
+    else if (arr && item.arrStatus === 'have') add(icons.check, 'Downloaded', () => {});
+    else if (arr && item.arrStatus === 'requested') add(icons.check, 'Requested', () => {});
+    else if (arr) add(icons.download, 'Request', requestIt);
     else if (listed) add(icons.check, 'On your Watchlist  ·  Remove', remove);
     else add(icons.download, 'Add to Watchlist', addIt);
     add(icons.info, 'More info', openInfo);
@@ -94,6 +100,29 @@ export function CatalogScreen(initial) {
     } finally {
       busy = false;
       if (alive) renderButtons();
+    }
+  }
+
+  async function requestIt() {
+    if (busy) return;
+    busy = true;
+    setText(note, '');
+    renderButtons();
+    try {
+      const r = await watchlist.requestTitle(item, session.user && session.user.title);
+      if (!alive) return;
+      log('requested', item.title, r.status);
+      if (r.status === 'dry-run') {
+        setText(note, 'watchlist-sync is in dry-run mode, so nothing was sent to ' + svc + '.');
+      } else {
+        item = Object.assign({}, item, { arrStatus: 'requested' });
+        setText(note, r.status === 'already-there' ? svc + ' already has it.' : 'Requested. ' + svc + ' is looking for it now.');
+      }
+    } catch (e) {
+      if (alive) setText(note, 'Couldn\'t request it: ' + e.message);
+    } finally {
+      busy = false;
+      if (alive) { renderButtons(); showDownload(); }
     }
   }
 
@@ -132,6 +161,16 @@ export function CatalogScreen(initial) {
   }
 
   async function load() {
+    if (arr) {
+      // Fresh status (someone may have requested it meanwhile).
+      const ext = item.type === 'show' ? item.tvdb : item.tmdb;
+      const found = await watchlist.lookup(item.type, { id: ext }).catch(e => { warn('lookup failed', e.message); return null; });
+      if (!alive) return;
+      if (found && found[0]) { item = Object.assign({}, item, found[0]); renderInfo(); }
+      renderButtons();
+      showDownload();
+      return;
+    }
     // Full details and Watchlist state in parallel; the search result already
     // has enough to paint.
     const [full, state] = await Promise.all([
@@ -159,7 +198,7 @@ export function CatalogScreen(initial) {
       // Left the queue after importing: Plex picks it up on its next scan.
       setText(dlText, 'Downloaded  ·  it\'ll be in your library in a moment');
       toggleClass(dlBar, 'on', false);
-    } else if (listed && downloads.isSupported() === false) {
+    } else if ((listed || item.arrStatus === 'requested') && downloads.isSupported() === false) {
       setText(dlText, 'Update watchlist-sync on your server to see download progress here');
       toggleClass(dlBar, 'on', false);
       toggleClass(dl, 'on', true);

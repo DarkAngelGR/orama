@@ -17,6 +17,7 @@ import { notice } from '../ui/notice.js';
 import { Picker } from '../ui/picker.js';
 import * as watchlist from '../plex/watchlist.js';
 import { cwOpens } from '../player/options.js';
+import * as motion from '../ui/motion.js';
 
 // Once per app start, a few seconds after home appears: is there a newer
 // Orama? Mentioned once per version.
@@ -85,6 +86,7 @@ export function HomeScreen() {
   setText(who, (session.user && session.user.title ? session.user.title + '  ·  ' : '') + (session.server ? session.server.name : ''));
 
   const info = h('div', 'hero-info', el);
+  let heroItem = null;
   const heroLogo = h('img', 'hero-logo', info);
   const heroTitle = h('h1', 'hero-title', info);
   const heroMeta = h('div', 'hero-meta', info);
@@ -160,6 +162,8 @@ export function HomeScreen() {
 
   function showHero(item) {
     if (!item) return;
+    if (item !== heroItem) motion.replay(info, 'hero-swap');
+    heroItem = item;
     const logoPath = clearLogo(item);
     const server = session.server;
     if (logoPath && item.type !== 'episode') {
@@ -264,7 +268,7 @@ export function HomeScreen() {
   }
 
   function selectItem(item) {
-    if (item.upcoming) { openCatalogLookup({ title: item.title, year: item.year, kind: 'show' }).catch(e => error('show lookup failed', e)); return; }
+    if (item.upcoming) { openCatalogLookup({ title: item.title, year: item.year, kind: 'show', id: item.upcoming.tvdb }).catch(e => error('show lookup failed', e)); return; }
     if (item.download) openDownload(item.download);
     // Settings › OK on Continue Watching: resume straight away.
     else if (cwOpens() === 'play' && isContinueRow(rows[rowIndex]) && (item.type === 'episode' || item.type === 'movie')) playItem(item);
@@ -274,7 +278,7 @@ export function HomeScreen() {
   // A download's catalog page (details, Watchlist), found by title and year.
   async function openDownload(d) {
     try {
-      await openCatalogLookup({ title: d.title, year: d.year, kind: d.kind });
+      await openCatalogLookup({ title: d.title, year: d.year, kind: d.kind, id: d.kind === 'show' ? d.tvdb : d.tmdb });
     } catch (e) {
       error('download lookup failed', e);
     }
