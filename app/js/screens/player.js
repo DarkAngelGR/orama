@@ -16,7 +16,7 @@ import { TogetherLink } from '../plex/together.js';
 import { parseSubtitles, CueTrack, cleanCue, NO_CUE } from '../player/subtitles.js';
 import {
   TEXT_SUBS, streamsOf, audioLabel, subtitleLabel, qualitiesFor, qualityById, effectiveQuality, defaultQuality, forceDirect, audioExtras,
-  directRefused, rememberDirectRefused, versionTitle, versionRows, rememberedVersion, rememberVersion,
+  directRefused, rememberDirectRefused, versionTitle, versionRows, rememberedVersion, rememberVersion, dvWithoutFallback,
 } from '../player/options.js';
 import { parseBif, bifIndex, bifPicture } from '../player/bif.js';
 import { subOffset, setSubOffset, offsetLabel } from '../player/subprefs.js';
@@ -443,6 +443,8 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   function decideMode() {
     // A lower quality than the file means Plex has to convert it.
     if (quality.kbps) return 'hls';
+    // Dolby Vision the TV can't show (purple and green): always converted, even with Force direct play.
+    if (dvWithoutFallback(media)) return 'hls';
     if (forceDirect()) return 'direct';
     if (directRefused(part.id)) return 'hls';
     const directOk = DIRECT.container[media.container] && DIRECT.video[media.videoCodec] && audioDirectOk();
@@ -477,6 +479,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
         resolution: quality.resolution || undefined,
         audioStreamID: audioStream && audioStream.id,
         subtitleStreamID: burn ? subStream.id : undefined,
+        forceVideo: dvWithoutFallback(media),
       };
       if (server.prepareTranscode) {
         // Jellyfin: it decides how to convert and hands back the stream address.
@@ -666,6 +669,9 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
         m.endTimeOffset > m.startTimeOffset);
       renderTitles();
       mode = decideMode();
+      if (dvWithoutFallback(media) && !quality.kbps) {
+        setTimeout(() => toast('Converting the picture: this Dolby Vision version has no HDR the TV can show'), 2500);
+      }
       if (offset == null) offset = item.viewOffset || 0;
       position = offset;
       renderProgress(position);

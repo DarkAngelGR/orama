@@ -71,6 +71,18 @@ function partOf(media) {
   return media && media.Part && media.Part[0];
 }
 
+// Dolby Vision with nothing underneath the TV can show (profile 5, as in many
+// streaming downloads): Samsung TVs have no Dolby Vision, so played as is the
+// picture comes out purple and green. Profile 8.1 (HDR10 underneath) and 7
+// (Blu-ray, HDR10 base layer) play fine as HDR10.
+export function dvWithoutFallback(media) {
+  const v = streamsOf(partOf(media), 1)[0];
+  if (!v) return false;
+  if (v.videoRangeType) return v.videoRangeType === 'DOVI';           // Jellyfin says it outright
+  if (!v.DOVIPresent) return false;
+  return Number(v.DOVIProfile) === 5 || String(v.DOVIBLCompatID) === '0';
+}
+
 function hdrLabel(media) {
   const v = streamsOf(partOf(media), 1)[0];
   if (!v) return '';

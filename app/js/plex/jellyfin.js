@@ -107,6 +107,11 @@ function streamOf(itemId, src, s) {
   };
   if (type === 1) {
     out.width = s.Width; out.height = s.Height;
+    // Dolby Vision details, named like Plex's (player/options.js dvWithoutFallback).
+    out.videoRangeType = s.VideoRangeType || '';
+    out.DOVIPresent = /dovi/i.test(out.videoRangeType);
+    if (s.DvProfile != null) out.DOVIProfile = s.DvProfile;
+    if (s.DvBlSignalCompatibilityId != null) out.DOVIBLCompatID = s.DvBlSignalCompatibilityId;
     if (s.VideoRangeType && !/sdr/i.test(s.VideoRangeType) && !/hdr|dolby|dovi/i.test(out.displayTitle)) {
       out.displayTitle += /dovi/i.test(s.VideoRangeType) ? ' Dolby Vision' : ' HDR';
     }
@@ -477,7 +482,7 @@ export class JellyfinServer {
 
   // Ask Jellyfin how to convert, and return { url, decision } where decision
   // looks like the Plex transcode decision the player shows.
-  async prepareTranscode(item, { session, offsetMs = 0, mediaSourceId, maxBitrate, audioStreamID, subtitleStreamID } = {}) {
+  async prepareTranscode(item, { session, offsetMs = 0, mediaSourceId, maxBitrate, audioStreamID, subtitleStreamID, forceVideo = false } = {}) {
     const profile = {
       MaxStreamingBitrate: maxBitrate ? maxBitrate * 1000 : 140000000,
       MaxStaticBitrate: 200000000,
@@ -486,14 +491,18 @@ export class JellyfinServer {
         Container: 'ts', Type: 'Video', Protocol: 'hls', Context: 'Streaming',
         VideoCodec: 'hevc,h264', AudioCodec: 'eac3,ac3,aac', MaxAudioChannels: '6', BreakOnNonKeyFrames: true,
       }],
-      ContainerProfiles: [], CodecProfiles: [],
+      ContainerProfiles: [],
+      // No Dolby Vision on Samsung: only Dolby Vision with an HDR10/SDR/HLG picture
+      // underneath counts as playable, so profile 5 gets converted (tone mapped).
+      CodecProfiles: [{ Type: 'Video', Codec: 'hevc', Conditions: [{ Condition: 'EqualsAny', Property: 'VideoRangeType',
+        Value: 'SDR|HDR10|HDR10Plus|HLG|DOVIWithHDR10|DOVIWithHLG|DOVIWithSDR|DOVIWithHDR10Plus', IsRequired: false }] }],
       SubtitleProfiles: ['srt', 'subrip', 'ass', 'ssa', 'vtt', 'webvtt'].map(Format => ({ Format, Method: 'External' })),
     };
     const r = await this.req('/Items/' + item.ratingKey + '/PlaybackInfo', { method: 'POST', timeout: 30000, body: {
       UserId: this.userId, StartTimeTicks: Math.floor(offsetMs) * TICKS, MediaSourceId: mediaSourceId,
       AudioStreamIndex: audioStreamID, SubtitleStreamIndex: subtitleStreamID != null ? subtitleStreamID : -1,
       MaxStreamingBitrate: profile.MaxStreamingBitrate, EnableDirectPlay: false, EnableDirectStream: false,
-      EnableTranscoding: true, AllowVideoStreamCopy: !maxBitrate, AllowAudioStreamCopy: true, DeviceProfile: profile,
+      EnableTranscoding: true, AllowVideoStreamCopy: !maxBitrate && !forceVideo, AllowAudioStreamCopy: true, DeviceProfile: profile,
     } });
     const src = (r.MediaSources || []).find(s => s.Id === mediaSourceId) || (r.MediaSources || [])[0];
     if (!src || !src.TranscodingUrl) throw new Error('Jellyfin couldn\'t convert this file');
@@ -501,7 +510,7 @@ export class JellyfinServer {
     this.activeSession = r.PlaySessionId;
     const reasons = (src.TranscodeReasons || []).join(' ');
     const q = new URLSearchParams(src.TranscodingUrl.split('?')[1] || '');
-    const videoCopied = !maxBitrate && subtitleStreamID == null && !/Video|Resolution|Bitrate|Framerate|RefFrames|Level|Profile|Anamorphic|Interlaced|BitDepth|Subtitle/i.test(reasons);
+    const videoCopied = !maxBitrate && !forceVideo && subtitleStreamID == null && !/Video|Resolution|Bitrate|Framerate|RefFrames|Level|Profile|Anamorphic|Interlaced|BitDepth|Subtitle|Range/i.test(reasons);
     const audioCopied = !/Audio/i.test(reasons);
     const decision = { Metadata: [{ Media: [{ videoResolution: '', bitrate: maxBitrate || 0, Part: [{ Stream: [
       { streamType: 1, decision: videoCopied ? 'copy' : 'transcode', codec: (q.get('VideoCodec') || 'h264').split(',')[0] },
