@@ -366,9 +366,59 @@ export class JellyfinServer {
       .map(hb => Object.assign(hb, { size: hb.Metadata.length })).filter(hb => hb.size);
   }
 
+  // Trailers and special features (behind the scenes, deleted scenes, ...),
+  // trailers first. Theme songs and videos aren't extras to watch.
+  // --- smart search (util/smart.js) ---
+
+  async genreNames() {
+    const r = await this.cached('genres', 600000, () => this.req('/Genres', { params: {
+      UserId: this.userId, IncludeItemTypes: 'Movie,Series', Recursive: true, EnableImages: false,
+    } }));
+    return (r.Items || []).map(g => g.Name).filter(Boolean);
+  }
+
+  async findPerson(name) {
+    const r = await this.req('/Persons', { params: { searchTerm: name, limit: 8, userId: this.userId, enableImages: false } });
+    const want = String(name).toLowerCase();
+    const p = (r.Items || []).find(x => {
+      const t = String(x.Name || '').toLowerCase();
+      return t === want || (want.length > 3 && (t.split(' ').pop() === want || t.indexOf(want) === 0));
+    });
+    return p ? { name: p.Name, id: p.Id } : null;
+  }
+
+  async smartSearch(f, person) {
+    const SORT = { rating: ['CommunityRating,SortName', 'Descending'], newest: ['PremiereDate,SortName', 'Descending'], oldest: ['PremiereDate,SortName', 'Ascending'] };
+    const [by, order] = SORT[f.sort] || SORT.rating;
+    const r = await this.req(this.u('/Items'), { timeout: 30000, params: {
+      Recursive: true, IncludeItemTypes: f.type === 'show' ? 'Series' : f.type === 'movie' ? 'Movie' : 'Movie,Series',
+      Genres: f.genres.length ? f.genres[0].join('|') : undefined,   // any of the first wish's; the rest checked on the TV
+      MinPremiereDate: f.yearFrom ? f.yearFrom + '-01-01T00:00:00Z' : undefined,
+      MaxPremiereDate: f.yearTo ? f.yearTo + '-12-31T23:59:59Z' : undefined,
+      IsPlayed: f.watched === undefined ? undefined : f.watched,
+      PersonIds: person && person.id ? person.id : undefined,
+      PersonTypes: person && person.id && f.personRole === 'director' ? 'Director' : undefined,
+      SortBy: by, SortOrder: order, Limit: 300, Fields: LIST_FIELDS + ',Genres',
+    } });
+    return (r.Items || []).map(toPlex);
+  }
+
   async extras(id) {
-    const list = await this.req(this.u('/Items/' + id + '/LocalTrailers'), { timeout: 8000 }).catch(() => []);
-    return (Array.isArray(list) ? list : []).map(it => Object.assign(toPlex(it), { extraType: 1, subtype: 'trailer' }));
+    const [trailers, features] = await Promise.all([
+      this.req(this.u('/Items/' + id + '/LocalTrailers'), { timeout: 8000 }).catch(() => []),
+      this.req(this.u('/Items/' + id + '/SpecialFeatures'), { timeout: 8000 }).catch(() => []),
+    ]);
+    const SUBTYPE = { Trailer: 'trailer', DeletedScene: 'deletedScene', BehindTheScenes: 'behindTheScenes', Featurette: 'featurette',
+      Interview: 'interview', Scene: 'scene', Sample: 'scene', Short: 'short', Clip: 'clip', Unknown: 'clip' };
+    const seen = new Set();
+    const out = [];
+    (Array.isArray(trailers) ? trailers : []).forEach(it => { seen.add(it.Id); out.push(Object.assign(toPlex(it), { extraType: 1, subtype: 'trailer' })); });
+    (Array.isArray(features) ? features : []).forEach(it => {
+      if (seen.has(it.Id) || /^Theme/.test(it.ExtraType || '')) return;
+      const subtype = SUBTYPE[it.ExtraType] || 'clip';
+      out.push(Object.assign(toPlex(it), { subtype, extraType: subtype === 'trailer' ? 1 : 0 }));
+    });
+    return out;
   }
 
   // Seek previews from Jellyfin's trickplay (10.9+): sheets of pictures, each

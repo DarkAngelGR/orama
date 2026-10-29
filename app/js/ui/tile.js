@@ -115,6 +115,9 @@ export function fillTile(tile, item) {
 
   if (tile.cap) {
     setText(tile.cap, kind === 'episode' ? item.title : titleFor(item, kind));
-    setText(tile.sub, kind === 'episode' ? episodeLabel(item) + (item.duration ? '  ·  ' + Math.round(item.duration / 60000) + 'm' : '') : subFor(item, kind));
+    const mins = item.duration ? Math.round(item.duration / 60000) + 'm' : '';
+    setText(tile.sub, kind !== 'episode' ? subFor(item, kind)
+      : item.type === 'episode' ? episodeLabel(item) + (mins ? '  ·  ' + mins : '')
+      : [item.extraLabel, mins].filter(Boolean).join('  ·  '));   // extras: "Deleted scene · 3m"
   }
 }

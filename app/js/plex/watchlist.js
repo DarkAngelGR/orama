@@ -200,6 +200,26 @@ export function toCatalog(x) {
   };
 }
 
+// Titles you don't have yet, for the home screen's Discover rows:
+// [{ id, title, items: [catalog items] }]. [] when this watchlist-sync is too old.
+export async function discover() {
+  try {
+    const r = await call('/api/tv/discover', { timeout: 30000 });
+    return (r.sections || []).map(s => ({ id: s.id, title: s.title, items: (s.items || []).map(toCatalog) }));
+  } catch (e) {
+    if (e.status === 404) return [];
+    throw e;
+  }
+}
+
+export function discoverEnabled() {
+  return store.get('discoverRows') !== false;
+}
+
+export function setDiscoverEnabled(on) {
+  store.set('discoverRows', on ? undefined : false);
+}
+
 // Add it to Radarr/Sonarr. { ok, status: 'added' | 'already-there' | 'dry-run', service }.
 export async function requestTitle(item, user) {
   const body = { kind: item.type === 'show' ? 'show' : 'movie', user: user || '' };

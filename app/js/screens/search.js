@@ -6,6 +6,7 @@ import { session, isJellyfin } from '../session.js';
 import { openItem, playItem, openCatalog } from '../nav.js';
 import * as discover from '../plex/discover.js';
 import * as watchlist from '../plex/watchlist.js';
+import { parse as parseSmart, label as smartLabel, matches as smartMatches } from '../util/smart.js';
 import { error, warn } from '../util/log.js';
 import * as icons from '../ui/icons.js';
 import { useAmbience } from '../ui/backdrop.js';
@@ -42,7 +43,13 @@ export function SearchScreen() {
     // Plex's catalog is searched alongside your server; its row joins below
     // your results when it arrives, so typing stays as quick as before.
     // On Jellyfin, which has no catalog, Sonarr/Radarr's (through watchlist-sync).
-    const catalog = (isJellyfin() ? arrSearch(q) : discover.search(q)).catch(e => { warn('catalog search failed', e.message); return []; });
+    // Not for a filter like "80s horror": that describes your library, not a title to get.
+    const filterOnly = genreList && (p => p && !p.personGuess)(parseSmart(q, genreList));
+    const catalog = filterOnly ? Promise.resolve([])
+      : (isJellyfin() ? arrSearch(q) : discover.search(q)).catch(e => { warn('catalog search failed', e.message); return []; });
+    // "80s horror", "unwatched comedies": a filtered row on top, when the
+    // words describe titles rather than name one.
+    const smart = smartRow(q).catch(e => { warn('smart search failed', e.message); return null; });
     let hubs = [];
     try {
       hubs = await session.server.search(q);
@@ -52,12 +59,48 @@ export function SearchScreen() {
       error('search failed', e);
       if (gen === generation) setText(status, 'Search failed');
     }
+    const sm = await smart;
+    if (gen !== generation) return;
+    if (sm) {
+      hubs = [sm].concat(hubs);
+      const at = rowIndex;
+      setRows(hubs);
+      if (at >= 0) { rowIndex = Math.min(rows.length - 1, at + 1); render(); }   // stay on the same row
+    }
     const elsewhere = await notOwned(await catalog, hubs);
     if (gen !== generation) return;
     if (elsewhere.length) {
       addRow({ title: 'Not on your server', Metadata: elsewhere.slice(0, CATALOG_MAX), onSelect: openCatalog });
     }
     setText(status, hubs.length || elsewhere.length ? '' : 'Nothing found for “' + q + '”');
+  }
+
+  let genreList = null;
+  async function smartRow(q) {
+    const server = session.server;
+    if (!server.smartSearch) return null;
+    if (!genreList) genreList = await server.genreNames().catch(() => []);
+    const f = parseSmart(q, genreList);
+    if (!f) return null;
+    let person = null;
+    if (f.person) {
+      person = await server.findPerson(f.person, f.personRole === 'director' ? 'director' : 'actor').catch(() => null);
+      if (!person) return null;      // not a name after all: just a title search
+      if (f.personRole === undefined && person.role) f.personRole = person.role;
+    }
+    const seen = new Set();
+    let items = (await server.smartSearch(f, person)).filter(it => {
+      if (seen.has(it.ratingKey) || !smartMatches(f, it)) return false;
+      seen.add(it.ratingKey);
+      return true;
+    });
+    const rating = it => it.audienceRating || it.rating || 0;
+    if (f.sort === 'newest') items.sort((a, b) => (b.year || 0) - (a.year || 0));
+    else if (f.sort === 'oldest') items.sort((a, b) => (a.year || 9999) - (b.year || 9999));
+    else items.sort((a, b) => rating(b) - rating(a));
+    items = items.slice(0, 60);
+    if (!items.length) return null;
+    return { title: smartLabel(f, person && person.name), type: 'mixed', hubIdentifier: 'smart', Metadata: items };
   }
 
   // Movies and shows from Radarr/Sonarr, alternating, minus what's downloaded.
@@ -157,6 +200,9 @@ export function SearchScreen() {
       input.blur();
     }
   });
+
+  // The library's genres, for smart search, fetched while you type.
+  if (session.server && session.server.genreNames) session.server.genreNames().then(g => { genreList = g; }, () => {});
 
   return {
     el,

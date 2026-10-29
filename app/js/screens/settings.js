@@ -71,6 +71,7 @@ export function SettingsScreen() {
         run: () => router.push(DownloadsScreen()) },
       { label: 'Performance overlay', value: hudEnabled() ? 'On' : 'Off', run: () => { setHud(!hudEnabled()); build(); } },
       // For before/after recordings: brings back the full-screen gradients that took ~2s per repaint.
+      { label: 'Discover rows on Home', value: watchlist.discoverEnabled() ? 'On · trending and recommended to request' : 'Off', run: () => { watchlist.setDiscoverEnabled(!watchlist.discoverEnabled()); build(); } },
       { label: 'Animations', value: motion.enabled() ? 'On' : 'Off · everything appears at once', run: () => { motion.setEnabled(!motion.enabled()); build(); } },
       { label: 'Demo: original slow renderer', value: legacyGradients() ? 'On' : 'Off', run: () => { setLegacyGradients(!legacyGradients()); build(); } },
     ]);

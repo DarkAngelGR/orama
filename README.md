@@ -122,13 +122,18 @@ The Apps screen shows **Develop mode** at the top when it's on.
 - **HDR-aware:** subtitles and controls dim slightly so white text doesn't glare.
 - **Anime-aware:** Japanese audio with Greek (else English) subtitles, the full dialogue track
   rather than "Signs & Songs", and translated signs at the top of the screen.
-- **Rich pages:** IMDb, Rotten Tomatoes and TMDB ratings, cast with photos, trailers, the rest of
+- **Rich pages:** IMDb, Rotten Tomatoes and TMDB ratings, cast with photos, trailers and an *Extras* row (behind the scenes, deleted scenes, featurettes), the rest of
   a collection, episode descriptions, theme music and a full *More info* page.
 - **Continue Watching that tells you things:** "S3 · E4 · 18m left". Hold OK to remove a tile,
   mark it watched or clear its progress.
 - Each library remembers its sort and its all / unwatched filter, per profile.
 
 ### 🗄️ Made for your server
+- **Smart search:** type what you're in the mood for, like *80s horror*, *unwatched comedies
+  under 2 hours*, *best sci-fi shows* or *Keanu Reeves movies*, and get a row of matches from your
+  library. Genres, decades, length, watched state and people; no AI involved.
+- **Discover rows** on Home (with watchlist-sync): *Trending this week* and *Recommended for you*,
+  only titles you don't have yet, each one press of OK away from being requested.
 - **Search beyond your library:** find any movie or show and add it to your Plex Watchlist, or on
   Jellyfin, **Request** it straight into Sonarr/Radarr (with watchlist-sync).
 - With [watchlist-sync](#optional-companions), Watchlist adds reach Sonarr and Radarr in seconds,
@@ -188,9 +193,10 @@ To switch back to Plex, use **Settings › Sign out**.
 | Subtitles (text drawn by Orama, pictures burned in) | ✓ | ✓ |
 | Several versions of a title, clearly named | ✓ | ✓ |
 | Skip intro / credits | ✓ | ✓ ¹ |
-| Theme music, trailers, cast, delete | ✓ | ✓ ² |
+| Theme music, trailers, extras, cast, delete | ✓ | ✓ ² |
 | watchlist-sync extras (downloads, collections, Bazarr subtitles) | ✓ | ✓ |
 | Search outside your library and get it | ✓ Watchlist | ✓ Request ⁴ |
+| Smart search, Discover rows | ✓ | ✓ |
 | Home profiles with PINs | ✓ | – ³ |
 | Preview pictures while seeking | ✓ | ✓ ⁵ |
 

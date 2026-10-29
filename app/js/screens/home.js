@@ -8,7 +8,7 @@ import { metaLine } from '../util/format.js';
 import { isFast } from '../input.js';
 import * as store from '../util/store.js';
 import * as icons from '../ui/icons.js';
-import { openItem, playItem, openLibrary, openSearch, openSettings, openCatalogLookup } from '../nav.js';
+import { openItem, playItem, openLibrary, openSearch, openSettings, openCatalogLookup, openCatalog } from '../nav.js';
 import { error, log } from '../util/log.js';
 import * as updates from '../plex/updates.js';
 import * as notifications from '../plex/notifications.js';
@@ -117,6 +117,8 @@ export function HomeScreen() {
   let dlItems = [];        // downloads in progress, as tiles
   let upItems = [];        // episodes airing soon (Sonarr's calendar), as tiles
   let upLoadedAt = 0;
+  let discoverHubs = [];   // titles you don't have yet (watchlist-sync), at the bottom
+  let discoverLoadedAt = 0;
 
   function buildNav(sections) {
     navTrack.innerHTML = '';
@@ -235,7 +237,22 @@ export function HomeScreen() {
       const row = { hubIdentifier: 'flexplex.upcoming', title: 'Coming up', type: 'show', size: upItems.length, Metadata: upItems };
       hubs = hubs.slice(0, last + 1).concat([row], hubs.slice(last + 1));
     }
+    if (discoverHubs.length && watchlist.discoverEnabled()) hubs = hubs.concat(discoverHubs);
     return hubs;
+  }
+
+  // Trending and recommended titles you don't have, from Radarr/Sonarr via
+  // watchlist-sync; OK opens their page with Request. Every 3 hours at most.
+  async function loadDiscover() {
+    if (Date.now() - discoverLoadedAt < 3 * 3600000 || !watchlist.baseUrl() || !watchlist.discoverEnabled()) return;
+    discoverLoadedAt = Date.now();
+    try {
+      const sections = await watchlist.discover();
+      discoverHubs = sections.filter(s => s.items.length).map(s => ({
+        hubIdentifier: 'flexplex.discover.' + s.id, title: s.title, type: 'movie', size: s.items.length, Metadata: s.items,
+      }));
+      setHubs(composed());
+    } catch (e) { discoverLoadedAt = 0; /* watchlist-sync not there right now */ }
   }
 
   const WEEKDAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -269,6 +286,7 @@ export function HomeScreen() {
 
   function selectItem(item) {
     if (item.upcoming) { openCatalogLookup({ title: item.title, year: item.year, kind: 'show', id: item.upcoming.tvdb }).catch(e => error('show lookup failed', e)); return; }
+    if (item.arr) { openCatalog(item); return; }
     if (item.download) openDownload(item.download);
     // Settings › OK on Continue Watching: resume straight away.
     else if (cwOpens() === 'play' && isContinueRow(rows[rowIndex]) && (item.type === 'episode' || item.type === 'movie')) playItem(item);
@@ -331,6 +349,7 @@ export function HomeScreen() {
       setHubs(composed());
       store.set('homeCache', { server: server.id, sections, hubs: hubs.map(slimHub) });
       loadUpcoming();
+      loadDiscover();
     } catch (e) {
       error('home load failed', e);
       if (!rows.length) setText(empty, 'Couldn\'t load from ' + server.name + '. Press OK to retry.');

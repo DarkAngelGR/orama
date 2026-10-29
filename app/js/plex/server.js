@@ -71,6 +71,66 @@ export class Server {
     return { total: mc.totalSize != null ? mc.totalSize : mc.size, items: mc.Metadata || [] };
   }
 
+  // --- smart search (util/smart.js) ---
+
+  // Every genre name in the movie and show libraries.
+  async genreNames() {
+    const secs = await this.sections();
+    const lists = await Promise.all(secs.map(s => this.get('/library/sections/' + s.key + '/genre', null, { maxAge: 600000 })
+      .then(mc => (mc.Directory || []).map(d => ({ section: String(s.key), key: d.key, title: d.title })))
+      .catch(() => [])));
+    this.genreIndex = [].concat(...lists);
+    return Array.from(new Set(this.genreIndex.map(g => g.title)));
+  }
+
+  // A person on this server by name, from search's actor/director results:
+  // { name, filter: 'actor=921' } or null.
+  async findPerson(name, role) {
+    const mc = await this.get('/hubs/search', { query: name, limit: 10 });
+    const want = String(name).toLowerCase();
+    const hubs = (mc.Hub || []).filter(hb => hb.type === 'actor' || hb.type === 'director');
+    hubs.sort((a, b) => (b.type === role) - (a.type === role));
+    for (const hb of hubs) {
+      const d = (hb.Directory || []).find(x => {
+        const t = String(x.tag || '').toLowerCase();
+        return t === want || (want.length > 3 && (t.split(' ').pop() === want || t.indexOf(want) === 0));
+      });
+      if (d) return { name: d.tag, filter: d.filter || (hb.type + '=' + d.id), role: hb.type };
+    }
+    return null;
+  }
+
+  // Titles matching a parsed smart search, best first.
+  async smartSearch(f, person) {
+    const SORT = { rating: 'audienceRating:desc', newest: 'originallyAvailableAt:desc', oldest: 'originallyAvailableAt' };
+    if (f.genres.length && !this.genreIndex) await this.genreNames();
+    const secs = (await this.sections()).filter(s => !f.type || s.type === f.type);
+    const found = await Promise.all(secs.map(async s => {
+      const type = s.type === 'show' ? 2 : 1;
+      const params = { type, sort: SORT[f.sort] || 'audienceRating:desc', 'X-Plex-Container-Start': 0, 'X-Plex-Container-Size': 300 };
+      if (f.genres.length) {
+        // The first wish's genre as this library names it; the rest are checked on the TV.
+        const g = this.genreIndex.find(x => x.section === String(s.key) && f.genres[0].includes(x.title));
+        if (!g) return [];
+        params.genre = g.key;
+      }
+      if (f.yearFrom && f.yearTo === f.yearFrom + 9 && f.yearFrom % 10 === 0) params.decade = f.yearFrom;
+      else if (f.yearFrom && f.yearFrom === f.yearTo) params.year = f.yearFrom;
+      if (f.watched === false) params[type === 2 ? 'unwatchedLeaves' : 'unwatched'] = 1;
+      if (person && person.filter) {
+        const [k, v] = person.filter.split('=');
+        params[k] = v;
+      }
+      try {
+        const mc = await this.get('/library/sections/' + s.key + '/all', params, { timeout: 30000 });
+        return mc.Metadata || [];
+      } catch (e) {
+        return [];
+      }
+    }));
+    return [].concat(...found);
+  }
+
   async metadata(ratingKey) {
     // includeMarkers: intro/credits ranges, for the player's skip button.
     const mc = await this.get('/library/metadata/' + ratingKey, { includeOnDeck: 1, includeExtras: 0, includeMarkers: 1, includeGuids: 1 });

@@ -58,6 +58,10 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
   const collWrap = h('div', 'detail-cast detail-collection');
   let coll = null;          // { row, items }
   let collFor = '';
+  // Bonus material from the files: behind the scenes, deleted scenes,
+  // featurettes, interviews, trailers. At the bottom of the page.
+  const extrasWrap = h('div', 'detail-cast detail-extras');
+  let extrasRow = null;     // { row, items }
   const picker = new Picker(el);
   optionsEl.style.display = 'none';
 
@@ -598,11 +602,13 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     if (episodes) episodes.row.setActive(zone === 'episodes');
     if (cast) cast.row.setActive(zone === 'cast');
     if (coll) coll.row.setActive(zone === 'collection');
-    const shifted = zone === 'seasons' || zone === 'episodes' || zone === 'cast' || zone === 'collection';
+    if (extrasRow) extrasRow.row.setActive(zone === 'extras');
+    const shifted = zone === 'seasons' || zone === 'episodes' || zone === 'cast' || zone === 'collection' || zone === 'extras';
     let shift = SHIFT + (options.length ? OPTIONS_H : 0);
     // Cast / collection rows: slide them up to the middle of the screen (read once per focus change).
     if (zone === 'cast') shift = Math.max(0, castWrap.offsetTop - 430);
     if (zone === 'collection') shift = Math.max(0, collWrap.offsetTop - 330);
+    if (zone === 'extras') shift = Math.max(0, extrasWrap.offsetTop - 330);
     setTransform(body, shifted ? 'translateY(' + (-shift) + 'px)' : 'translateY(0)');
     toggleClass(el, 'shifted', shifted);
   }
@@ -651,17 +657,47 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     renderFocus();
   }
 
-  // The first trailer among the title's extras, if any.
+  // The title's extras: the first trailer gets a button, and all of them a row.
   let trailer = null;
   async function loadTrailer() {
     if (item.type !== 'movie' && item.type !== 'show') return;
     try {
       const extras = await session.server.extras(item.ratingKey);
+      if (!alive) return;
+      renderExtras(extras);
       const t = extras.find(x => x.extraType === 1 || x.subtype === 'trailer' || x.extraType === '1') || null;
-      if (!alive || (t && trailer && t.ratingKey === trailer.ratingKey)) return;
+      if (t && trailer && t.ratingKey === trailer.ratingKey) return;
       trailer = t;
       renderButtons();
-    } catch (e) { /* no extras: no button */ }
+    } catch (e) { /* no extras: no button, no row */ }
+  }
+
+  const EXTRA_LABELS = {
+    trailer: 'Trailer', deletedScene: 'Deleted scene', behindTheScenes: 'Behind the scenes', featurette: 'Featurette',
+    interview: 'Interview', sceneOrSample: 'Scene', scene: 'Scene', short: 'Short', clip: 'Clip',
+  };
+  const EXTRA_BY_NUMBER = { 1: 'trailer', 2: 'deletedScene', 3: 'interview', 5: 'behindTheScenes', 6: 'sceneOrSample', 10: 'featurette', 11: 'short' };   // Plex's extraType numbers
+
+  function renderExtras(extras) {
+    const list = (extras || []).filter(x => x && x.ratingKey).map(x => {
+      const kind = x.subtype || EXTRA_BY_NUMBER[x.extraType] || 'clip';
+      return Object.assign({}, x, { extraLabel: EXTRA_LABELS[kind] || 'Extra' });
+    });
+    if (!list.length) {
+      if (extrasWrap.parentNode) extrasWrap.parentNode.removeChild(extrasWrap);
+      extrasRow = null;
+      return;
+    }
+    if (extrasWrap.parentNode !== body) body.appendChild(extrasWrap);
+    if (!extrasRow) {
+      const row = new Row({ title: 'Extras', kind: 'episode', caption: true, items: list, onSelect: x => playItem(x) });
+      extrasWrap.appendChild(row.el);
+      extrasWrap.style.height = row.height + 'px';
+      extrasRow = { row, items: list };
+    } else {
+      extrasRow.items = list;
+      extrasRow.row.setItems(list);
+    }
   }
 
   async function load() {
@@ -733,6 +769,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     if (episodes) order.push('episodes');
     if (coll) order.push('collection');
     if (cast) order.push('cast');
+    if (extrasRow) order.push('extras');
     const i = order.indexOf(zone) + dir;
     if (i < 0 || i >= order.length) return;
     zone = order[i];
@@ -757,6 +794,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
       if (picker.isOpen) return picker.onKey(action);
       if (action === 'up') { moveZone(-1); return true; }
       if (action === 'down') { moveZone(1); return true; }
+      if ((action === 'play' || action === 'playpause') && zone === 'extras') { extrasRow.row.select(); return true; }
       if ((action === 'play' || action === 'playpause') && zone === 'collection') {
         const c = coll.row.current();
         if (c && !c.lookup) playItem(c);
@@ -791,6 +829,10 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
         if (action === 'left') { coll.row.move(-1); return true; }
         if (action === 'right') { coll.row.move(1); return true; }
         if (action === 'enter') { coll.row.select(); return true; }
+      } else if (zone === 'extras') {
+        if (action === 'left') { extrasRow.row.move(-1); return true; }
+        if (action === 'right') { extrasRow.row.move(1); return true; }
+        if (action === 'enter' || action === 'play' || action === 'playpause') { extrasRow.row.select(); return true; }
       } else if (zone === 'cast') {
         if (action === 'left') { cast.row.move(-1); return true; }
         if (action === 'right') { cast.row.move(1); return true; }
