@@ -19,6 +19,7 @@ CREAM = (244, 243, 255)      # #F4F3FF (--cream)
 ACCENT = (139, 124, 255)     # #8B7CFF (--accent)
 CHARCOAL = (17, 17, 28)      # wordmark on light backgrounds
 TAGLINE = (164, 161, 190)
+TAGLINE_TEXT = 'A FAST PLAYER FOR YOUR LIBRARY'
 SS = 4                        # supersampling factor
 
 # The mark, in a 120x120 design grid (matches the design canvas).
@@ -34,18 +35,21 @@ def rgba(c):
     return c + (255,) if len(c) == 3 else c
 
 
-def mark(size, rounded=True, bg=TILE):
+def mark(size, rounded=True, bg=TILE, arrows=None, tile=True):
     """The icon at size x size px. rounded=False: a full square (for launchers
-    that apply their own mask)."""
+    that apply their own mask). arrows / tile=False draw only some of it (the
+    splash animates its pieces separately)."""
     big = size * SS
     k = big / 120
     im = Image.new('RGBA', (big, big), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
-    if rounded:
+    if not tile:
+        pass
+    elif rounded:
         d.rounded_rectangle([0, 0, big - 1, big - 1], radius=RADIUS * k, fill=rgba(bg))
     else:
         d.rectangle([0, 0, big, big], fill=rgba(bg))
-    for pts, color in ARROWS:
+    for pts, color in (ARROWS if arrows is None else arrows):
         p = [(x * k, y * k) for x, y in pts]
         d.polygon(p, fill=rgba(color))
         d.line(p + p[:2], fill=rgba(color), width=round(STROKE * k), joint='curve')
@@ -115,7 +119,7 @@ def splash(w, h):
     im.alpha_composite(icon, ((w - icon.width) // 2, round(230 * s)))
     wm = wordmark(round(92 * s))
     im.alpha_composite(wm, ((w - wm.width) // 2, round(640 * s)))
-    tag = text('A FAST PLAYER FOR YOUR PLEX LIBRARY', round(24 * s), TAGLINE, tracking=0.2)
+    tag = text(TAGLINE_TEXT, round(24 * s), TAGLINE, tracking=0.2)
     im.alpha_composite(tag, ((w - tag.width) // 2, round(800 * s)))
     return im
 
@@ -137,6 +141,15 @@ save(mark(160), 'app/img/logo-mark.png')                      # home header (sho
 save(mark(560), 'app/img/logo-560.png')                       # sign-in screen
 save(wordmark(96), 'app/img/wordmark.png')                    # home header (shown 44 tall)
 save(splash(1920, 1080), 'app/img/splash.png', 'RGB')
+# The animated splash (index.html + css "splash"): the same picture in pieces.
+# Placed at: tile and arrows (810, 230) 300x300, wordmark centred at y 640,
+# tagline centred at y 800, on a 192x108 backdrop the GPU stretches.
+save(backdrop(192, 108), 'app/img/splash/bg.png', 'RGB')
+save(mark(300, arrows=[]), 'app/img/splash/tile.png')
+save(mark(300, arrows=ARROWS[:1], tile=False), 'app/img/splash/arrow1.png')
+save(mark(300, arrows=ARROWS[1:], tile=False), 'app/img/splash/arrow2.png')
+save(wordmark(92), 'app/img/splash/word.png')
+save(text(TAGLINE_TEXT, 24, TAGLINE, tracking=0.2), 'app/img/splash/tag.png')
 
 # --- brand set ------------------------------------------------------------------
 save(lockup(1920, 640, CREAM), 'assets/brand/lockup-horizontal-light-1920x640.png')

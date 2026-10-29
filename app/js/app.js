@@ -98,9 +98,14 @@ export function boot() {
   // Dev builds only; release builds don't ship js/dev/.
   if (DEV && DEV_HOST) import('./dev/remote.js').then(m => m.startDevRemote());
   start();
+  // Fade the splash once its animation has played (about 1.3 s after the page
+  // started), or half a second from now if that's later. With Settings ›
+  // Animations off, just the half second.
   const splash = document.getElementById('splash');
+  const SPLASH_MS = 1300;
+  const wait = motion.enabled() ? Math.max(500, SPLASH_MS - performance.now()) : 500;
   setTimeout(() => {
     splash.classList.add('gone');
     setTimeout(() => splash.parentNode && splash.parentNode.removeChild(splash), 400);
-  }, 500);
+  }, wait);
 }
