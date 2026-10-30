@@ -45,9 +45,19 @@ function set(list) {
   emit();
 }
 
+// No polling while a video plays; picks up again (right away) afterwards.
+let paused = false;
+export function pause(on) {
+  if (paused === on) return;
+  paused = on;
+  clearInterval(timer);
+  timer = 0;
+  if (!on && listeners.size) { poll(); timer = setInterval(poll, POLL_MS); }
+}
+
 export function subscribe(fn) {
   listeners.add(fn);
-  if (!timer) { poll(); timer = setInterval(poll, POLL_MS); }
+  if (!timer && !paused) { poll(); timer = setInterval(poll, POLL_MS); }
   else fn(items);
   return () => {
     listeners.delete(fn);

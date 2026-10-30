@@ -350,6 +350,7 @@ export class JellyfinServer {
         .then(r => { const s = (r.Items || [])[0]; if (s) item.theme = '/Audio/' + s.Id + '/stream?static=true'; }).catch(() => {}));
     }
     await Promise.all(extras);
+    item._at = Date.now();   // when fetched: the player reuses fresh details
     return item;
   }
 

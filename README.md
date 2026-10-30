@@ -262,7 +262,7 @@ On a real 3,952-item library, 98.7% of titles play without any transcoding.
 <summary><b>Project layout</b></summary>
 
 ```
-app/            the TV app (plain ES modules, no framework, no bundler)
+app/            the TV app (plain ES modules, no framework)
   js/screens/   home, library, detail, player, search, settings, profiles…
   js/player/    track, version and quality choices, subtitles, seek previews
   js/ui/        rows, grids, tiles, pickers, image loader, backdrop, theme music
@@ -273,8 +273,11 @@ scripts/        setup.sh, deploy.sh, make-logo.py
 tools/          dev server, TV eval, network remote
 ```
 
-The TV's browser (Chromium 85+ on Tizen 6.5+) runs ES modules natively; `deploy.sh` adds
-`<link rel="modulepreload">` tags so every module loads in parallel.
+The TV's browser (Chromium 85+ on Tizen 6.5+) runs ES modules natively, so the source runs
+as is (dev builds ship it unchanged). Release builds pack it with esbuild (fetched by `npx`)
+into one minified start-up file plus small pieces for the screens that load on first use
+(search, settings, a person, the catalog, More info), with `<link rel="modulepreload">` for
+what start-up needs. Without Node, `deploy.sh` ships the plain modules instead.
 </details>
 
 <details>

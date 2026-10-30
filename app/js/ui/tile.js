@@ -1,7 +1,7 @@
 // Poster / landscape tiles. A tile node is created once and re-filled as it is
 // recycled; fill() only touches the DOM for fields that changed.
 import { h, setText, show, setTransform, toggleClass } from '../util/dom.js';
-import { load } from './images.js';
+import { load, prefetch } from './images.js';
 import { session } from '../session.js';
 import { progress, episodeLabel, duration } from '../util/format.js';
 
@@ -75,6 +75,13 @@ function subFor(item, kind) {
   }
   if (item.type === 'season') return item.leafCount ? item.leafCount + ' episodes' : '';
   return item.year || '';
+}
+
+// Warm the poster a tile of this kind would show for `item` (just off screen, about to scroll in).
+export function prefetchTile(kind, item) {
+  const server = session.server;
+  const path = item && server && artFor(item, kind);
+  if (path) prefetch(server.image(path, KINDS[kind].w, KINDS[kind].h));
 }
 
 export function fillTile(tile, item) {

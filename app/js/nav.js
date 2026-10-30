@@ -1,12 +1,10 @@
 // Where selecting things goes. Kept in one place so screens don't import each other.
+// Screens you open now and then (search, settings, a person, the catalog) load
+// on first use, so starting the app reads less code.
 import * as router from './router.js';
 import { DetailScreen } from './screens/detail.js';
 import { LibraryScreen } from './screens/library.js';
 import { PlayerScreen } from './screens/player.js';
-import { SearchScreen } from './screens/search.js';
-import { SettingsScreen } from './screens/settings.js';
-import { CatalogScreen } from './screens/catalog.js';
-import { PersonScreen } from './screens/person.js';
 import { session } from './session.js';
 import { notice } from './ui/notice.js';
 
@@ -29,16 +27,16 @@ export function openLibrary(section) {
 }
 
 export function openSearch() {
-  router.push(SearchScreen());
+  router.pushAsync(() => import('./screens/search.js').then(m => m.SearchScreen()));
 }
 
 export function openSettings() {
-  router.push(SettingsScreen());
+  router.pushAsync(() => import('./screens/settings.js').then(m => m.SettingsScreen()));
 }
 
 // A title from Plex's catalog that isn't on your server.
 export function openPerson(person) {
-  router.push(PersonScreen(person));
+  router.pushAsync(() => import('./screens/person.js').then(m => m.PersonScreen(person)));
 }
 
 // A title's catalog page (details, Add to Watchlist), found by title and year.
@@ -71,5 +69,5 @@ export function openCatalog(item) {
     notice('Set up watchlist-sync (Settings › Downloads) to request titles', 4000);
     return;
   }
-  router.push(CatalogScreen(item));
+  router.pushAsync(() => import('./screens/catalog.js').then(m => m.CatalogScreen(item)));
 }

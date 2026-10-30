@@ -12,7 +12,6 @@ import * as watchlist from '../plex/watchlist.js';
 import * as downloads from '../plex/downloads.js';
 import { warn, log } from '../util/log.js';
 import * as router from '../router.js';
-import { InfoScreen } from './info.js';
 
 export function CatalogScreen(initial) {
   const el = h('div', 'screen detail catalog');
@@ -80,7 +79,7 @@ export function CatalogScreen(initial) {
   }
 
   function openInfo() {
-    router.push(InfoScreen(item));
+    router.pushAsync(() => import('./info.js').then(m => m.InfoScreen(item)));
   }
 
   async function addIt() {

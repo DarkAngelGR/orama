@@ -8,8 +8,6 @@ import * as store from '../util/store.js';
 import { Grid } from '../ui/grid.js';
 import { useAmbience } from '../ui/backdrop.js';
 import { session } from '../session.js';
-import { prefetch } from '../ui/images.js';
-import { isFast } from '../input.js';
 import { openItem, playItem } from '../nav.js';
 import { error } from '../util/log.js';
 import { metaLine } from '../util/format.js';
@@ -75,13 +73,6 @@ export function LibraryScreen(section) {
     getItem: i => items[i],
     onFocus: (item, index) => {
       if (!grid) return;
-      // Warm posters for the row just past the recycled pool.
-      if (!isFast()) {
-        const start = (Math.floor(index / grid.cols) + grid.poolRows - 1) * grid.cols;
-        for (let i = start; i < start + grid.cols; i++) {
-          if (items[i]) prefetch(session.server.image(items[i].thumb, 216, 324));
-        }
-      }
       if (!item) { setText(focusInfo, ''); return; }
       setText(focusInfo, item.title + '   ' + metaLine(item));
       ambience.set(item.UltraBlurColors);

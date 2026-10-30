@@ -1,6 +1,5 @@
 // Sign in with a plex.tv/link code (or by scanning the QR code with a phone),
 // then pick a server.
-import qrcode from '../vendor/qrcode.js';
 import { h, setText } from '../util/dom.js';
 import { createPin, checkPin, authAppUrl, getUser, getServers, connect } from '../plex/auth.js';
 import { signIn, useServer, session } from '../session.js';
@@ -8,7 +7,6 @@ import * as router from '../router.js';
 import { error, log } from '../util/log.js';
 import { useAmbience } from '../ui/backdrop.js';
 import { toggleClass } from '../util/dom.js';
-import { JellyfinLoginScreen } from './jellyfin-login.js';
 
 export function LoginScreen({ onDone }) {
   const el = h('div', 'screen login');
@@ -40,6 +38,8 @@ export function LoginScreen({ onDone }) {
       const pin = await createPin();
       if (!alive) return;
       setText(code, pin.code);
+      const qrcode = (await import('../vendor/qrcode.js')).default;   // only needed here
+      if (!alive) return;
       const qr = qrcode(0, 'M');
       qr.addData(authAppUrl(pin.code));
       qr.make();
@@ -93,7 +93,7 @@ export function LoginScreen({ onDone }) {
     onKey(action) {
       if (action === 'down' || action === 'up') { onOther = action === 'down'; toggleClass(other, 'focus', onOther); return true; }
       if (action === 'enter') {
-        if (onOther) router.push(JellyfinLoginScreen({ onDone }));
+        if (onOther) router.pushAsync(() => import('./jellyfin-login.js').then(m => m.JellyfinLoginScreen({ onDone })));
         else start();
         return true;
       }

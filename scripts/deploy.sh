@@ -43,11 +43,49 @@ else
   rm -rf "$OUT/js/dev"
   sed -i.bak "s/^export const VERSION = .*/export const VERSION = '$VERSION';/" "$OUT/js/config.js" && rm "$OUT/js/config.js.bak"
 fi
-# Preload every module up front so the TV fetches them in parallel instead of
-# discovering the import graph one level at a time.
-PRELOADS=$(cd "$OUT" && find js -name '*.js' | sort | sed 's|.*|<link rel="modulepreload" href="&">|' | tr '\n' ' ')
+# Release: pack the ~60 modules into one minified file (plus small pieces for
+# the screens that load on first use), so the TV reads and parses far less at
+# start. Needs Node (npx fetches esbuild); without it, the plain modules ship.
+BUNDLED=0
+if [ "$DEV" = 0 ] && command -v npx >/dev/null 2>&1; then
+  ESB="npx --yes esbuild@0.24.0"
+  if $ESB "$OUT/js/main.js" --bundle --splitting --format=esm --minify --keep-names --target=chrome85 \
+       --chunk-names=c-[hash] --external:./dev/* --legal-comments=none --log-level=warning \
+       --metafile="$ROOT/build/meta.json" --outdir="$OUT/js.min" \
+     && $ESB "$OUT/css/app.css" --minify --target=chrome85 --log-level=warning --outfile="$OUT/css/app.min.css"; then
+    rm -rf "$OUT/js" && mv "$OUT/js.min" "$OUT/js"
+    mv "$OUT/css/app.min.css" "$OUT/css/app.css"
+    BUNDLED=1
+  else
+    echo "bundling failed: shipping the plain modules" >&2
+    rm -rf "$OUT/js.min" "$OUT/css/app.min.css"
+  fi
+fi
+if [ "$BUNDLED" = 1 ]; then
+  # Preload what start-up needs (main + the pieces it imports right away).
+  PRELOADS=$(node -e '
+    const m = require(process.argv[1]).outputs;
+    const key = Object.keys(m).find(k => k.endsWith("/main.js"));
+    const name = k => "js/" + k.split("/").pop();
+    const seen = new Set();
+    (function walk(k) {
+      if (seen.has(k)) return;
+      seen.add(k);
+      m[k].imports.filter(i => i.kind === "import-statement").forEach(i => walk(i.path));
+    })(key);
+    const out = [...seen].map(name);
+    console.log(out.map(f => `<link rel="modulepreload" href="${f}">`).join(" "));
+  ' "$ROOT/build/meta.json")
+  rm -f "$ROOT/build/meta.json"
+else
+  # Plain modules: preload the ones start-up needs so the TV fetches them in
+  # parallel instead of discovering the import graph one level at a time.
+  # (Screens that load on first use are left out.)
+  LAZY='screens/(search|settings|person|catalog|info|users|downloads|updates|jellyfin-login)\.js|util/smart\.js|vendor/qrcode\.js|dev/'
+  PRELOADS=$(cd "$OUT" && find js -name '*.js' | grep -Ev "$LAZY" | sort | sed 's|.*|<link rel="modulepreload" href="&">|' | tr '\n' ' ')
+fi
 sed -i.bak "s|</head>|$PRELOADS</head>|" "$OUT/index.html" && rm "$OUT/index.html.bak"
-echo "built $([ "$DEV" = 1 ] && echo dev || echo release) $VERSION → build/app"
+echo "built $([ "$DEV" = 1 ] && echo dev || echo release) $VERSION$([ "$BUNDLED" = 1 ] && echo ' (bundled)') → build/app"
 [ "$INSTALL" = 1 ] || exit 0
 
 # --- package, sign, install, launch -------------------------------------------

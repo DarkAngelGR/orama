@@ -13,6 +13,8 @@ import * as router from '../router.js';
 import { log, warn, error } from '../util/log.js';
 import { request } from '../plex/client.js';
 import { TogetherLink } from '../plex/together.js';
+import * as notifications from '../plex/notifications.js';
+import * as downloads from '../plex/downloads.js';
 import { parseSubtitles, CueTrack, cleanCue, NO_CUE } from '../player/subtitles.js';
 import {
   TEXT_SUBS, streamsOf, audioLabel, subtitleLabel, qualitiesFor, qualityById, effectiveQuality, defaultQuality, forceDirect, audioExtras,
@@ -57,7 +59,16 @@ function isSidecarText(sub) {
 // left out falls back to the server's selection and the default quality.
 // `langs` ({ audio, sub, subForced }) comes from the previous episode: pick
 // tracks in the same languages when no explicit ids are given.
-export function PlayerScreen(initial, { offset = null, quality: qualityId, mediaIndex, audioStreamID, subtitleStreamID, langs, together = null } = {}) {
+// Background feeds (library changes, download progress) rest while a video
+// plays, leaving the TV to the picture. Resumed a moment after the player
+// closes, so switching version or episode doesn't reconnect in between.
+let resumeTimer = 0;
+function background(on) {
+  notifications.pause(!on);
+  downloads.pause(!on);
+}
+
+export function PlayerScreen(initial, { offset = null, quality: qualityId, mediaIndex, audioStreamID, subtitleStreamID, langs, together = null, full: preloaded = null } = {}) {
   const el = h('div', 'screen player');
   const stage = h('div', 'player-stage', el);
   const subs = h('div', 'subs', el);
@@ -642,8 +653,12 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
 
   async function start() {
     try {
-      const full = await session.server.metadata(item.ratingKey);
+      // The details page fetched everything moments ago: reuse it, saving a trip to the server.
+      const fresh = preloaded && preloaded.ratingKey === item.ratingKey && Date.now() - (preloaded._at || 0) < 120000 &&
+        (preloaded.Media || []).some(m => m.Part && m.Part[0]);
+      const full = fresh ? preloaded : await session.server.metadata(item.ratingKey);
       if (!alive) return;
+      if (fresh) log('player: using the details already loaded');
       item = full;
       duration = item.duration || duration;
       const medias = item.Media || [];
@@ -1128,6 +1143,8 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     document.documentElement.classList.remove('playing');
     setScreenSaver(true);
     document.removeEventListener('visibilitychange', onVisibility);
+    clearTimeout(resumeTimer);
+    resumeTimer = setTimeout(() => background(true), 800);
   }
 
   function onVisibility() {
@@ -1146,6 +1163,8 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       document.documentElement.classList.add('playing');
       setScreenSaver(false);
       document.addEventListener('visibilitychange', onVisibility);
+      clearTimeout(resumeTimer);
+      background(false);
       renderTitles();
       if (!started) start();
     },

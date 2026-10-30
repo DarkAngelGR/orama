@@ -116,7 +116,7 @@ function connect() {
     if (!opened || retry > 2) startPolling();
     retry++;
     clearTimeout(retryTimer);
-    retryTimer = setTimeout(() => { if (listeners.size && !ws) connect(); }, Math.min(60000, 2000 * Math.pow(2, retry)));
+    retryTimer = setTimeout(() => { if (listeners.size && !ws && !paused) connect(); }, Math.min(60000, 2000 * Math.pow(2, retry)));
   };
   ws.onerror = () => { /* onclose follows */ };
 }
@@ -167,11 +167,22 @@ function disconnect() {
   retry = 0;
 }
 
+// While a video plays: hang up (Plex sends a stream of playback messages the TV
+// would otherwise have to read), and reconnect afterwards. Screens reload what
+// changed meanwhile when they come back.
+let paused = false;
+export function pause(on) {
+  if (paused === on) return;
+  paused = on;
+  if (on) disconnect();
+  else if (listeners.size) connect();
+}
+
 export function subscribe(fn) {
   listeners.add(fn);
   // A different server (switched in Settings) needs a fresh connection.
   if (server && session.server !== server) disconnect();
-  if (!ws && !pollTimer) connect();
+  if (paused) { /* reconnects after playback */ } else if (!ws && !pollTimer) connect();
   else fn({ activities: current() });
   return () => {
     listeners.delete(fn);

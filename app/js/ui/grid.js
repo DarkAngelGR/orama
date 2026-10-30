@@ -3,7 +3,8 @@
 // row that gets recycled with new posters. The track moves by transform; the
 // focus ring moves horizontally on its own layer.
 import { h, setTransform } from '../util/dom.js';
-import { createTile, fillTile, KINDS } from './tile.js';
+import { createTile, fillTile, prefetchTile, KINDS } from './tile.js';
+import { isFast } from '../input.js';
 
 export class Grid {
   constructor({ cols = 7, kind = 'grid', gapX = 41, gapY = 28, captionH = 70, top = 0, height = 1080, getItem, total = 0, onFocus, onSelect, onNeed }) {
@@ -17,6 +18,8 @@ export class Grid {
     this.onSelect = onSelect;
     this.onNeed = onNeed;
     this.index = 0;
+    this.lastRow = 0;
+    this.kind = kind;
     this.scrollRow = 0;
 
     this.el = h('div', 'grid');
@@ -124,6 +127,19 @@ export class Grid {
       }
     }
     if (this.onNeed) this.onNeed(firstRow * this.cols, lastRow * this.cols + this.cols * 4);
+    // Posters for the rows about to scroll in, in the direction you're going
+    // (three rows while a key is held, so fast scrolling shows fewer blanks).
+    const up = focusRow < this.lastRow;
+    this.lastRow = focusRow;
+    const ahead = isFast() ? 3 : 1;
+    for (let k = 0; k < ahead; k++) {
+      const r = up ? firstRow - 1 - k : lastRow + k;
+      if (r < 0 || r >= this.rowCount) break;
+      for (let c = 0; c < this.cols; c++) {
+        const it = r * this.cols + c < this.total && this.getItem(r * this.cols + c);
+        if (it) prefetchTile(this.kind, it);
+      }
+    }
 
     setTransform(this.track, 'translateY(' + (-this.scrollRow * this.stepY) + 'px)');
     const col = this.index % this.cols;

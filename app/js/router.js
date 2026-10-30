@@ -5,6 +5,7 @@
 import { setHandler, setHoldCheck } from './input.js';
 import { exitApp } from './platform/tizen.js';
 import { enter, replay } from './ui/motion.js';
+import { notice } from './ui/notice.js';
 
 const stack = [];
 let root = null;
@@ -46,6 +47,22 @@ export function push(screen) {
   stack.push(screen);
   root.appendChild(screen.el);
   reveal(screen);
+}
+
+// Open a screen whose code loads on first use: `make` resolves to the screen.
+// Dropped if you've moved on (pressed Back, opened something else) meanwhile.
+let ticket = 0;
+export function pushAsync(make) {
+  const from = stack[stack.length - 1];
+  const mine = ++ticket;
+  return Promise.resolve().then(make).then(screen => {
+    if (!screen) return;
+    if (mine !== ticket || stack[stack.length - 1] !== from) { destroy(screen); return; }
+    push(screen);
+  }, e => {
+    console.error('could not open screen', e);
+    notice('Couldn\'t open that (' + (e && e.message || e) + ')', 4000);
+  });
 }
 
 export function replace(screen) {

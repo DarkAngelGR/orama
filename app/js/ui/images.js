@@ -10,6 +10,7 @@ const LOADED_MAX = 800;
 const queue = [];
 let active = 0;
 const loaded = new Map(); // url -> true, in insertion order for LRU trimming
+const warming = new Set(); // prefetches queued or downloading
 
 function remember(url) {
   loaded.delete(url);
@@ -30,12 +31,13 @@ function attach(img, url, instant) {
 function pump() {
   while (active < MAX_ACTIVE && queue.length) {
     const job = queue.pop();
-    if (job.img._want !== job.url) continue;
+    if (job.img._want !== job.url) { warming.delete(job.url); continue; }
     active++;
     const loader = new Image();
     loader.src = job.url;
     const done = ok => {
       active--;
+      if (job.sink) warming.delete(job.url);
       if (ok) {
         remember(job.url);
         if (job.img._want === job.url) attach(job.img, job.url, false);
@@ -62,14 +64,22 @@ export function load(img, url) {
   }
   img.classList.remove('in');
   queue.push({ img, url });
-  if (queue.length > 200) queue.splice(0, queue.length - 200);
+  trim();
   pump();
+}
+
+// Oldest first out: those are prefetches (queued at the front) and posters that scrolled past.
+function trim() {
+  if (queue.length <= 200) return;
+  queue.splice(0, queue.length - 200).forEach(j => { if (j.sink) warming.delete(j.url); });
 }
 
 // Warm the cache without a target element (e.g. the next page of a grid).
 export function prefetch(url) {
-  if (!url || loaded.has(url)) return;
+  if (!url || loaded.has(url) || warming.has(url)) return;
+  warming.add(url);
   const sink = { _want: url, classList: { add() {}, remove() {} } };
-  queue.unshift({ img: sink, url });
+  queue.unshift({ img: sink, url, sink: true });
+  trim();
   pump();
 }

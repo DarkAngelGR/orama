@@ -13,7 +13,6 @@ import { playItem, openPerson, openItem, openCatalogLookup } from '../nav.js';
 import * as watchlist from '../plex/watchlist.js';
 import * as together from '../plex/together.js';
 import * as downloads from '../plex/downloads.js';
-import { InfoScreen } from './info.js';
 import * as themeMusic from '../ui/theme-music.js';
 import { error } from '../util/log.js';
 import {
@@ -129,6 +128,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
       opts.mediaIndex = choice.mediaIndex;
       opts.audioStreamID = choice.audioId;
       opts.subtitleStreamID = choice.subId;
+      opts.full = choice.full;   // already loaded: the player needn't ask again
     }
     return opts;
   }
@@ -776,7 +776,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
   }
 
   function openInfo() {
-    router.push(InfoScreen(item));
+    router.pushAsync(() => import('./info.js').then(m => m.InfoScreen(item)));
   }
 
   async function toggleWatched() {

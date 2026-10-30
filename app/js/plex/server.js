@@ -136,6 +136,7 @@ export class Server {
     const mc = await this.get('/library/metadata/' + ratingKey, { includeOnDeck: 1, includeExtras: 0, includeMarkers: 1, includeGuids: 1 });
     const item = (mc.Metadata || [])[0];
     if (item && mc.OnDeck && mc.OnDeck.Metadata) item.onDeck = mc.OnDeck.Metadata[0];
+    if (item) item._at = Date.now();   // when fetched: the player reuses fresh details
     return item;
   }
 

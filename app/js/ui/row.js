@@ -2,11 +2,13 @@
 // slides under a stationary focus ring, so every move is one compositor-only
 // transform and the ring never repaints.
 import { h, setText, setTransform, toggleClass } from '../util/dom.js';
-import { createTile, fillTile, KINDS } from './tile.js';
+import { createTile, fillTile, prefetchTile, KINDS } from './tile.js';
+import { isFast } from '../input.js';
 
 const GAP = 28;
 const LEFT = 96;
 const BEHIND = 2;   // tiles kept to the left of focus (one is peeking on screen)
+const AHEAD = 3;    // posters warmed past the last tile (twice that while a key is held)
 
 export class Row {
   constructor({ title, kind = 'poster', items = [], caption = false, onFocus, onSelect }) {
@@ -15,6 +17,7 @@ export class Row {
     this.step = this.size.w + GAP;
     this.items = items;
     this.index = 0;
+    this.lastIndex = 0;
     this.active = false;
     this.onFocus = onFocus;
     this.onSelect = onSelect;
@@ -112,5 +115,14 @@ export class Row {
       }
     }
     setTransform(this.track, 'translateX(' + (-this.index * this.step) + 'px)');
+    // Posters about to scroll in, in the direction you're going.
+    const dir = this.index < this.lastIndex ? -1 : 1;
+    this.lastIndex = this.index;
+    const n = isFast() ? AHEAD * 2 : AHEAD;
+    for (let k = 0; k < n; k++) {
+      const i = dir > 0 ? last + k : first - 1 - k;
+      if (i < 0 || i >= this.items.length) break;
+      prefetchTile(this.kind, this.items[i]);
+    }
   }
 }
