@@ -72,6 +72,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
   let optionIndex = 0;
   let seasons = [];
   let seasonIndex = 0;
+  let loadedOnce = false;   // load() ran before: a reload keeps your place
   let episodes = null;
   let zone = 'buttons';
   let alive = true;
@@ -670,7 +671,10 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     }, 350);
   }
 
-  async function loadEpisodes(season) {
+  // focus: { key, next } lands on that episode (or the one after it); without
+  // it, on the first unwatched one. Returns 'past-end' when the one after is
+  // in the next season.
+  async function loadEpisodes(season, focus) {
     const kids = await session.server.children(season.ratingKey);
     if (!alive) return;
     if (!episodes) {
@@ -685,10 +689,21 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
       episodes.items = kids;
       episodes.row.setItems(kids);
     }
-    // Land on the first unwatched episode.
-    const next = kids.findIndex(k => !k.viewCount || k.viewOffset);
-    episodes.row.focusIndex(next >= 0 ? next : 0);
+    const at = focus && focus.key ? kids.findIndex(k => k.ratingKey === focus.key) : -1;
+    if (at >= 0 && focus.next && at === kids.length - 1) {
+      episodes.row.focusIndex(at);
+      renderFocus();
+      return 'past-end';
+    }
+    if (at >= 0) {
+      episodes.row.focusIndex(focus.next ? at + 1 : at);
+    } else {
+      // Land on the first unwatched episode.
+      const next = kids.findIndex(k => !k.viewCount || k.viewOffset);
+      episodes.row.focusIndex(next >= 0 ? next : 0);
+    }
     renderFocus();
+    return '';
   }
 
   // The title's extras: the first trailer gets a button, and all of them a row.
@@ -736,6 +751,11 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
 
   async function load() {
     try {
+      // Coming back (from the player, an episode's page…): keep your place in
+      // the seasons and episodes instead of starting over at season 1.
+      const reloading = loadedOnce;
+      const keepSeason = reloading && seasons[seasonIndex] ? seasons[seasonIndex].ratingKey : null;
+      const keepEp = reloading && episodes && episodes.row.current() ? episodes.row.current().ratingKey : null;
       let key = item.ratingKey;
       let preferSeason = null;
       if (item.type === 'season') { preferSeason = item.ratingKey; key = item.parentRatingKey; }
@@ -757,10 +777,28 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
         if (!alive) return;
         const deckSeason = item.onDeck ? seasons.findIndex(s => s.ratingKey === item.onDeck.parentRatingKey) : -1;
         const pref = preferSeason ? seasons.findIndex(s => s.ratingKey === preferSeason) : -1;
-        seasonIndex = pref >= 0 ? pref : (deckSeason >= 0 ? deckSeason : 0);
+        // Back from playing an episode of this show: that episode (or the next
+        // one, if you finished it). Otherwise where you were.
+        const lp = session.lastPlayed;
+        const fromPlayer = reloading && lp && String(lp.show) === String(item.ratingKey) ? lp : null;
+        if (fromPlayer) session.lastPlayed = null;
+        const placeSeason = fromPlayer ? fromPlayer.season : keepSeason;
+        const place = placeSeason ? seasons.findIndex(s => s.ratingKey === placeSeason) : -1;
+        seasonIndex = place >= 0 ? place : pref >= 0 ? pref : (deckSeason >= 0 ? deckSeason : 0);
         renderSeasons();
-        if (seasons[seasonIndex]) await loadEpisodes(seasons[seasonIndex]);
+        if (seasons[seasonIndex]) {
+          const focus = place < 0 ? null : fromPlayer ? { key: fromPlayer.key, next: fromPlayer.finished } : { key: keepEp };
+          const landed = await loadEpisodes(seasons[seasonIndex], focus);
+          if (!alive) return;
+          if (landed === 'past-end' && seasons[seasonIndex + 1]) {
+            // Finished a season's last episode: on to the next season.
+            seasonIndex++;
+            renderSeasons();
+            await loadEpisodes(seasons[seasonIndex]);
+          }
+        }
       }
+      loadedOnce = true;
       renderButtons();
       if (autoplay) {
         autoplay = false;

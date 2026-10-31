@@ -78,6 +78,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   const spinner = h('div', 'spinner', el);
   const pauseBig = h('div', 'pause-big', el);
   pauseBig.innerHTML = icons.pause;
+  const clockEl = h('div', 'pause-clock', el);   // the time of day, while paused
 
   const osd = h('div', 'osd', el);
   const osdTop = h('div', 'osd-top', osd);
@@ -209,13 +210,26 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       lastText = now;
       setText(tNow, clock(ms));
       setText(tLeft, '−' + clock(duration - ms));
-      const ends = new Date(now + (duration - ms));
-      let hh = ends.getHours();
-      const ampm = hh >= 12 ? 'PM' : 'AM';
-      hh = hh % 12 || 12;
-      const mm = ends.getMinutes();
-      setText(tInfo, 'Ends at ' + hh + ':' + (mm < 10 ? '0' : '') + mm + ' ' + ampm);
+      setText(tInfo, 'Ends at ' + timeOfDay(new Date(now + (duration - ms))));
     }
+  }
+
+  // Paused: dim the picture's controls in, and show the time of day (kept current).
+  let clockTimer = 0;
+  function timeOfDay(d) {
+    let hh = d.getHours();
+    const ampm = hh >= 12 ? 'PM' : 'AM';
+    hh = hh % 12 || 12;
+    const mm = d.getMinutes();
+    return hh + ':' + (mm < 10 ? '0' : '') + mm + ' ' + ampm;
+  }
+  function markPaused(on) {
+    toggleClass(el, 'paused', on);
+    clearInterval(clockTimer);
+    clockTimer = 0;
+    if (!on) return;
+    setText(clockEl, timeOfDay(new Date()));
+    clockTimer = setInterval(() => setText(clockEl, timeOfDay(new Date())), 5000);
   }
 
   function showOsd(sticky) {
@@ -531,7 +545,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     paused = false;
     started = true;
     position = atMs;
-    toggleClass(el, 'paused', false);
+    markPaused(false);
     toggleClass(spinner, 'on', false);
     log('playing after ' + (Date.now() - t0) + 'ms (' + mode + ')');
     // Direct play failed and the conversion works: next time, convert right away.
@@ -750,7 +764,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       paused = true;
       showOsd(true);
     }
-    toggleClass(el, 'paused', paused);
+    markPaused(paused);
     report(paused ? 'paused' : 'playing');
     if (link && fromRemote !== true) link.local({ paused });
   }
@@ -804,7 +818,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   // jumps moves everyone, and small drifts are corrected by a quiet jump.
 
   function startTogether() {
-    if (!paused) { player.pause(); paused = true; toggleClass(el, 'paused', true); }
+    if (!paused) { player.pause(); paused = true; markPaused(true); }
     renderLobby();
     link = new TogetherLink(together.room, together.uri, {
       state: () => ({ positionMs: seekTarget == null ? position : seekTarget, paused, ready: started && !buffering && !syncBusy }),
@@ -869,7 +883,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
         await player.seek(position);
       } else {
         await open(position);
-        if (paused || r.paused) { player.pause(); paused = true; toggleClass(el, 'paused', true); }
+        if (paused || r.paused) { player.pause(); paused = true; markPaused(true); }
       }
     } catch (e) {
       warn('together seek failed', e.message);
@@ -1143,12 +1157,20 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   function teardown() {
     if (!alive) return;
     alive = false;
+    // What was playing last (after any up-next episodes): the show's page goes back to it.
+    if (item && item.type === 'episode') {
+      session.lastPlayed = {
+        key: item.ratingKey, season: item.parentRatingKey, show: item.grandparentRatingKey,
+        finished: !!duration && position >= duration * 0.9,
+      };
+    }
     if (started && position < duration) report('stopped');
     [seekTimer, osdTimer, subTimer, signTimer, toastTimer].forEach(clearTimeout);
     dropThumbs();
     clearInterval(timelineTimer);
     clearInterval(upnextTimer);
     clearInterval(cueTimer);
+    clearInterval(clockTimer);
     player.destroy();
     if (link) link.close();
     if (hlsStarted) session.server.stopTranscode(playSession);

@@ -381,7 +381,7 @@ html.fast .row-track, html.fast .rows-track, html.fast .grid-track, html.fast .r
   position: absolute; top: 0; left: 0; width: 1920px; height: 280px; padding: 64px 96px 0;
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.78), transparent);
 }
-.osd-title { font: 600 56px/1.05 var(--display); letter-spacing: -0.02em; }
+.osd-title { max-width: 1400px; font: 600 56px/1.05 var(--display); letter-spacing: -0.02em; }   /* clear of the pause clock */
 .osd-sub { margin-top: 12px; font: 500 28px var(--body); color: var(--dim); }
 .osd-bottom {
   position: absolute; bottom: 0; left: 0; width: 1920px; height: 320px;
@@ -427,6 +427,14 @@ html.fast .row-track, html.fast .rows-track, html.fast .grid-track, html.fast .r
 }
 .pause-big svg { width: 88px; height: 88px; display: block; }
 .paused .pause-big { opacity: 1; }
+/* The time of day, top right while paused */
+.pause-clock {
+  position: absolute; z-index: 3; top: 52px; right: 96px; font: 600 64px/1 var(--display); letter-spacing: -0.02em;
+  color: var(--cream); text-shadow: 0 2px 16px rgba(0, 0, 0, 0.6); font-variant-numeric: tabular-nums;
+  opacity: 0; transition: opacity 200ms ease; will-change: opacity;
+}
+.paused .pause-clock { opacity: 1; }
+.paused .together-chip { top: 140px; }
 
 .spinner {
   display: none; position: absolute; left: 912px; top: 492px; width: 96px; height: 96px;
