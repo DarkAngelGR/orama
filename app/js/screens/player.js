@@ -120,6 +120,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   let hlsStarted = false;   // a transcode session exists on the server
   let mode = 'direct';
   let triedFallback = false;
+  let triedDvDirect = false;   // a Dolby Vision conversion failed: played as it is
   let base = 0;             // HLS restarts at an offset; AVPlay time is relative to it
   let position = offset || 0;
   let duration = initial.duration || 0;
@@ -685,7 +686,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       renderTitles();
       mode = decideMode();
       if (dvWithoutFallback(media) && !quality.kbps) {
-        setTimeout(() => toast('Converting the picture: this Dolby Vision version has no HDR the TV can show'), 2500);
+        setTimeout(() => { if (mode === 'hls' && !triedDvDirect) toast('Converting the picture: this Dolby Vision version has no HDR the TV can show'); }, 2500);
       }
       if (offset == null) offset = item.viewOffset || 0;
       position = offset;
@@ -715,6 +716,17 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       // directly; a failure later on may just be the network.
       failMsg = started ? '' : msg || 'failed';
       mode = 'hls';
+      open(position).catch(e => failed(e.message));
+      return;
+    }
+    if (mode === 'hls' && !started && !triedDvDirect && !quality.kbps && media && dvWithoutFallback(media)) {
+      // The server couldn't convert this Dolby Vision version: better to play it
+      // as it is (colours may look off) than not at all.
+      warn('Dolby Vision conversion failed (' + msg + '), playing the file as it is');
+      triedDvDirect = true;
+      triedFallback = true;
+      mode = 'direct';
+      toast('Your server couldn\'t convert this Dolby Vision version, so it plays as it is: colours may look off');
       open(position).catch(e => failed(e.message));
       return;
     }
