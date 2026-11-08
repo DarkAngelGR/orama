@@ -122,6 +122,7 @@ export function HomeScreen() {
   let togetherTimer = 0;
   let discoverHubs = [];   // titles you don't have yet (watchlist-sync), at the bottom
   let discoverLoadedAt = 0;
+  let discoverLoadedEpoch = -1;
 
   function buildNav(sections) {
     navTrack.innerHTML = '';
@@ -287,8 +288,10 @@ export function HomeScreen() {
   // Trending and recommended titles you don't have, from Radarr/Sonarr via
   // watchlist-sync; OK opens their page with Request. Every 3 hours at most.
   async function loadDiscover() {
-    if (Date.now() - discoverLoadedAt < 3 * 3600000 || !watchlist.baseUrl() || !watchlist.discoverEnabled()) return;
+    if (!watchlist.baseUrl() || !watchlist.discoverEnabled()) return;
+    if (Date.now() - discoverLoadedAt < 3 * 3600000 && discoverLoadedEpoch === watchlist.recommendationEpoch()) return;
     discoverLoadedAt = Date.now();
+    discoverLoadedEpoch = watchlist.recommendationEpoch();
     try {
       const sections = await watchlist.discover();
       discoverHubs = sections.filter(s => s.items.length).map(s => ({
@@ -508,6 +511,8 @@ export function HomeScreen() {
       renderNav(); // widths can't be measured while the screen was hidden
       // Coming back from playback: progress and Continue Watching changed.
       if (stale || Date.now() - loadedAt > 5000) { stale = false; load(); }
+      // A feedback action or exploration change invalidates Discover immediately.
+      loadDiscover();
     },
     onHide() {
       visible = false;
