@@ -196,20 +196,48 @@ export function toCatalog(x) {
     duration: x.runtime ? x.runtime * 60000 : undefined,
     audienceRating: x.rating ? Math.round(x.rating * 10) / 10 : undefined,
     audienceRatingImage: x.rating ? 'themoviedb://image.rating' : undefined,
+    aiReason: typeof x.ai_reason === 'string' ? x.ai_reason.slice(0, 120) : '',
     tmdb: x.tmdb || 0, tvdb: x.tvdb || 0, imdb: x.imdb || '', arrStatus: x.status || 'none',
   };
 }
 
-// Titles you don't have yet, for the home screen's Discover rows:
-// [{ id, title, items: [catalog items] }]. [] when this watchlist-sync is too old.
+// The exploration slider is intentionally simple for the TV remote.
+export function diversity() {
+  const v = Number(store.get('aiDiversity', 35));
+  return Number.isFinite(v) ? Math.max(0, Math.min(100, Math.round(v))) : 35;
+}
+
+export function cycleDiversity() {
+  const steps = [0, 25, 50, 75, 100];
+  const at = steps.indexOf(diversity());
+  store.set('aiDiversity', steps[(at + 1) % steps.length]);
+}
+
+// Titles you don't have yet. The active Orama profile is passed as a hint
+// for the NAS allowlist; this is not a substitute for HTTP authentication.
 export async function discover() {
   try {
-    const r = await call('/api/tv/discover', { timeout: 30000 });
+    const who = session.user && session.user.uuid ? String(session.user.uuid) : '';
+    const query = '?viewer=' + encodeURIComponent(who) + '&diversity=' + diversity();
+    const r = await call('/api/tv/discover' + query, { timeout: 30000 });
     return (r.sections || []).map(s => ({ id: s.id, title: s.title, items: (s.items || []).map(toCatalog) }));
   } catch (e) {
     if (e.status === 404) return [];
     throw e;
   }
+}
+
+// Send explicit taste feedback. A new watchlist-sync is required; never
+// use personal profile tokens for this service-to-service request.
+export async function feedback(item, action) {
+  const kind = item && item.type === 'show' ? 'show' : 'movie';
+  const id = kind === 'show' ? Number(item && item.tvdb) : Number(item && item.tmdb);
+  const viewer = session.user && session.user.uuid ? String(session.user.uuid) : '';
+  if (!viewer || !Number.isInteger(id) || id <= 0) throw new WatchlistError('No recommendation ID for this title', 400);
+  if (!['more', 'less', 'hide', 'clear'].includes(action)) throw new WatchlistError('Unknown feedback action', 400);
+  return call('/api/tv/feedback', {
+    method: 'POST', body: { viewer, kind, id, action }, timeout: 10000,
+  });
 }
 
 export function discoverEnabled() {
