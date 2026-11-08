@@ -295,9 +295,13 @@ export function HomeScreen() {
     try {
       const sections = await watchlist.discover();
       discoverHubs = sections.filter(s => s.items.length).map(s => ({
-        hubIdentifier: 'flexplex.discover.' + s.id, title: s.title, type: 'movie', size: s.items.length, Metadata: s.items,
+        hubIdentifier: 'flexplex.discover.' + s.id, title: s.title, type: 'movie', size: s.items.length,
+        Metadata: s.items.map(item => Object.assign({}, item, { recommendationSource: s.id })),
       }));
       setHubs(composed());
+      // These counts represent delivered tiles, not guaranteed visible cards.
+      sections.filter(s => s.items.length && ['recommended', 'hidden-gems', 'trending', 'popular'].includes(s.id))
+        .forEach(s => watchlist.aiEvent('served', s.id, Math.min(120, s.items.length)).catch(() => {}));
     } catch (e) { discoverLoadedAt = 0; /* watchlist-sync not there right now */ }
   }
 
