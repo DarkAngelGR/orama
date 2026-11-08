@@ -201,6 +201,9 @@ export function toCatalog(x) {
   };
 }
 
+let discoveryEpoch = 0;
+export function recommendationEpoch() { return discoveryEpoch; }
+
 // The exploration slider is intentionally simple for the TV remote.
 export function diversity() {
   const v = Number(store.get('aiDiversity', 35));
@@ -211,6 +214,7 @@ export function cycleDiversity() {
   const steps = [0, 25, 50, 75, 100];
   const at = steps.indexOf(diversity());
   store.set('aiDiversity', steps[(at + 1) % steps.length]);
+  discoveryEpoch++;
 }
 
 // Titles you don't have yet. The active Orama profile is passed as a hint
@@ -235,9 +239,11 @@ export async function feedback(item, action) {
   const viewer = session.user && session.user.uuid ? String(session.user.uuid) : '';
   if (!viewer || !Number.isInteger(id) || id <= 0) throw new WatchlistError('No recommendation ID for this title', 400);
   if (!['more', 'less', 'hide', 'clear'].includes(action)) throw new WatchlistError('Unknown feedback action', 400);
-  return call('/api/tv/feedback', {
+  const response = await call('/api/tv/feedback', {
     method: 'POST', body: { viewer, kind, id, action }, timeout: 10000,
   });
+  discoveryEpoch++;
+  return response;
 }
 
 export function discoverEnabled() {
