@@ -189,16 +189,17 @@ export function toCatalog(x) {
   if (x.tmdb) Guid.push({ id: 'tmdb://' + x.tmdb });
   if (x.tvdb) Guid.push({ id: 'tvdb://' + x.tvdb });
   if (x.imdb) Guid.push({ id: 'imdb://' + x.imdb });
-  return {
+  const mapped = {
     catalog: true, arr: true, ratingKey: x.kind + ':' + ext, type: x.kind, title: x.title, year: x.year || undefined,
     summary: x.overview || '', thumb: x.poster || '', art: x.fanart || '', Guid,
     Genre: (x.genres || []).map(tag => ({ tag })), studio: x.network || '', contentRating: x.certification || '',
     duration: x.runtime ? x.runtime * 60000 : undefined,
     audienceRating: x.rating ? Math.round(x.rating * 10) / 10 : undefined,
     audienceRatingImage: x.rating ? 'themoviedb://image.rating' : undefined,
-    aiReason: typeof x.ai_reason === 'string' ? x.ai_reason.slice(0, 120) : '',
     tmdb: x.tmdb || 0, tvdb: x.tvdb || 0, imdb: x.imdb || '', arrStatus: x.status || 'none',
   };
+  if (typeof x.ai_reason === 'string' && x.ai_reason) mapped.aiReason = x.ai_reason.slice(0, 120);
+  return mapped;
 }
 
 let discoveryEpoch = 0;
