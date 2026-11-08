@@ -12,6 +12,7 @@ import * as watchlist from '../plex/watchlist.js';
 import * as downloads from '../plex/downloads.js';
 import { warn, log } from '../util/log.js';
 import * as router from '../router.js';
+import { Picker } from '../ui/picker.js';
 
 export function CatalogScreen(initial) {
   const el = h('div', 'screen detail catalog');
@@ -27,6 +28,7 @@ export function CatalogScreen(initial) {
   const summary = h('p', 'detail-summary', body);
   const buttonsEl = h('div', 'detail-buttons', body);
   const note = h('div', 'catalog-note', body);
+  const tastePicker = new Picker(el);
   // Live download progress once Sonarr/Radarr have it (via watchlist-sync).
   const dl = h('div', 'catalog-dl', body);
   const dlText = h('div', 'catalog-dl-text', dl);
@@ -53,6 +55,7 @@ export function CatalogScreen(initial) {
       .concat((item.Role || []).length ? ['Starring ' + item.Role.slice(0, 3).map(r => r.tag).join(', ')] : []);
     setText(tags, genres.concat(people).join('   ·   '));
     setText(summary, item.summary || '');
+    if (item.aiReason) setText(note, 'Why recommended: ' + item.aiReason);
     // Plex resizes catalog art like its own (the transcoder takes outside URLs).
     art.set(item.art ? session.server.image(item.art, 1920, 1080) : '');
     ambience.set(null);
@@ -74,12 +77,42 @@ export function CatalogScreen(initial) {
     else if (listed) add(icons.check, 'On your Watchlist  ·  Remove', remove);
     else add(icons.download, 'Add to Watchlist', addIt);
     add(icons.info, 'More info', openInfo);
+    if (arr && watchlist.baseUrl()) add(icons.quality, 'Your taste', openTaste);
     buttonIndex = Math.min(buttonIndex, buttons.length - 1);
     buttons.forEach((b, i) => toggleClass(b.el, 'focus', i === buttonIndex));
   }
 
   function openInfo() {
     router.pushAsync(() => import('./info.js').then(m => m.InfoScreen(item)));
+  }
+
+  function openTaste() {
+    tastePicker.open('Improve your recommendations', [
+      { label: 'More like this', value: 'more' },
+      { label: 'Less like this', value: 'less' },
+      { label: 'Hide from recommendations', value: 'hide' },
+      { label: 'Clear my feedback', value: 'clear' },
+    ], sendTaste);
+  }
+
+  async function sendTaste(action) {
+    if (busy) return;
+    busy = true;
+    renderButtons();
+    try {
+      await watchlist.feedback(item, action);
+      if (alive) {
+        setText(note, action === 'more' ? 'Your AI will recommend more titles like this.' :
+          action === 'less' ? 'Your AI will recommend fewer titles like this.' :
+          action === 'hide' ? 'This title will be hidden from AI suggestions.' :
+          'Your preference for this title was cleared.');
+      }
+    } catch (e) {
+      if (alive) setText(note, 'Could not save taste feedback: ' + e.message);
+    } finally {
+      busy = false;
+      if (alive) renderButtons();
+    }
   }
 
   async function addIt() {
@@ -216,6 +249,7 @@ export function CatalogScreen(initial) {
     name: 'catalog',
     onShow() { ambience.set(null); },
     onKey(action) {
+      if (tastePicker.isOpen) return tastePicker.onKey(action);
       if (action === 'left') { buttonIndex = Math.max(0, buttonIndex - 1); renderButtons(); return true; }
       if (action === 'right') { buttonIndex = Math.min(buttons.length - 1, buttonIndex + 1); renderButtons(); return true; }
       if (action === 'enter' && buttons[buttonIndex]) { buttons[buttonIndex].run(); return true; }
