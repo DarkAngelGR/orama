@@ -23,7 +23,7 @@ export function SearchScreen() {
   icon.innerHTML = icons.search;
   const input = h('input', 'search-input', bar);
   input.type = 'text';
-  input.placeholder = 'Search movies and shows, on your server and beyond';
+  input.placeholder = 'Search titles or describe what you want to watch';
   input.setAttribute('autocomplete', 'off');
   const status = h('div', 'search-status', el);
   const clip = h('div', 'search-rows', el);
@@ -50,6 +50,12 @@ export function SearchScreen() {
     // "80s horror", "unwatched comedies": a filtered row on top, when the
     // words describe titles rather than name one.
     const smart = smartRow(q).catch(e => { warn('smart search failed', e.message); return null; });
+    // Search natural-language descriptions only, not every title keystroke.
+    // The AI ranks metadata asynchronously and never blocks local library search.
+    const descriptive = q.length >= 12 && q.trim().split(/\s+/).length >= 3;
+    const ai = descriptive
+      ? watchlist.aiSearch(q).catch(e => { warn('AI discovery unavailable', e.message); return []; })
+      : Promise.resolve([]);
     let hubs = [];
     try {
       hubs = await session.server.search(q);
@@ -72,7 +78,13 @@ export function SearchScreen() {
     if (elsewhere.length) {
       addRow({ title: 'Not on your server', Metadata: elsewhere.slice(0, CATALOG_MAX), onSelect: openCatalog });
     }
-    setText(status, hubs.length || elsewhere.length ? '' : 'Nothing found for “' + q + '”');
+    const aiItems = await ai;
+    if (gen !== generation) return;
+    if (aiItems.length) {
+      addRow({ title: 'AI picks for your description', Metadata: aiItems.slice(0, 20), onSelect: openCatalog });
+      watchlist.aiEvent('served', 'ai-search', aiItems.length).catch(() => {});
+    }
+    setText(status, hubs.length || elsewhere.length || aiItems.length ? '' : 'Nothing found for “' + q + '”');
   }
 
   let genreList = null;
