@@ -73,6 +73,13 @@ async function call(path, { method = 'GET', body, timeout = 8000 } = {}) {
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   const pw = password();
   if (pw) headers.Authorization = 'Basic ' + btoa('flexplex:' + pw);
+  // A Plex/Jellyfin playback token must never be sent to an HTTP NAS API.
+  // These paths are the only ones permitted to receive it over HTTPS.
+  if (/^https:\/\//i.test(base) && session.token &&
+      (path.startsWith('/api/tv/discover') || path.startsWith('/api/tv/ai/') ||
+       path === '/api/tv/feedback')) {
+    headers['X-Orama-Profile-Token'] = session.token;
+  }
   const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
   const timer = ctrl ? setTimeout(() => ctrl.abort(), timeout) : 0;
   let res;
@@ -202,6 +209,38 @@ export function toCatalog(x) {
   return mapped;
 }
 
+export const MOODS = [
+  { id: 'any', label: 'Any mood' },
+  { id: 'relaxing', label: 'Something relaxing' },
+  { id: 'mind_bending', label: 'Mind-bending' },
+  { id: 'intense', label: 'Something intense' },
+  { id: 'short', label: 'Short movie' },
+  { id: 'surprise', label: 'Surprise me' },
+];
+
+export function mood() {
+  const uuid = session.user && session.user.uuid ? session.user.uuid : 'default';
+  const saved = store.get('aiMood:' + uuid, 'any');
+  return MOODS.some(m => m.id === saved) ? saved : 'any';
+}
+
+export function moodLabel() {
+  const current = mood();
+  return MOODS.find(m => m.id === current).label;
+}
+
+export function cycleMood() {
+  const current = MOODS.findIndex(m => m.id === mood());
+  const next = MOODS[(current + 1) % MOODS.length].id;
+  const uuid = session.user && session.user.uuid ? session.user.uuid : 'default';
+  store.set('aiMood:' + uuid, next === 'any' ? undefined : next);
+  discoveryEpoch++;
+}
+
+function profileId() {
+  return session.user && session.user.uuid ? String(session.user.uuid) : '';
+}
+
 let discoveryEpoch = 0;
 export function recommendationEpoch() { return discoveryEpoch; }
 
@@ -222,8 +261,8 @@ export function cycleDiversity() {
 // for the NAS allowlist; this is not a substitute for HTTP authentication.
 export async function discover() {
   try {
-    const who = session.user && session.user.uuid ? String(session.user.uuid) : '';
-    const query = '?viewer=' + encodeURIComponent(who) + '&diversity=' + diversity();
+    const who = profileId();
+    const query = '?viewer=' + encodeURIComponent(who) + '&diversity=' + diversity() + '&mood=' + mood();
     const r = await call('/api/tv/discover' + query, { timeout: 30000 });
     return (r.sections || []).map(s => ({ id: s.id, title: s.title, items: (s.items || []).map(toCatalog) }));
   } catch (e) {
@@ -245,6 +284,38 @@ export async function feedback(item, action) {
   });
   discoveryEpoch++;
   return response;
+}
+
+// Search descriptions are ranked locally; only the optional service sees them.
+export async function aiSearch(q) {
+  const term = String(q || '').trim().slice(0, 180);
+  if (term.length < 3 || !baseUrl()) return [];
+  const query = '?viewer=' + encodeURIComponent(profileId()) + '&q=' + encodeURIComponent(term) +
+    '&diversity=' + diversity() + '&mood=' + mood();
+  try {
+    const response = await call('/api/tv/ai/search' + query, { timeout: 18000 });
+    if (!response.available) return [];
+    return (response.items || []).map(item => Object.assign(toCatalog(item), { recommendationSource: 'ai-search' }));
+  } catch (e) {
+    if (e.status === 403 || e.status === 404) return [];
+    throw e;
+  }
+}
+
+export async function aiStats() {
+  const query = '?viewer=' + encodeURIComponent(profileId());
+  return call('/api/tv/ai/stats' + query, { timeout: 10000 });
+}
+
+// Metrics are aggregated on the mini PC; events do not include item IDs,
+// playback tokens or natural-language search text.
+export async function aiEvent(event, source, count = 1) {
+  if (!['served', 'open', 'request'].includes(event) ||
+      !['recommended', 'hidden-gems', 'trending', 'popular', 'ai-search'].includes(source) ||
+      !Number.isInteger(count) || count < 1 || count > 120) return;
+  return call('/api/tv/ai/event', {
+    method: 'POST', body: { viewer: profileId(), event, source, count }, timeout: 5000,
+  });
 }
 
 export function discoverEnabled() {
