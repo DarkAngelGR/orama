@@ -66,6 +66,7 @@ export function SettingsScreen() {
       { label: 'Subtitle background', value: subBackground() ? 'On' : 'Off', run: () => { toggleSubBackground(); build(); } },
       { label: 'OK on Continue Watching', value: cwOpens() === 'play' ? 'Keep watching' : 'Open the page', run: () => { cycleCwOpens(); build(); } },
       { label: 'AI discovery', value: watchlist.diversity() + '% adventurous', run: () => { watchlist.cycleDiversity(); build(); } },
+      { label: 'AI profile ID', value: session.user && session.user.uuid ? String(session.user.uuid) : 'Unavailable', run: () => {} },
       { label: 'Updates', value: updates.newer(store.get('upLatest'), VERSION) ? store.get('upLatest') + ' available' : 'Orama ' + VERSION,
         run: () => router.push(UpdatesScreen()) },
       { label: 'Downloads (watchlist-sync)', value: watchlist.mode() === 'off' ? 'Off' : watchlist.baseUrl() ? watchlist.baseUrl().replace(/^https?:\/\//, '') : 'Not set',
