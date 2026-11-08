@@ -1,0 +1,27 @@
+name: AI discovery syntax
+on:
+  pull_request:
+    paths:
+      - "app/js/plex/watchlist.js"
+      - "app/js/screens/catalog.js"
+      - "app/js/screens/settings.js"
+      - "app/js/screens/home.js"
+      - "app/js/screens/search.js"
+      - "app/js/screens/ai-report.js"
+      - ".github/workflows/ai-discovery-test.yml"
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check TV JavaScript syntax
+        run: |
+          node --check app/js/plex/watchlist.js
+          node --check app/js/screens/catalog.js
+          node --check app/js/screens/settings.js
+          node --check app/js/screens/home.js
+          node --check app/js/screens/search.js
+          node --check app/js/screens/ai-report.js
