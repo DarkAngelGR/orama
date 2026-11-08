@@ -14,6 +14,7 @@ import {
 } from '../player/options.js';
 import { subSize, subBackground, cycleSubSize, toggleSubBackground, subLang, cycleSubLang, subColor, cycleSubColor } from '../player/subprefs.js';
 import * as watchlist from '../plex/watchlist.js';
+import { AIReportScreen } from './ai-report.js';
 import { DownloadsScreen } from './downloads.js';
 import { UpdatesScreen } from './updates.js';
 import { UsersScreen } from './users.js';
@@ -66,6 +67,8 @@ export function SettingsScreen() {
       { label: 'Subtitle background', value: subBackground() ? 'On' : 'Off', run: () => { toggleSubBackground(); build(); } },
       { label: 'OK on Continue Watching', value: cwOpens() === 'play' ? 'Keep watching' : 'Open the page', run: () => { cycleCwOpens(); build(); } },
       { label: 'AI discovery', value: watchlist.diversity() + '% adventurous', run: () => { watchlist.cycleDiversity(); build(); } },
+      { label: 'AI mood', value: watchlist.moodLabel(), run: () => { watchlist.cycleMood(); build(); } },
+      { label: 'AI quality report', value: 'Opens, requests and feedback', run: () => router.push(AIReportScreen()), action: 'View' },
       { label: 'AI profile ID', value: session.user && session.user.uuid ? String(session.user.uuid) : 'Unavailable', run: () => {} },
       { label: 'Updates', value: updates.newer(store.get('upLatest'), VERSION) ? store.get('upLatest') + ' available' : 'Orama ' + VERSION,
         run: () => router.push(UpdatesScreen()) },
