@@ -45,6 +45,10 @@ export function CatalogScreen(initial) {
   const id = initial.ratingKey; // the 24-hex catalog id (Plex) or 'movie:TMDB' / 'show:TVDB'
   const arr = !!initial.arr;    // from Sonarr/Radarr: requested there directly
   const svc = initial.type === 'show' ? 'Sonarr' : 'Radarr';
+  const recommendationSource = initial.recommendationSource;
+  if (['recommended', 'hidden-gems', 'trending', 'popular', 'ai-search'].includes(recommendationSource)) {
+    watchlist.aiEvent('open', recommendationSource).catch(() => {});
+  }
 
   function renderInfo() {
     setText(title, item.title);
@@ -149,6 +153,9 @@ export function CatalogScreen(initial) {
       } else {
         item = Object.assign({}, item, { arrStatus: 'requested' });
         setText(note, r.status === 'already-there' ? svc + ' already has it.' : 'Requested. ' + svc + ' is looking for it now.');
+        if (['recommended', 'hidden-gems', 'trending', 'popular', 'ai-search'].includes(recommendationSource)) {
+          watchlist.aiEvent('request', recommendationSource).catch(() => {});
+        }
       }
     } catch (e) {
       if (alive) setText(note, 'Couldn\'t request it: ' + e.message);
