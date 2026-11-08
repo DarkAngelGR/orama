@@ -6,6 +6,8 @@ on:
       - "app/js/screens/catalog.js"
       - "app/js/screens/settings.js"
       - "app/js/screens/home.js"
+      - "app/js/screens/search.js"
+      - "app/js/screens/ai-report.js"
       - ".github/workflows/ai-discovery-test.yml"
 jobs:
   syntax:
@@ -21,3 +23,5 @@ jobs:
           node --check app/js/screens/catalog.js
           node --check app/js/screens/settings.js
           node --check app/js/screens/home.js
+          node --check app/js/screens/search.js
+          node --check app/js/screens/ai-report.js
