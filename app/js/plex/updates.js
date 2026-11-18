@@ -5,6 +5,7 @@
 import * as store from '../util/store.js';
 import { VERSION } from '../config.js';
 import { plexLanHost } from './watchlist.js';
+import { asObj } from '../util/shape.js';
 
 export const DEFAULT_PORT = 8790;
 export const GITHUB_REPO = 'DarkAngelGR/orama';
@@ -84,21 +85,21 @@ export async function installerStatus() {
     throw new Error('Can\'t reach the installer at ' + base.replace(/^https?:\/\//, ''));
   }
   if (r.status === 401) throw new Error('The installer needs its password');
-  if (!r.ok || !r.data || typeof r.data !== 'object' || r.data.product !== 'flexplex-installer') throw new Error('That address isn\'t the Orama installer');
+  if (!r.ok || !asObj(r.data) || r.data.product !== 'flexplex-installer') throw new Error('That address isn\'t the Orama installer');
   return r.data;
 }
 
 export async function startInstall(version) {
   const r = await fetchJson(baseUrl() + '/api/install', { method: 'POST', body: version ? { version } : {}, headers: authHeaders() });
   if (r.status === 409) return { already: true };
-  const data = r.data && typeof r.data === 'object' ? r.data : {};
+  const data = asObj(r.data) || {};
   if (!r.ok) throw new Error(data.error || ('The installer answered ' + r.status));
   return data;
 }
 
 export async function installerCheck() {
   const r = await fetchJson(baseUrl() + '/api/check', { method: 'POST', headers: authHeaders(), timeout: 25000 });
-  const data = r.data && typeof r.data === 'object' ? r.data : {};
+  const data = asObj(r.data) || {};
   if (!r.ok) throw new Error(data.error || ('The installer answered ' + r.status));
   return data;
 }
@@ -107,7 +108,7 @@ export async function installerCheck() {
 export async function githubLatest() {
   const r = await fetchJson('https://api.github.com/repos/' + GITHUB_REPO + '/releases/latest',
     { headers: { Accept: 'application/vnd.github+json' }, timeout: 10000 });
-  if (!r.ok || !r.data || typeof r.data !== 'object') throw new Error(r.status === 404 ? 'No releases yet' : 'GitHub answered ' + r.status);
+  if (!r.ok || !asObj(r.data)) throw new Error(r.status === 404 ? 'No releases yet' : 'GitHub answered ' + r.status);
   return { version: String(r.data.tag_name || '').replace(/^v/i, ''), notes: r.data.body || '' };
 }
 

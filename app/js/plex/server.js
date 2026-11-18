@@ -1,6 +1,7 @@
 // Plex Media Server API, scoped to the features this client uses.
 import { request, withQuery, identity, unreadable } from './client.js';
 import { hasPlayableMedia, matchMedia, mediaIds, playbackState } from './availability.js';
+import { asObj } from '../util/shape.js';
 
 const SUPPORTED_HUB_TYPES = { movie: 1, show: 1, episode: 1, season: 1, mixed: 1, clip: 1 };
 
@@ -21,9 +22,9 @@ export class Server {
       if (hit && Date.now() - hit.t < maxAge) return hit.data;
     }
     const json = await request(this.uri + path, { token: this.token, params, timeout });
-    if (!json || typeof json !== 'object') throw unreadable(this.uri + path);
+    if (!asObj(json)) throw unreadable(this.uri + path);
     const data = json.MediaContainer || json;
-    if (!data || typeof data !== 'object') throw unreadable(this.uri + path);
+    if (!asObj(data)) throw unreadable(this.uri + path);
     if (maxAge) this.cache.set(key, { t: Date.now(), data });
     return data;
   }

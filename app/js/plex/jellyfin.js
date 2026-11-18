@@ -9,6 +9,7 @@ import { withQuery, HttpError, readJson, asTimeout } from './client.js';
 import { clientId } from './client.js';
 import { VERSION } from '../config.js';
 import { hasPlayableMedia, matchMedia, mediaKey, playbackState } from './availability.js';
+import { asList, asObj } from '../util/shape.js';
 
 const TICKS = 10000; // Jellyfin counts time in 100 ns ticks; Plex in ms
 
@@ -154,11 +155,11 @@ function playableJellyfin(raw) {
 }
 
 export function toPlex(it) {
-  if (!it || typeof it !== 'object' || it.Id == null || it.Id === '') return null;
+  if (!asObj(it) || it.Id == null || it.Id === '') return null;
   const ud = it.UserData || {};
   const type = TYPES[it.Type] || 'clip';
   const tags = it.ImageTags || {};
-  const people = (Array.isArray(it.People) ? it.People : []).filter(p => p && typeof p === 'object');
+  const people = asList(it.People).filter(asObj);
   const ids = it.ProviderIds || {};
   const leaf = it.RecursiveItemCount || 0;
   const o = {
@@ -173,7 +174,7 @@ export function toPlex(it) {
     art: img(it.Id, 'Backdrop', (it.BackdropImageTags || [])[0], 0) ||
       img(it.ParentBackdropItemId, 'Backdrop', (it.ParentBackdropImageTags || [])[0], 0),
     Guid: Object.keys(ids).filter(k => /^(tmdb|imdb|tvdb)$/i.test(k) && ids[k]).map(k => ({ id: k.toLowerCase() + '://' + ids[k] })),
-    Genre: (Array.isArray(it.Genres) ? it.Genres : []).filter(tag => typeof tag === 'string' && tag).map(tag => ({ tag })),
+    Genre: asList(it.Genres).filter(tag => typeof tag === 'string' && tag).map(tag => ({ tag })),
     Director: people.filter(p => p.Type === 'Director').map(p => ({ tag: p.Name })),
     Writer: people.filter(p => p.Type === 'Writer').map(p => ({ tag: p.Name })),
     Role: people.filter(p => p.Type === 'Actor' || p.Type === 'GuestStar').map(p => ({
@@ -216,7 +217,7 @@ export function toPlex(it) {
 
 // A list, or a { Items } page. Drops entries the server left empty.
 function plexList(list) {
-  const rows = Array.isArray(list) ? list : (list && Array.isArray(list.Items) ? list.Items : []);
+  const rows = asList(Array.isArray(list) ? list : list && list.Items);
   const out = [];
   for (const raw of rows) {
     const item = toPlex(raw);
@@ -441,13 +442,13 @@ export class JellyfinServer {
       Interview: 'interview', Scene: 'scene', Sample: 'scene', Short: 'short', Clip: 'clip', Unknown: 'clip' };
     const seen = new Set();
     const out = [];
-    (Array.isArray(trailers) ? trailers : []).forEach(it => {
+    asList(trailers).forEach(it => {
       const item = toPlex(it);
       if (!item) return;
       seen.add(it.Id);
       out.push(Object.assign(item, { extraType: 1, subtype: 'trailer' }));
     });
-    (Array.isArray(features) ? features : []).forEach(it => {
+    asList(features).forEach(it => {
       const item = toPlex(it);
       if (!item || seen.has(it.Id) || /^Theme/.test(it.ExtraType || '')) return;
       const subtype = SUBTYPE[it.ExtraType] || 'clip';

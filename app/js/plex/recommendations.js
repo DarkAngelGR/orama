@@ -4,6 +4,7 @@ import { applyRanking, profileKey, rankLibraryCandidates, readTaste, tasteResetR
 import { baseUrl, discover, info, recommend } from './watchlist.js';
 import { acquire, tracked } from './requests.js';
 import { matchMedia } from './availability.js';
+import { asList } from '../util/shape.js';
 
 export function activeTasteKey() {
   return profileKey(session.user, session.server);
@@ -64,7 +65,7 @@ export function prepareRecommendations(seed = null, hubs = null) {
   const searches = current() ? searchGenres.map(async genre => {
     try {
       const items = await server.smartSearch({ genres: [[genre]], watched: false, limit: 30 });
-      return (Array.isArray(items) ? items : []).filter(it => it && it.ratingKey).map(it =>
+      return asList(items).filter(it => it && it.ratingKey).map(it =>
         it.Genre && it.Genre.length ? it : { ...it, Genre: [{ tag: genre }] });
     } catch (e) {
       return [];
@@ -74,9 +75,9 @@ export function prepareRecommendations(seed = null, hubs = null) {
   const available = Promise.all([Promise.all(searches), resumeHubs]).then(([pools, home]) => {
     if (!current()) return [];
     const inProgress = new Set();
-    for (const hub of (Array.isArray(home) ? home : [])) {
+    for (const hub of asList(home)) {
       if (!hub || !/continue|ondeck/i.test(hub.hubIdentifier || '')) continue;
-      for (const item of (Array.isArray(hub.Metadata) ? hub.Metadata : [])) {
+      for (const item of asList(hub.Metadata)) {
         if (!item) continue;
         const id = item.type === 'episode' ? item.grandparentRatingKey : item.ratingKey;
         if (id) inProgress.add(String(id));
@@ -109,8 +110,7 @@ export async function requestablePicks(sections, { seed = null, moviesOnly = fal
     companion === baseUrl() && reset === tasteResetRevision();
   const profile = readTaste(key);
   if (!current() || !companion || (!profile.length && !seed)) return [];
-  const candidates = [].concat(...(Array.isArray(sections) ? sections : []).map(section =>
-    section && Array.isArray(section.items) ? section.items : [])).filter(item =>
+  const candidates = [].concat(...asList(sections).map(section => asList(section && section.items))).filter(item =>
     item && item.arrStatus === 'none' && (!moviesOnly || item.type === 'movie') && !tracked(item) &&
     (!seed || matchMedia(seed, item) !== true));
   let ranked = rankLibraryCandidates(profile, seed, candidates).slice(0, 12);
