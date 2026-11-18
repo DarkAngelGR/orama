@@ -17,24 +17,23 @@ import * as notifications from '../plex/notifications.js';
 import * as downloads from '../plex/downloads.js';
 import { parseSubtitles, CueTrack, cleanCue, NO_CUE } from '../player/subtitles.js';
 import {
-  TEXT_SUBS, streamsOf, audioLabel, subtitleLabel, qualitiesFor, qualityById, effectiveQuality, defaultQuality, forceDirect, audioExtras,
+  streamsOf, audioLabel, subtitleLabel, qualitiesFor, qualityById, effectiveQuality, defaultQuality, forceDirect,
   directRefused, rememberDirectRefused, versionTitle, versionRows, rememberedVersion, rememberVersion, dvWithoutFallback,
 } from '../player/options.js';
 import { parseBif, bifIndex, bifPicture } from '../player/bif.js';
 import { subOffset, setSubOffset, offsetLabel } from '../player/subprefs.js';
 import * as lang from '../util/lang.js';
-import { NATIVE_AUDIO, pickTracks, rememberShowTracks, showKeyOf, learnShowGenres } from '../player/tracks.js';
+import { pickTracks, rememberShowTracks, showKeyOf, learnShowGenres } from '../player/tracks.js';
+import {
+  isEmbeddedText, isSidecarText, audioDirectOk, playbackMode, resumeAt, openIsStale,
+  nextSeekCount, seekStepMs, clampSeek, markerAt, isFinalCredits, skipTarget,
+  chosenMedia, preloadedUsable, matchTextTrack, replacementSub, nextSubtitle, togetherNeedsSeek,
+} from '../player/decide.js';
 import { Picker } from '../ui/picker.js';
 import { activeTasteKey, fetchAfterCompletion, prepareRecommendations } from '../plex/recommendations.js';
 import { recordCompletion } from '../util/taste.js';
 import { openItem } from '../nav.js';
 
-// What a 2022 Samsung (Tizen 6.5) decodes natively. No DTS on 2018+ models.
-const DIRECT = {
-  container: { mp4: 1, m4v: 1, mov: 1, mkv: 1, webm: 1, ts: 1, mpegts: 1, avi: 1 },
-  video: { h264: 1, hevc: 1, vp9: 1, av1: 1, mpeg4: 1, mpeg2video: 1, vc1: 1 },
-  audio: NATIVE_AUDIO,
-};
 const OSD_HIDE_MS = 4000;
 const SEEK_COMMIT_MS = 900;
 const TIMELINE_MS = 10000;
@@ -47,15 +46,6 @@ const THUMB_W = 320;
 // Language of a stream, for carrying the user's track choice to the next episode.
 function langOf(s) {
   return lang.ofStream(s);
-}
-
-function isEmbeddedText(sub) {
-  return !!sub && sub.index != null && !sub.key && !!TEXT_SUBS[sub.codec];
-}
-
-// External .srt/.ass/.vtt files: we fetch and draw these ourselves.
-function isSidecarText(sub) {
-  return !!sub && !!sub.key && !!TEXT_SUBS[sub.codec];
 }
 
 // Options picked on the detail screen: quality id, which version (Media) to
@@ -367,13 +357,13 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
         modeText = 'Direct Stream';
         info = ['video untouched (' + srcVideo + ')',
           audioCopied ? srcAudio : 'audio ' + (audioStream ? codecName(audioStream.codec) : '') + ' → ' + codecName(ad.codec || 'aac'),
-          audioCopied || audioDirectOk() ? '' : 'change in Settings › Audio formats'];
+          audioCopied || audioDirectOk(audioStream) ? '' : 'change in Settings › Audio formats'];
       } else {
         kind = 'transcode';
         modeText = 'Transcoding';
         const why = sd.decision === 'burn' ? 'burning in subtitles' : quality.kbps ? 'lower quality picked' : srcVideo + ' → ' + codecName(vd.codec || 'h264');
-        if (!quality.kbps && !audioDirectOk()) info = null; // explained below
-        info = info === null && !audioDirectOk()
+        if (!quality.kbps && !audioDirectOk(audioStream)) info = null; // explained below
+        info = info === null && !audioDirectOk(audioStream)
           ? [why, 'because ' + codecName(audioStream.codec) + ' audio is set to convert (Settings › Audio formats)']
           : [resLabel(m.videoResolution || (quality.height ? String(quality.height) : '')), m.bitrate ? Math.round(m.bitrate / 1000) + ' Mbps' : '', why,
             audioCopied ? '' : 'audio → ' + codecName(ad.codec || 'aac')];
@@ -421,24 +411,16 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
 
   // The last credits marker (Plex flags it `final`, or it runs to the end)
   // means "done": skipping it ends playback, which offers the next episode.
-  function isFinalCredits(m) {
-    return m.type === 'credits' && (m.final || m.endTimeOffset >= duration - 15000);
-  }
-
   // Called from onTime: a scan of at most a few markers, and DOM writes only
   // when entering or leaving one.
   function updateSkip(ms) {
-    let m = null;
-    for (let i = 0; i < markers.length; i++) {
-      const x = markers[i];
-      if (ms >= x.startTimeOffset && ms < x.endTimeOffset - 1000) { m = x; break; }
-    }
+    const m = markerAt(markers, ms);
     if (m === activeMarker) return;
     activeMarker = m;
     toggleClass(skipBtn, 'hidden', !m);
     if (m) {
       setText(skipBtn, m.type === 'intro' ? 'Skip intro'
-        : isFinalCredits(m) && item.type === 'episode' ? 'Next episode' : 'Skip credits');
+        : isFinalCredits(m, duration) && item.type === 'episode' ? 'Next episode' : 'Skip credits');
     }
   }
 
@@ -448,8 +430,8 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     activeMarker = null;
     toggleClass(skipBtn, 'hidden', true);
     log('skip', m.type, clock(m.startTimeOffset), '→', clock(m.endTimeOffset));
-    if (isFinalCredits(m)) { finished(); return; }
-    seekTarget = Math.min(m.endTimeOffset, duration - 3000);
+    if (isFinalCredits(m, duration)) { finished(); return; }
+    seekTarget = skipTarget(m, duration);
     commitSeek();
   }
 
@@ -476,21 +458,10 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   // --- Opening ----------------------------------------------------------
 
   function decideMode() {
-    // A lower quality than the file means Plex has to convert it.
-    if (quality.kbps) return 'hls';
-    // Dolby Vision the TV can't show (purple and green): always converted, even with Force direct play.
-    if (dvWithoutFallback(media)) return 'hls';
-    if (forceDirect()) return 'direct';
-    if (directRefused(part.id)) return 'hls';
-    const directOk = DIRECT.container[media.container] && DIRECT.video[media.videoCodec] && audioDirectOk();
-    const subsOk = !subStream || isEmbeddedText(subStream) || isSidecarText(subStream);
-    return directOk && subsOk ? 'direct' : 'hls';
-  }
-
-  function audioDirectOk() {
-    if (!audioStream) return true;
-    const c = String(audioStream.codec || '').toLowerCase();
-    return !!(DIRECT.audio[c] || audioExtras().codecs[c]);
+    return playbackMode({
+      quality, media, audio: audioStream, sub: subStream,
+      forced: forceDirect(), refused: directRefused(part.id),
+    });
   }
 
   async function open(atMs) {
@@ -522,7 +493,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
         // Jellyfin: it decides how to convert and hands back the stream address.
         if (hlsStarted) server.stopTranscode(playSession);
         const prepared = await server.prepareTranscode(item, opts);
-        if (!alive || gen !== openGen) {
+        if (openIsStale(alive, gen, openGen)) {
           if (!alive) server.stopTranscode(playSession);
           return;
         }
@@ -534,13 +505,13 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
         hlsStarted = true;
         // PMS 1.42+ rejects start.m3u8 unless a decision was made for the session first.
         const decision = await request(url.replace('/start.m3u8', '/decision'));
-        if (!alive || gen !== openGen) return;
+        if (openIsStale(alive, gen, openGen)) return;
         const mc = decision && typeof decision === 'object' ? (decision.MediaContainer || {}) : {};
         if (mc.generalDecisionCode && mc.generalDecisionCode >= 2000) throw new Error(mc.generalDecisionText || 'Server refused to convert this file');
         showPlayback(mc);
       }
     }
-    if (!alive || gen !== openGen) return;
+    if (openIsStale(alive, gen, openGen)) return;
     if (mode === 'direct') showPlayback(null);
     log('play', mode, quality.id, item.title, media.container + '/' + media.videoCodec + '/' + (audioStream && audioStream.codec), 'at', clock(atMs));
     const uhdOut = !quality.kbps || quality.height >= 2160;
@@ -548,15 +519,15 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     try {
       await player.prepare();
     } catch (e) {
-      if (!alive || gen !== openGen) return;
+      if (openIsStale(alive, gen, openGen)) return;
       throw e;
     }
-    if (!alive || gen !== openGen) return;
+    if (openIsStale(alive, gen, openGen)) return;
     if (mode === 'direct') {
       applyTracks();
       if (atMs > 0) await player.seek(atMs);
     }
-    if (!alive || gen !== openGen) return;
+    if (openIsStale(alive, gen, openGen)) return;
     syncSidecar();
     player.play();
     // Some TVs switch to the file's default subtitle once playback starts:
@@ -600,20 +571,9 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   function textTrackFor(sub) {
     const tracks = player.textTracks ? player.textTracks() : [];
     const embedded = streamsOf(part, 3).filter(s => !s.key);
-    if (tracks.length && tracks.some(t => t.lang)) {
-      const want = langOf(sub);
-      const sameTracks = tracks.filter(t => lang.key(t.lang) === want);
-      if (sameTracks.length) {
-        const samePlex = embedded.filter(s => langOf(s) === want);
-        const pos = Math.max(0, samePlex.indexOf(sub));
-        log('subtitle track by language', want, 'pos', pos, 'of', sameTracks.length);
-        return (sameTracks[pos] || sameTracks[0]).index;
-      }
-    }
-    if (tracks.length === embedded.length) return tracks[embedded.indexOf(sub)] ? tracks[embedded.indexOf(sub)].index : null;
-    const t = player.tracks().text;
-    const pos = embedded.filter(isEmbeddedText).indexOf(sub);
-    return pos >= 0 && t[pos] != null ? t[pos] : null;
+    const picked = matchTextTrack(tracks, embedded, sub, player.tracks().text);
+    if (picked.trace) log('subtitle track by language', picked.trace.want, 'pos', picked.trace.pos, 'of', picked.trace.count);
+    return picked.index;
   }
 
   const refreshedFor = {};
@@ -629,9 +589,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       const freshPart = freshMedia && freshMedia.Part && freshMedia.Part[0];
       if (!freshPart || !alive || subStream !== old) return;
       part.Stream = freshPart.Stream; // same file, updated subtitle list
-      const texts = streamsOf(part, 3);
-      const same = texts.filter(t => langOf(t) === langOf(old));
-      const pick = same.find(t => t.key && !!t.forced === !!old.forced) || same.find(t => t.key) || same[0];
+      const pick = replacementSub(streamsOf(part, 3), old);
       if (!pick) { toast('The ' + (old.language || 'selected') + ' subtitles are gone from the server'); return; }
       subStream = pick;
       cueFor = null;
@@ -697,8 +655,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   async function start() {
     try {
       // The details page fetched everything moments ago: reuse it, saving a trip to the server.
-      const fresh = preloaded && preloaded.ratingKey === item.ratingKey && Date.now() - (preloaded._at || 0) < 120000 &&
-        (preloaded.Media || []).some(m => m.Part && m.Part[0]);
+      const fresh = preloadedUsable(preloaded, item.ratingKey, Date.now());
       const full = fresh ? preloaded : await session.server.metadata(item.ratingKey);
       if (!alive) return;
       if (fresh) log('player: using the details already loaded');
@@ -706,8 +663,9 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       duration = item.duration || duration;
       const medias = item.Media || [];
       // The version picked on the detail page, else the one played last time.
-      media = medias[mediaIndex == null ? rememberedVersion(item) : mediaIndex] || medias[0];
-      mediaIdx = Math.max(0, medias.indexOf(media));
+      const chosen = chosenMedia(medias, mediaIndex, rememberedVersion(item));
+      media = chosen.media;
+      mediaIdx = chosen.index;
       rememberVersion(item, mediaIdx);
       part = media && media.Part && media.Part[0];
       if (!part) throw new Error('No playable media');
@@ -730,7 +688,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       if (dvWithoutFallback(media) && !quality.kbps) {
         setTimeout(() => { if (mode === 'hls' && !triedDvDirect) toast('Converting the picture: this Dolby Vision version has no HDR the TV can show'); }, 2500);
       }
-      if (offset == null) offset = item.viewOffset || 0;
+      offset = resumeAt(offset, item.viewOffset);
       position = offset;
       renderProgress(position);
       showOsd();
@@ -803,12 +761,10 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   function seekBy(dir, big) {
     if (!started) return;
     const now = Date.now();
-    seekCount = now - lastSeekAt < 700 ? seekCount + 1 : 0;
+    seekCount = nextSeekCount(seekCount, lastSeekAt, now);
     lastSeekAt = now;
-    const step = big ? (seekCount < 4 ? 30000 : seekCount < 12 ? 60000 : 180000)
-      : seekCount < 3 ? 10000 : seekCount < 8 ? 30000 : seekCount < 16 ? 60000 : 180000;
     const from = seekTarget == null ? position : seekTarget;
-    seekTarget = Math.max(0, Math.min(duration - 3000, from + dir * step));
+    seekTarget = clampSeek(from, dir, seekStepMs(seekCount, big), duration);
     toggleClass(el, 'seeking', true);
     setText(seekLabel, clock(seekTarget));
     renderProgress(seekTarget);
@@ -904,9 +860,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       togglePause(true);
       toast(r.by + (r.paused ? ' paused' : ' pressed play'));
     }
-    const diff = (position - r.positionMs) / 1000;
-    const far = r.seek ? Math.abs(diff) > 1.5 : r.paused ? Math.abs(diff) > 2 : (diff >= 4 || diff <= -1.75);
-    if (!far) return;
+    if (!togetherNeedsSeek(position, r)) return;
     if (r.seek) toast(r.by + ' jumped to ' + clock(r.positionMs));
     syncBusy = true;
     try {
@@ -1066,9 +1020,8 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   function toggleSubtitles() {
     const texts = streamsOf(part, 3);
     if (!texts.length) { toast('No subtitles for this video'); return; }
-    let next = null;
     if (subStream) lastSub = subStream;
-    else next = (lastSub && texts.indexOf(lastSub) >= 0 && lastSub) || texts.find(s => s.selected) || texts[0];
+    const next = nextSubtitle(texts, subStream, lastSub);
     toast(next ? 'Subtitles: ' + subtitleLabel(next) : 'Subtitles off');
     choose(1, { stream: next });
   }
