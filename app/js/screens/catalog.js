@@ -11,7 +11,7 @@ import * as discover from '../plex/discover.js';
 import * as watchlist from '../plex/watchlist.js';
 import * as downloads from '../plex/downloads.js';
 import * as requests from '../plex/requests.js';
-import { warn, log } from '../util/log.js';
+import { warn, log, error } from '../util/log.js';
 import * as router from '../router.js';
 import { openItem } from '../nav.js';
 
@@ -120,6 +120,7 @@ export function CatalogScreen(initial) {
       setText(note, 'Added to your Watchlist.');
       await nudge();
     } catch (e) {
+      error('watchlist add failed', e);
       if (alive) setText(note, 'Couldn\'t add it: ' + e.message);
     } finally {
       busy = false;
@@ -149,6 +150,7 @@ export function CatalogScreen(initial) {
       }[r.status];
       setText(note, label || 'Check request status in Watchlist Sync.');
     } catch (e) {
+      error('request failed', e);
       if (alive) setText(note, 'Couldn\'t request it: ' + e.message);
     } finally {
       busy = false;
@@ -167,7 +169,7 @@ export function CatalogScreen(initial) {
       await watchlist.syncNow();
       if (alive) setText(note, 'Added to your Watchlist. watchlist-sync is sending it to ' + what + ' now.');
     } catch (e) {
-      warn('watchlist-sync nudge failed', e.message);
+      error('watchlist nudge failed', e);
       if (alive) setText(note, 'Added to your Watchlist. watchlist-sync will pick it up on its next sync (' + e.message + ').');
     }
   }
@@ -183,6 +185,7 @@ export function CatalogScreen(initial) {
       // watchlist-sync never deletes on removal (see its README).
       setText(note, 'Removed from your Watchlist. Anything already sent to Sonarr/Radarr stays there.');
     } catch (e) {
+      error('watchlist remove failed', e);
       if (alive) setText(note, 'Couldn\'t remove it: ' + e.message);
     } finally {
       busy = false;

@@ -1,4 +1,5 @@
 import { DEV, DEV_HOST, DEV_SECRET } from '../config.js';
+import { report } from './report.js';
 // Logging. In dev builds every line is also batched to the devserver on the Mac,
 // since the TV gives us no usable console.
 const queue = [];
@@ -29,12 +30,16 @@ function emit(level, args) {
   if (!timer) timer = setTimeout(flush, 400);
 }
 
+function ship(level, args) {
+  try { report(level, '', stringify(args)); } catch (e) {}
+}
+
 export const log = (...a) => { console.log(...a); emit('log', a); };
 export const warn = (...a) => { console.warn(...a); emit('warn', a); };
-export const error = (...a) => { console.error(...a); emit('error', a); };
+export const error = (...a) => { console.error(...a); emit('error', a); ship('error', a); };
 export const perf = (...a) => emit('perf', a);
 
-if (DEV) {
+if (typeof window !== 'undefined' && window.addEventListener) {
   window.addEventListener('error', e => error('uncaught', e.message, (e.filename || '') + ':' + e.lineno, e.error || ''));
   window.addEventListener('unhandledrejection', e => error('unhandled rejection', e.reason));
 }

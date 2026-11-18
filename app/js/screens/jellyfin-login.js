@@ -121,6 +121,7 @@ export function JellyfinLoginScreen({ onDone }) {
             try {
               finish(await signInWithPassword(base, user, pw));
             } catch (e) {
+              error('jellyfin sign-in failed', e);
               mode = 'password';
               setText(status, e.status === 401 ? 'Wrong user name or password.' : 'Couldn\'t sign in (' + e.message + ').');
               setText(hint, 'Press OK to try again');

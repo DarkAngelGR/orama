@@ -6,6 +6,7 @@ import { h, setText, toggleClass } from '../util/dom.js';
 import { useAmbience } from '../ui/backdrop.js';
 import * as router from '../router.js';
 import * as icons from '../ui/icons.js';
+import { error } from '../util/log.js';
 
 export function ConfirmScreen({ title, message, confirmLabel = 'Delete', run }) {
   const el = h('div', 'screen confirm');
@@ -38,6 +39,7 @@ export function ConfirmScreen({ title, message, confirmLabel = 'Delete', run }) 
       await run(text => setText(status, text));
       done = true;
     } catch (e) {
+      error('confirm failed', e);
       toggleClass(status, 'error', true);
       setText(status, e.message || String(e));
       busy = false;
