@@ -1,6 +1,7 @@
 // Fire-and-forget reports to Watchlist Sync (POST /api/tv/log). Never throws
-// and never waits. A missing companion, a 404 from an older one, and any
-// network failure are ignored.
+// and never waits. A missing companion, a 400/404 from an older one, and any
+// network failure are ignored. "perf" does not use the error budget or the
+// duplicate filter; the caller limits those itself.
 import { VERSION } from '../config.js';
 
 const WINDOW_MS = 60000;
@@ -28,6 +29,16 @@ export function redact(text) {
   return s;
 }
 
+// Perf timings skip the duplicate filter and the error slots. Identical
+// numbers must still send the first time (and again, until the perf budget).
+export function gate(level, state, message, now) {
+  if (level === 'perf') {
+    const msg = clip(redact(message).replace(/\s+/g, ' ').trim(), 500);
+    return msg || null;
+  }
+  return consider(state, message, now);
+}
+
 // The message to send, or null when it is empty, a repeat from the last minute,
 // or the 11th new report in that minute. Repeats do not use up the 10 slots.
 export function consider(state, message, now) {
@@ -45,8 +56,9 @@ export function consider(state, message, now) {
 export function reportBody({ level, where, message, version, device }) {
   const msg = clip(message, 500);
   if (!msg) return null;
+  const lv = level === 'warn' || level === 'perf' ? level : 'error';
   return {
-    level: level === 'warn' ? 'warn' : 'error',
+    level: lv,
     message: msg,
     where: clip(where || 'app', 80) || 'app',
     version: clip(version, 20),
@@ -68,7 +80,7 @@ async function deliver(level, where, message) {
     const ws = await import('../plex/watchlist.js');
     const base = ws.baseUrl();
     if (!base) return;
-    const msg = consider(bucket, message, Date.now());
+    const msg = gate(level, bucket, message, Date.now());
     if (!msg) return;
     let device = 'TV';
     try {
