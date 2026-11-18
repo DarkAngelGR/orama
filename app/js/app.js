@@ -8,6 +8,7 @@ import { LoginScreen } from './screens/login.js';
 import { initHud } from './ui/hud.js';
 import { log, warn } from './util/log.js';
 import { setReportWhere } from './util/report.js';
+import { arm } from './util/perf.js';
 import * as nav from './nav.js';
 import * as store from './util/store.js';
 import { applySubtitleStyle } from './player/subprefs.js';
@@ -85,6 +86,7 @@ function start() {
 export function boot() {
   if (DEV) window.__ss = { router, session, nav };
   setReportWhere(() => (router.top() && router.top().name) || 'app');
+  arm();
   log('boot', VERSION, navigator.userAgent);
   registerKeys();
   applySubtitleStyle();

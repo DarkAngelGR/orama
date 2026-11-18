@@ -6,6 +6,7 @@ import { setHandler, setHoldCheck } from './input.js';
 import { exitApp } from './platform/tizen.js';
 import { enter, replay } from './ui/motion.js';
 import { notice } from './ui/notice.js';
+import { markInteractive } from './util/perf.js';
 
 const stack = [];
 let root = null;
@@ -39,6 +40,7 @@ function reveal(screen, dir) {
   enter(screen.el, dir);
   screen.el.classList.remove('hidden');
   if (screen.onShow) screen.onShow();
+  markInteractive();
 }
 
 export function push(screen) {

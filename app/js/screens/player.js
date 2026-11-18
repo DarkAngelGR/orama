@@ -33,6 +33,7 @@ import { Picker } from '../ui/picker.js';
 import { activeTasteKey, fetchAfterCompletion, prepareRecommendations } from '../plex/recommendations.js';
 import { recordCompletion } from '../util/taste.js';
 import { openItem } from '../nav.js';
+import { playDone } from '../util/perf.js';
 
 const OSD_HIDE_MS = 4000;
 const SEEK_COMMIT_MS = 900;
@@ -63,6 +64,8 @@ function background(on) {
 }
 
 export function PlayerScreen(initial, { offset = null, quality: qualityId, mediaIndex, audioStreamID, subtitleStreamID, langs, together = null, full: preloaded = null } = {}) {
+  const playAt = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+  let playSent = false;
   const el = h('div', 'screen player');
   const stage = h('div', 'player-stage', el);
   const subs = h('div', 'subs', el);
@@ -538,6 +541,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     }
     paused = false;
     started = true;
+    if (!playSent) { playSent = true; playDone(playAt, mode); }
     position = atMs;
     markPaused(false);
     toggleClass(spinner, 'on', false);

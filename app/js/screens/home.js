@@ -22,6 +22,7 @@ import * as motion from '../ui/motion.js';
 import { activeTasteKey, discoverySections, prepareRecommendations, requestablePicks } from '../plex/recommendations.js';
 import { readTaste, setFeedback } from '../util/taste.js';
 import { currentRequests, describeRequest, subscribeRequests, tracked } from '../plex/requests.js';
+import { arm, homeEnter, homeReady } from '../util/perf.js';
 
 // Once per app start, a few seconds after home appears: is there a newer
 // Orama? Mentioned once per version.
@@ -75,6 +76,7 @@ export function clearLogo(item) {
 }
 
 export function HomeScreen() {
+  homeEnter();
   const el = h('div', 'screen home');
   const ambience = useAmbience();
   const hero = new HeroArt(el, 'hero-art home-art');
@@ -430,7 +432,7 @@ export function HomeScreen() {
     }
   }
 
-  function setHubs(hubs) {
+  function setHubs(hubs, fromCache) {
     const sameShape = hubs.length === rows.length && hubs.every((hb, i) => rows[i].hubId === hb.hubIdentifier);
     const focusedKey = rows[rowIndex] && rows[rowIndex].current() && rows[rowIndex].current().ratingKey;
     const focusedHub = rows[rowIndex] && rows[rowIndex].hubId;
@@ -464,6 +466,7 @@ export function HomeScreen() {
     if (!reportedPaint && rows.length) {
       reportedPaint = true;
       log('home rows ready at ' + Math.round(performance.now()) + 'ms after page start');
+      homeReady(fromCache);
     }
   }
 
@@ -529,7 +532,7 @@ export function HomeScreen() {
   if (cached && session.server && cached.server === session.server.id) {
     buildNav(cached.sections || []);
     plexHubs = cached.hubs || [];
-    setHubs(composed());
+    setHubs(composed(), true);
   } else {
     buildNav([]);
   }
@@ -602,6 +605,7 @@ export function HomeScreen() {
     el,
     name: 'home',
     onShow() {
+      arm();
       const returning = !visible;
       visible = true;
       if (!unsubDownloads) unsubDownloads = downloads.subscribe(onDownloads);

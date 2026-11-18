@@ -3,6 +3,7 @@
 // can never queue up work and the UI stops the instant the key is released.
 // While a key is held, <html> gets .fast which shortens transitions.
 import { actionFor } from './platform/tizen.js';
+import { noteKey } from './util/perf.js';
 
 const NAV = { left: 1, right: 1, up: 1, down: 1 };
 // Held keys repeat. Direction and seek should; Back, OK and Play must not,
@@ -63,6 +64,7 @@ function flush() {
 document.addEventListener('keydown', e => {
   const action = actionFor(e);
   if (!action) return;
+  noteKey();
   // Let text inputs (search) handle their own keys except navigation out.
   const tag = document.activeElement && document.activeElement.tagName;
   if (tag === 'INPUT' && action !== 'back' && action !== 'down' && action !== 'up' && action !== 'enter') return;
@@ -102,6 +104,7 @@ document.addEventListener('keydown', e => {
 
 // Feed an action through the same path as a real key press (dev remote).
 export function inject(action) {
+  noteKey();
   stats.keyAt = performance.now();
   if (NAV[action]) {
     pending = action;
