@@ -1,5 +1,6 @@
 // Plex Media Server API, scoped to the features this client uses.
 import { request, withQuery, identity } from './client.js';
+import { hasPlayableMedia, matchMedia, mediaIds, playbackState } from './availability.js';
 
 const SUPPORTED_HUB_TYPES = { movie: 1, show: 1, episode: 1, season: 1, mixed: 1, clip: 1 };
 
@@ -131,9 +132,11 @@ export class Server {
     return [].concat(...found);
   }
 
-  async metadata(ratingKey) {
+  async metadata(ratingKey, { checkFiles = false } = {}) {
     // includeMarkers: intro/credits ranges, for the player's skip button.
-    const mc = await this.get('/library/metadata/' + ratingKey, { includeOnDeck: 1, includeExtras: 0, includeMarkers: 1, includeGuids: 1 });
+    const mc = await this.get('/library/metadata/' + ratingKey, {
+      includeOnDeck: 1, includeExtras: 0, includeMarkers: 1, includeGuids: 1, checkFiles: checkFiles ? 1 : undefined,
+    }, checkFiles ? { timeout: 6000 } : undefined);
     const item = (mc.Metadata || [])[0];
     if (item && mc.OnDeck && mc.OnDeck.Metadata) item.onDeck = mc.OnDeck.Metadata[0];
     if (item) item._at = Date.now();   // when fetched: the player reuses fresh details
@@ -191,6 +194,44 @@ export class Server {
       (mc.Metadata || []).forEach(m => m.guid && owned.add(m.guid));
     }
     return owned;
+  }
+
+  async findPlayable(item) {
+    const ids = mediaIds(item);
+    const provider = (ids.kind === 'show' ? ['tvdb', 'tmdb', 'imdb'] : ['tmdb', 'imdb']).find(p => ids[p]);
+    if (!provider || !ids.title) return { status: 'unknown' };
+    try {
+      const mc = await this.get('/library/matches', {
+        type: ids.kind === 'show' ? 2 : 1, title: ids.title, year: ids.year,
+        guid: provider + '://' + ids[provider], includeFullMetadata: 1,
+      }, { timeout: 6000 });
+      if (!Array.isArray(mc.Metadata) && Number(mc.size) !== 0) return { status: 'unknown' };
+      const matches = mc.Metadata || [];
+      const checked = await Promise.all(matches.slice(0, 4).map(async match => {
+        if (!match.ratingKey) return null;
+        const full = await this.metadata(match.ratingKey, { checkFiles: ids.kind === 'movie' });
+        if (!full || ids.kind !== 'show' || matchMedia(item, full) !== true) return full;
+        const limit = 50;
+        let start = 0;
+        while (start < 5000) {
+          const leaves = await this.get('/library/metadata/' + full.ratingKey + '/allLeaves', {
+            'X-Plex-Container-Start': start, 'X-Plex-Container-Size': limit,
+          }, { timeout: 6000 });
+          const episodes = leaves.Metadata || [];
+          for (const episode of episodes) {
+            if (!episode.ratingKey || !hasPlayableMedia(episode)) continue;
+            const detail = await this.metadata(episode.ratingKey, { checkFiles: true });
+            if (detail && hasPlayableMedia(detail)) return { ...full, playableEpisode: true };
+          }
+          start += episodes.length;
+          if (!episodes.length || (leaves.totalSize != null ? start >= leaves.totalSize : episodes.length < limit)) break;
+        }
+        return full;
+      }));
+      return playbackState(item, checked.filter(Boolean), matches.length <= 4 && checked.every(Boolean));
+    } catch (e) {
+      return { status: 'unknown' };
+    }
   }
 
   timeline(params) {

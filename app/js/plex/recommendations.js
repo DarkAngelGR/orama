@@ -1,7 +1,9 @@
 import { session } from '../session.js';
 import * as store from '../util/store.js';
 import { applyRanking, profileKey, rankLibraryCandidates, readTaste, tasteResetRevision, tasteTitle, topTasteGenres } from '../util/taste.js';
-import { baseUrl, recommend } from './watchlist.js';
+import { baseUrl, discover, info, recommend } from './watchlist.js';
+import { acquire, tracked } from './requests.js';
+import { matchMedia } from './availability.js';
 
 export function activeTasteKey() {
   return profileKey(session.user, session.server);
@@ -15,7 +17,37 @@ export function setAiTaste(key, enabled) {
   if (key) store.set('tasteAi:' + key, enabled || undefined);
 }
 
-let rankingCache;
+const rankingCache = new Map();
+let discovery;
+
+function modelRanking(key, reset, companion, profile, seed, local) {
+  const input = {
+    taste: { genres: topTasteGenres(profile).slice(0, 8) },
+    seed: seed ? tasteTitle(seed) : null,
+    candidates: local.map(pick => tasteTitle(pick.item)),
+  };
+  const signature = JSON.stringify([key, reset, companion, profile, input]);
+  const hit = rankingCache.get(signature);
+  if (hit && Date.now() - hit.at < 120000) return hit.promise;
+  const promise = recommend(input).then(data => data.picks).catch(() => null);
+  if (rankingCache.size >= 8) rankingCache.delete(rankingCache.keys().next().value);
+  rankingCache.set(signature, { at: Date.now(), promise });
+  return promise;
+}
+
+export function discoverySections() {
+  const address = baseUrl();
+  if (!address) return Promise.resolve([]);
+  if (!discovery || discovery.address !== address || Date.now() - discovery.at >= 120000) {
+    const entry = { address, at: Date.now() };
+    entry.promise = discover().catch(e => {
+      if (discovery === entry) discovery = null;
+      throw e;
+    });
+    discovery = entry;
+  }
+  return discovery.promise;
+}
 
 export function prepareRecommendations(seed = null, hubs = null) {
   const server = session.server;
@@ -51,17 +83,7 @@ export function prepareRecommendations(seed = null, hubs = null) {
     const candidates = [].concat(...pools).filter(item => !inProgress.has(String(item.ratingKey)));
     const local = rankLibraryCandidates(profile, seed, candidates).slice(0, 24);
     if (companion && local.length > 1 && aiTasteEnabled(key) && companion === baseUrl()) {
-      const input = {
-        taste: { genres: genres.slice(0, 8) },
-        seed: seed ? tasteTitle(seed) : null,
-        candidates: local.map(pick => tasteTitle(pick.item)),
-      };
-      const signature = JSON.stringify([key, reset, companion, profile, input]);
-      if (!rankingCache || rankingCache.signature !== signature || Date.now() - rankingCache.at >= 120000) {
-        const promise = recommend(input).then(data => data.picks).catch(() => null);
-        rankingCache = { signature, at: Date.now(), promise };
-      }
-      pendingAI = rankingCache.promise.then(picks => {
+      pendingAI = modelRanking(key, reset, companion, profile, seed, local).then(picks => {
         if (current()) ranked = applyRanking(local, picks);
       });
     }
@@ -74,4 +96,53 @@ export function prepareRecommendations(seed = null, hubs = null) {
       return current() ? (aiTasteEnabled(key) && ranked || local) : [];
     },
   };
+}
+
+export async function requestablePicks(sections, { seed = null, moviesOnly = false } = {}) {
+  const key = activeTasteKey();
+  const server = session.server;
+  const companion = baseUrl();
+  const reset = tasteResetRevision();
+  const current = () => !!key && key === activeTasteKey() && server === session.server &&
+    companion === baseUrl() && reset === tasteResetRevision();
+  const profile = readTaste(key);
+  if (!current() || !companion || (!profile.length && !seed)) return [];
+  const candidates = [].concat(...sections.map(section => section.items || [])).filter(item =>
+    item.arrStatus === 'none' && (!moviesOnly || item.type === 'movie') && !tracked(item) &&
+    (!seed || matchMedia(seed, item) !== true));
+  let ranked = rankLibraryCandidates(profile, seed, candidates).slice(0, 12);
+  if (aiTasteEnabled(key) && ranked.length > 1) {
+    const picks = await modelRanking(key, reset, companion, profile, seed, ranked);
+    if (aiTasteEnabled(key)) ranked = applyRanking(ranked, picks);
+  }
+  if (!current()) return [];
+  const checked = await Promise.all(ranked.slice(0, 9).map(async pick => ({
+    ...pick, availability: await server.findPlayable(pick.item, { fresh: moviesOnly }),
+  })));
+  return current() ? checked.filter(pick => pick.availability.status === 'missing') : [];
+}
+
+export function autoFetchEnabled(key) {
+  return !!key && store.get('tasteAutoFetch:' + key, false);
+}
+
+export function setAutoFetch(key, enabled) {
+  if (key) store.set('tasteAutoFetch:' + key, enabled || undefined);
+}
+
+export async function fetchAfterCompletion(seed, triggerId, key) {
+  const server = session.server;
+  const companion = baseUrl();
+  const reset = tasteResetRevision();
+  const active = () => autoFetchEnabled(key) && key === activeTasteKey() && server === session.server &&
+    companion === baseUrl() && reset === tasteResetRevision();
+  if (!companion || !active()) return;
+  const configuration = await info();
+  if (!configuration.auto_fetch || !active()) return;
+  const sections = await discoverySections();
+  if (!active()) return;
+  const picks = await requestablePicks(sections, { seed, moviesOnly: true });
+  if (picks.length && active()) {
+    await acquire(picks[0].item, { triggerId, allowed: active });
+  }
 }

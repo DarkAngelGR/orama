@@ -8,6 +8,7 @@
 import { withQuery, HttpError } from './client.js';
 import { clientId } from './client.js';
 import { VERSION } from '../config.js';
+import { hasPlayableMedia, matchMedia, mediaKey, playbackState } from './availability.js';
 
 const TICKS = 10000; // Jellyfin counts time in 100 ns ticks; Plex in ms
 
@@ -144,6 +145,12 @@ function mediaOf(it) {
   });
 }
 
+function playableJellyfin(raw) {
+  return raw && !['Virtual', 'Offline'].includes(raw.LocationType) &&
+    (!raw.PlayAccess || raw.PlayAccess === 'Full') &&
+    (raw.MediaSources || []).some(source => source && source.Id) && hasPlayableMedia(toPlex(raw));
+}
+
 export function toPlex(it) {
   const ud = it.UserData || {};
   const type = TYPES[it.Type] || 'clip';
@@ -224,6 +231,7 @@ export class JellyfinServer {
     this.userId = rec.userId;
     this.owned = !!rec.admin; // only administrators may delete
     this.cache = new Map();
+    this.acquisitionIndex = new Map();
     this.playing = {};        // itemId -> { session, method } while reporting progress
   }
 
@@ -239,7 +247,7 @@ export class JellyfinServer {
     return data;
   }
 
-  invalidate() { this.cache.clear(); }
+  invalidate() { this.cache.clear(); this.acquisitionIndex.clear(); }
 
   image(path, width, height, { blur = 0, quality = 85 } = {}) {
     if (!path) return '';
@@ -453,6 +461,66 @@ export class JellyfinServer {
     };
   }
   async ownedGuids() { return new Set(); }     // Plex's catalog only
+
+  async findPlayable(item, { fresh = false } = {}) {
+    const kind = item.kind || item.type;
+    if (!mediaKey(item)) return { status: 'unknown' };
+    try {
+      let hit = this.acquisitionIndex.get(kind);
+      if (!hit || (!hit.pending && Date.now() - hit.at >= (fresh ? 1000 : 20000))) {
+        hit = { pending: true };
+        hit.items = (async () => {
+          const rows = [];
+          let total;
+          do {
+            const page = await this.req(this.u('/Items'), { timeout: 6000, params: {
+              Recursive: true, IncludeItemTypes: kind === 'show' ? 'Series' : 'Movie',
+              StartIndex: rows.length, Limit: 300, Fields: 'ProviderIds',
+              SortBy: 'SortName', EnableImages: false, EnableUserData: false, EnableTotalRecordCount: true,
+            } });
+            if (!Array.isArray(page.Items) || !Number.isInteger(page.TotalRecordCount)) throw new Error('Invalid library page');
+            total = page.TotalRecordCount;
+            if (!page.Items.length && total > rows.length) throw new Error('Incomplete library page');
+            for (const raw of page.Items) {
+              const { ratingKey, type, title, year, Guid } = toPlex(raw);
+              rows.push({ ratingKey, type, title, year, Guid });
+            }
+          } while (rows.length < total && rows.length < 50000);
+          return { rows, complete: rows.length >= total };
+        })().then(items => {
+          hit.pending = false;
+          hit.at = Date.now();
+          return items;
+        }, error => {
+          if (this.acquisitionIndex.get(kind) === hit) this.acquisitionIndex.delete(kind);
+          throw error;
+        });
+        this.acquisitionIndex.set(kind, hit);
+      }
+      const { rows, complete } = await hit.items;
+      const matches = rows.filter(x => matchMedia(item, x) === true);
+      for (const match of matches) {
+        if (kind === 'show') {
+          let start = 0;
+          while (start < 5000) {
+            const result = await this.req('/Shows/' + encodeURIComponent(match.ratingKey) + '/Episodes', {
+              timeout: 6000, params: { UserId: this.userId, IsMissing: false, Fields: 'MediaSources', StartIndex: start, Limit: 50 },
+            });
+            const episodes = result.Items || [];
+            if (episodes.some(playableJellyfin)) return { status: 'ready', item: { ...match, jellyfin: true } };
+            start += episodes.length;
+            if (!episodes.length || (result.TotalRecordCount != null ? start >= result.TotalRecordCount : episodes.length < 50)) break;
+          }
+        } else {
+          const raw = await this.req(this.u('/Items/' + encodeURIComponent(match.ratingKey)), { timeout: 6000 });
+          if (playableJellyfin(raw)) return { status: 'ready', item: toPlex(raw) };
+        }
+      }
+      return playbackState(item, rows, complete);
+    } catch (e) {
+      return { status: 'unknown' };
+    }
+  }
 
   // --- watched state, progress ---
 

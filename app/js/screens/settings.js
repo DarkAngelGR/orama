@@ -20,7 +20,7 @@ import { UsersScreen } from './users.js';
 import * as themeMusic from '../ui/theme-music.js';
 import * as updates from '../plex/updates.js';
 import * as store from '../util/store.js';
-import { activeTasteKey, aiTasteEnabled, setAiTaste } from '../plex/recommendations.js';
+import { activeTasteKey, aiTasteEnabled, autoFetchEnabled, setAiTaste, setAutoFetch } from '../plex/recommendations.js';
 import { resetTaste } from '../util/taste.js';
 import { ConfirmScreen } from './confirm.js';
 
@@ -79,6 +79,8 @@ export function SettingsScreen() {
       ...(tasteKey ? [
         { label: 'AI recommendations', value: aiTasteEnabled(tasteKey) ? 'On · shares titles and genres with your model provider' : 'Off · enabling shares titles and genres with your model provider',
           run: () => { setAiTaste(tasteKey, !aiTasteEnabled(tasteKey)); build(); } },
+        { label: 'Auto-fetch movies', value: autoFetchEnabled(tasteKey) ? 'On · uses the Watchlist Sync household limit' : 'Off · automatically requests a movie after playback',
+          run: () => { setAutoFetch(tasteKey, !autoFetchEnabled(tasteKey)); build(); } },
         { label: 'Reset taste profile', value: 'Clear this viewer’s recommendations', run: () => router.push(ConfirmScreen({
           title: 'Reset taste profile?',
           message: 'This clears the viewing signals and feedback Orama saved for this viewer.',

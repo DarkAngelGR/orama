@@ -136,6 +136,10 @@ The Apps screen shows **Develop mode** at the top when it's on.
   a series. Each viewer has a taste profile on the TV and a **For you** row on Home. Hold OK on a
   suggestion to choose **More like this** or **Not for me**. **Settings › AI recommendations**
   enables optional model ranking through a configured [Watchlist Sync companion](https://github.com/DarkAngelGR/watchlist-sync#optional-ai-ranking-for-orama).
+- **Worth requesting** recommends missing movies and shows through Watchlist Sync. **Requests**
+  tracks them until Plex or Jellyfin can play them. Use **Search again** on a tracked title
+  when its files are still missing. **Settings › Auto-fetch movies** opts your viewer into the
+  household’s automatic movie requests when the companion allows them.
 - **Discover rows** on Home (with watchlist-sync): *Trending this week* and *Recommended for you*,
   only titles you don't have yet, each one press of OK away from being requested.
 - **Search beyond your library:** find any movie or show and add it to your Plex Watchlist, or on

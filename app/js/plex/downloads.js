@@ -3,6 +3,7 @@
 // watchlist-sync is set up.
 import * as watchlist from './watchlist.js';
 import { warn } from '../util/log.js';
+import { matchMedia, mediaKey } from './availability.js';
 
 const POLL_MS = 5000;
 const listeners = new Set();
@@ -11,6 +12,9 @@ let items = [];
 let key = '';
 // false: watchlist-sync is there but too old to report downloads; null: unknown.
 let supported = null;
+let errors = { radarr: true, sonarr: true };
+let companion = '';
+let updating = false;
 
 export function isSupported() {
   return supported;
@@ -20,25 +24,50 @@ export function current() {
   return items;
 }
 
+export function unavailable(kind) {
+  return companion !== watchlist.baseUrl() || !!errors[kind === 'show' ? 'sonarr' : 'radarr'];
+}
+
 function emit() {
   listeners.forEach(fn => { try { fn(items); } catch (e) { warn('downloads listener failed', e.message); } });
 }
 
 async function poll() {
-  if (!watchlist.baseUrl()) { set([]); return; }
+  const address = watchlist.baseUrl();
+  if (updating) return;
+  if (address !== companion) {
+    companion = address;
+    errors = { radarr: true, sonarr: true };
+    set([]);
+  }
+  if (!address) return;
+  updating = true;
   try {
     const q = await watchlist.queue();
+    if (address !== watchlist.baseUrl()) return;
+    if (q && (!Array.isArray(q.items) || q.items.some(item => !item || !['movie', 'show'].includes(item.kind)) ||
+        (q.errors && (typeof q.errors !== 'object' || Array.isArray(q.errors))))) {
+      throw new Error('Invalid Watchlist Sync queue');
+    }
     const was = supported;
     supported = !!q;
     if (was !== supported) key = ''; // let listeners know
-    set(q && q.items ? q.items : []);
+    errors = q ? q.errors || {} : { radarr: true, sonarr: true };
+    const available = name => !errors[name === 'show' ? 'sonarr' : 'radarr'];
+    set(q ? q.items.filter(d => available(d.kind)).concat(items.filter(d => !available(d.kind))) : []);
   } catch (e) {
-    // Unreachable for a moment: keep showing the last known state.
+    if (address === watchlist.baseUrl()) {
+      errors = { radarr: true, sonarr: true };
+      set(items);
+    }
+  } finally {
+    updating = false;
   }
 }
 
 function set(list) {
-  const k = JSON.stringify(list.map(d => [d.kind, d.tmdb, d.tvdb, d.status, Math.floor(d.progress || 0), d.timeleft, d.detail]));
+  const k = JSON.stringify([!!errors.radarr, !!errors.sonarr,
+    list.map(d => [d.kind, d.tmdb, d.tvdb, d.status, Math.floor(d.progress || 0), d.timeleft, d.detail, d.estimated])]);
   if (k === key) return;
   key = k;
   items = list;
@@ -68,20 +97,13 @@ export function subscribe(fn) {
 // Does download d belong to this Plex catalog/library item? (by TMDB, TVDB or
 // IMDb id from its Guid list, e.g. "tmdb://693134")
 export function find(item) {
-  if (!item) return null;
-  const ids = {};
-  (item.Guid || []).forEach(g => {
-    const m = /^(tmdb|tvdb|imdb):\/\/(.+)$/.exec(g.id || '');
-    if (m) ids[m[1]] = m[2];
-  });
+  if (!item || companion !== watchlist.baseUrl()) return null;
   const kind = item.type === 'show' ? 'show' : 'movie';
-  const byId = items.find(d => d.kind === kind && (
-    (ids.tmdb && String(d.tmdb) === ids.tmdb) || (ids.tvdb && String(d.tvdb) === ids.tvdb) || (ids.imdb && d.imdb === ids.imdb)
-  ));
+  const byId = items.find(d => matchMedia(item, d) === true);
   if (byId) return byId;
   // No ids on this record: same title, same (or next) year.
   const t = norm(item.title);
-  return items.find(d => d.kind === kind && norm(d.title) === t &&
+  return items.find(d => d.kind === kind && (!mediaKey(item) || !mediaKey(d)) && norm(d.title) === t &&
     (!item.year || !d.year || Math.abs(item.year - d.year) <= 1)) || null;
 }
 
@@ -103,12 +125,16 @@ export function describe(d) {
   const pct = Math.floor(d.progress || 0) + '%';
   const parts = {
     downloading: ['Downloading', pct, eta(d.timeleft)],
-    importing: ['Finishing up', 'adding it to your library'],
+    importing: ['Importing', 'waiting for your library'],
     queued: ['Queued'],
     paused: ['Paused', pct],
     stalled: ['Stalled', pct],
     failed: ['Download failed'],
-    searching: ['Looking for a download'],
+    searching: ['Searching'],
+    requested: ['Requested'],
+    waiting: ['Waiting for files'],
+    ready: ['Ready to play'],
+    'checking-auto': ['Confirming automatic request'],
   }[d.status] || [d.status];
   if (d.detail) parts.push(d.detail);
   return parts.filter(Boolean).join('  ·  ');

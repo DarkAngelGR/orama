@@ -176,8 +176,9 @@ export async function upcoming(days = 7) {
 // (movie) / TVDB (show) id, as catalog items the screens already show. Each
 // has arrStatus: 'have' | 'requested' | 'none'. null when this watchlist-sync
 // is too old to search.
-export async function lookup(kind, { q, id } = {}) {
-  const query = 'kind=' + kind + (id ? '&id=' + encodeURIComponent(id) : '&q=' + encodeURIComponent(q || ''));
+export async function lookup(kind, { q, id, fresh = false } = {}) {
+  const query = 'kind=' + kind + (id ? '&id=' + encodeURIComponent(id) : '&q=' + encodeURIComponent(q || '')) +
+    (fresh ? '&fresh=1' : '');
   try {
     const r = await call('/api/tv/lookup?' + query, { timeout: 15000 });
     return (r.items || []).map(toCatalog);
@@ -201,6 +202,7 @@ export function toCatalog(x) {
     audienceRating: x.rating ? Math.round(x.rating * 10) / 10 : undefined,
     audienceRatingImage: x.rating ? 'themoviedb://image.rating' : undefined,
     tmdb: x.tmdb || 0, tvdb: x.tvdb || 0, imdb: x.imdb || '', arrStatus: x.status || 'none',
+    missingFiles: x.missing_files === true || x.status === 'requested',
   };
 }
 
@@ -229,4 +231,22 @@ export async function requestTitle(item, user) {
   const body = { kind: item.type === 'show' ? 'show' : 'movie', user: user || '' };
   if (body.kind === 'movie') body.tmdb = item.tmdb; else body.tvdb = item.tvdb;
   return call('/api/tv/request', { method: 'POST', body, timeout: 60000 });
+}
+
+export async function searchAgain(item) {
+  const kind = item.type === 'show' ? 'show' : 'movie';
+  return call('/api/tv/search-again', {
+    method: 'POST', body: { kind, tmdb: item.tmdb, tvdb: item.tvdb }, timeout: 60000,
+  });
+}
+
+export async function autoFetch(item, triggerId) {
+  return call('/api/tv/auto-fetch', {
+    method: 'POST', body: { tmdb: Number(item.tmdb), triggerId }, timeout: 90000,
+  });
+}
+
+export async function autoFetchStatus(item, triggerId) {
+  const query = '?tmdb=' + encodeURIComponent(item.tmdb) + '&triggerId=' + encodeURIComponent(triggerId);
+  return call('/api/tv/auto-fetch' + query);
 }

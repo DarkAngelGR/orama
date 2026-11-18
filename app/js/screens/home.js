@@ -19,8 +19,9 @@ import * as watchlist from '../plex/watchlist.js';
 import * as together from '../plex/together.js';
 import { cwOpens } from '../player/options.js';
 import * as motion from '../ui/motion.js';
-import { activeTasteKey, prepareRecommendations } from '../plex/recommendations.js';
+import { activeTasteKey, discoverySections, prepareRecommendations, requestablePicks } from '../plex/recommendations.js';
 import { readTaste, setFeedback } from '../util/taste.js';
+import { currentRequests, describeRequest, subscribeRequests, tracked } from '../plex/requests.js';
 
 // Once per app start, a few seconds after home appears: is there a newer
 // Orama? Mentioned once per version.
@@ -131,8 +132,11 @@ export function HomeScreen() {
   let discoverHubs = [];   // titles you don't have yet (watchlist-sync), at the bottom
   let discoverLoadedAt = 0;
   let tasteItems = [];
+  let worthItems = [];
+  let requestItems = [];
   let shownTasteKey = '';
   let tasteRequest = 0;
+  let worthSignature = '';
 
   function buildNav(sections) {
     navTrack.innerHTML = '';
@@ -191,7 +195,10 @@ export function HomeScreen() {
       heroTitle.style.display = '';
       setText(heroTitle, item.type === 'episode' ? item.grandparentTitle : item.title);
     }
-    if (item.download) {
+    if (item.request) {
+      setText(heroMeta, describeRequest(item.request));
+      setText(heroSummary, '');
+    } else if (item.download) {
       setText(heroMeta, (item.year ? item.year + '  ·  ' : '') + downloads.describe(item.download));
       setText(heroSummary, '');
     } else if (item.upcoming) {
@@ -242,10 +249,17 @@ export function HomeScreen() {
     if (togetherItems.length) {
       hubs = [{ hubIdentifier: 'flexplex.together', title: 'Watch Together', type: 'movie', size: togetherItems.length, Metadata: togetherItems }].concat(hubs);
     }
-    if (dlItems.length) {
+    const downloads = dlItems.filter(item => !tracked(item.download));
+    if (downloads.length) {
       const at = hubs.findIndex(hb => !/continue|ondeck/i.test(hb.hubIdentifier));
       const i = at < 0 ? hubs.length : at;
-      const row = { hubIdentifier: 'flexplex.downloads', title: 'Downloading', type: 'movie', size: dlItems.length, Metadata: dlItems };
+      const row = { hubIdentifier: 'flexplex.downloads', title: 'Downloading', type: 'movie', size: downloads.length, Metadata: downloads };
+      hubs = hubs.slice(0, i).concat([row], hubs.slice(i));
+    }
+    if (requestItems.length) {
+      const at = hubs.findIndex(hb => !/continue|ondeck|downloads/i.test(hb.hubIdentifier));
+      const i = at < 0 ? hubs.length : at;
+      const row = { hubIdentifier: 'orama.requests', title: 'Requests', type: 'movie', size: requestItems.length, Metadata: requestItems };
       hubs = hubs.slice(0, i).concat([row], hubs.slice(i));
     }
     if (upItems.length) {
@@ -258,6 +272,10 @@ export function HomeScreen() {
     if (tasteItems.length) {
       hubs = hubs.concat([{ hubIdentifier: TASTE_ROW, title: 'For you', type: 'movie', size: tasteItems.length, Metadata: tasteItems }]);
     }
+    const worth = watchlist.discoverEnabled() ? worthItems.filter(item => !tracked(item)) : [];
+    if (worth.length) {
+      hubs = hubs.concat([{ hubIdentifier: 'orama.worth-requesting', title: 'Worth requesting', type: 'movie', size: worth.length, Metadata: worth }]);
+    }
     return hubs;
   }
 
@@ -267,16 +285,35 @@ export function HomeScreen() {
     const request = ++tasteRequest;
     if (key !== shownTasteKey) {
       shownTasteKey = key;
-      if (tasteItems.length) { tasteItems = []; setHubs(composed()); }
+      if (tasteItems.length || worthItems.length) { tasteItems = []; worthItems = []; setHubs(composed()); }
     }
     if (!profile.length) {
-      if (tasteItems.length) { tasteItems = []; setHubs(composed()); }
+      worthSignature = '';
+      if (tasteItems.length || worthItems.length) { tasteItems = []; worthItems = []; setHubs(composed()); }
       return;
     }
     const picks = await prepareRecommendations(null, plexHubs).picks({ waitForAI: true });
     if (request !== tasteRequest || key !== activeTasteKey()) return;
     tasteItems = picks.slice(0, 12).map(({ item, reason }) => ({ ...item, tasteReason: reason }));
     setHubs(composed());
+    loadWorthRequesting();
+  }
+
+  async function loadWorthRequesting() {
+    const key = activeTasteKey();
+    const profile = readTaste(key);
+    if (!profile.length || !discoverHubs.length || !watchlist.discoverEnabled()) return;
+    const signature = JSON.stringify([key, profile, watchlist.baseUrl(), discoverLoadedAt, Math.floor(Date.now() / 60000)]);
+    if (signature === worthSignature) return;
+    worthSignature = signature;
+    try {
+      const picks = await requestablePicks(discoverHubs.map(hub => ({ items: hub.Metadata })));
+      if (signature !== worthSignature || key !== activeTasteKey() || !readTaste(key).length) return;
+      worthItems = picks.slice(0, 8).map(({ item, reason }) => ({ ...item, tasteReason: reason }));
+      setHubs(composed());
+    } catch (e) {
+      if (signature === worthSignature) worthSignature = '';
+    }
   }
 
   // Watch Together invitations (Plex): checked now and every minute while Home is up.
@@ -322,11 +359,12 @@ export function HomeScreen() {
     if (Date.now() - discoverLoadedAt < 3 * 3600000 || !watchlist.baseUrl() || !watchlist.discoverEnabled()) return;
     discoverLoadedAt = Date.now();
     try {
-      const sections = await watchlist.discover();
+      const sections = await discoverySections();
       discoverHubs = sections.filter(s => s.items.length).map(s => ({
         hubIdentifier: 'flexplex.discover.' + s.id, title: s.title, type: 'movie', size: s.items.length, Metadata: s.items,
       }));
       setHubs(composed());
+      loadWorthRequesting();
     } catch (e) { discoverLoadedAt = 0; /* watchlist-sync not there right now */ }
   }
 
@@ -360,6 +398,11 @@ export function HomeScreen() {
   }
 
   function selectItem(item) {
+    if (item.request) {
+      if (item.request.state.playable) openItem(item.request.state.playable);
+      else openCatalog(item.request.item);
+      return;
+    }
     if (item.upcoming) { openCatalogLookup({ title: item.title, year: item.year, kind: 'show', id: item.upcoming.tvdb }).catch(e => error('show lookup failed', e)); return; }
     if (item.arr) { openCatalog(item); return; }
     if (item.together) {
@@ -464,6 +507,11 @@ export function HomeScreen() {
     setHubs(composed());
   }
   let unsubDownloads = downloads.subscribe(onDownloads);
+  function onRequests() {
+    requestItems = currentRequests().map(row => ({ ...row.item, ratingKey: 'request-' + row.key, request: row }));
+    setHubs(composed());
+  }
+  let unsubRequests = subscribeRequests(onRequests);
 
   const cached = store.get('homeCache');
   if (cached && session.server && cached.server === session.server.id) {
@@ -545,24 +593,28 @@ export function HomeScreen() {
       const returning = !visible;
       visible = true;
       if (!unsubDownloads) unsubDownloads = downloads.subscribe(onDownloads);
+      if (!unsubRequests) unsubRequests = subscribeRequests(onRequests);
       ambience.restore();
       checkForUpdate();
       renderNav(); // widths can't be measured while the screen was hidden
       const profile = readTaste(activeTasteKey());
-      if (!profile.length && tasteItems.length) loadTaste();
+      if (!profile.length && (tasteItems.length || worthItems.length)) loadTaste();
       // Coming back from playback: progress and Continue Watching changed.
       if (stale || Date.now() - loadedAt > 5000 || (returning && profile.length)) { stale = false; load(); }
     },
     onHide() {
       visible = false;
       if (unsubDownloads) { unsubDownloads(); unsubDownloads = null; } // no polling behind other screens
+      if (unsubRequests) { unsubRequests(); unsubRequests = null; }
       clearTimeout(togetherTimer);
     },
     destroy() {
       tasteRequest++;
+      worthSignature = '';
       clearTimeout(togetherTimer);
       unsubscribe();
       if (unsubDownloads) unsubDownloads();
+      if (unsubRequests) unsubRequests();
     },
     wantsHold() {
       return zone === 'rows' && !picker.isOpen && libraryItem(rows[rowIndex] && rows[rowIndex].current());

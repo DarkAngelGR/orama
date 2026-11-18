@@ -47,29 +47,39 @@ export function setFeedback(key, item, feedback) {
   updateTitle(key, item, { feedback });
 }
 
+function genreKeys(genres) {
+  const keys = new Map();
+  for (const name of genres) {
+    for (const part of name.toLowerCase().split(/\s+&\s+/)) {
+      const key = /^(science fiction|sci[ -]?fi)$/.test(part) ? 'science fiction' : part;
+      keys.set(key, name);
+    }
+  }
+  return keys;
+}
+
 function genreScores(profile, now) {
   const scores = new Map();
   for (const title of profile) {
     const age = Math.max(0, now - title.completedAt);
     const completion = title.completedAt ? 1 / (1 + age / (30 * DAY)) : 0;
     const weight = title.feedback === 'more' ? 3 + completion : title.feedback === 'less' ? -0.5 : completion;
-    for (const genre of title.genres) {
-      const key = genre.toLowerCase();
+    for (const [key, name] of genreKeys(title.genres)) {
       const current = scores.get(key);
-      scores.set(key, { name: genre, score: (current ? current.score : 0) + weight });
+      scores.set(key, { name, score: (current ? current.score : 0) + weight });
     }
   }
   return scores;
 }
 
 export function topTasteGenres(profile, now = Date.now()) {
-  return [...genreScores(profile, now).values()].filter(g => g.score > 0)
-    .sort((a, b) => b.score - a.score).map(g => g.name);
+  return [...new Set([...genreScores(profile, now).values()].filter(g => g.score > 0)
+    .sort((a, b) => b.score - a.score).map(g => g.name))];
 }
 
 export function rankLibraryCandidates(profile, seed, candidates, now = Date.now()) {
   const scores = genreScores(profile, now);
-  const seedGenres = new Set(seed ? (seed.Genre || []).map(g => g.tag.toLowerCase()) : []);
+  const seedGenres = genreKeys(seed ? tasteTitle(seed).genres : []);
   const excluded = new Set(profile.filter(x => x.completedAt || x.feedback === 'less').map(x => x.id));
   if (seed) excluded.add(String(seed.ratingKey));
   const ranked = [];
@@ -81,8 +91,7 @@ export function rankLibraryCandidates(profile, seed, candidates, now = Date.now(
     let score = 0;
     let best = null;
     let related = false;
-    for (const g of (item.Genre || [])) {
-      const genre = g.tag.toLowerCase();
+    for (const genre of genreKeys(tasteTitle(item).genres).keys()) {
       const preference = scores.get(genre);
       if (preference) {
         score += preference.score;

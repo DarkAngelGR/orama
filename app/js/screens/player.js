@@ -25,7 +25,7 @@ import { subOffset, setSubOffset, offsetLabel } from '../player/subprefs.js';
 import * as lang from '../util/lang.js';
 import { NATIVE_AUDIO, pickTracks, rememberShowTracks, showKeyOf, learnShowGenres } from '../player/tracks.js';
 import { Picker } from '../ui/picker.js';
-import { activeTasteKey, prepareRecommendations } from '../plex/recommendations.js';
+import { activeTasteKey, fetchAfterCompletion, prepareRecommendations } from '../plex/recommendations.js';
 import { recordCompletion } from '../util/taste.js';
 import { openItem } from '../nav.js';
 
@@ -1128,6 +1128,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     };
     if (!tasteKey || tasteKey !== activeTasteKey()) { exit(); return; }
     recordCompletion(tasteKey, seed, completedAt);
+    fetchAfterCompletion(seed, playSession, tasteKey).catch(e => warn('auto-fetch check failed', e.message));
     const pending = preparePostplay().then(data => {
       if (!data || !alive || tasteKey !== activeTasteKey()) return [];
       if (data.title !== seed) recordCompletion(tasteKey, data.title, completedAt);

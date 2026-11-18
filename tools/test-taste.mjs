@@ -54,6 +54,13 @@ test('excludes plays in progress, finished movies, started shows, and the seed',
   assert.deepEqual(taste.rankLibraryCandidates([], dark, [], now), []);
 });
 
+test('matches genres from Plex, Jellyfin, and Discover across spelling and grouping', () => {
+  const key = 'cross-provider';
+  taste.recordCompletion(key, { ...dark, Genre: [{ tag: 'Sci-Fi & Fantasy' }] }, now);
+  const candidate = { ...arrival, Genre: [{ tag: 'Science Fiction' }] };
+  assert.equal(taste.rankLibraryCandidates(taste.readTaste(key), null, [candidate], now)[0]?.item.title, 'Arrival');
+});
+
 test('accepts only distinct AI picks from the shortlist and fills missing picks locally', () => {
   assert.ok(taste.applyRanking, 'provide AI shortlist validation');
   const local = [dark, arrival, drama].map(item => ({ item, reason: 'Local' }));
