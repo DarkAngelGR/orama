@@ -7,7 +7,7 @@
 //     room): everyone sends their play state once a second and follows whoever
 //     last paused, played or jumped.
 // The room id is the only secret the relay has, so it never goes in logs.
-import { identity, clientId } from './client.js';
+import { identity, clientId, readJson, asTimeout } from './client.js';
 import { session } from '../session.js';
 import { deviceInfo } from '../platform/tizen.js';
 import { log, warn } from '../util/log.js';
@@ -27,8 +27,9 @@ async function call(base, path, { method = 'GET', body, timeout = 12000 } = {}) 
       e.status = res.status;
       throw e;   // (response bodies can leak internals: never shown or logged)
     }
-    const text = await res.text();
-    return text ? JSON.parse(text) : {};
+    return readJson(await res.text(), base + path);
+  } catch (e) {
+    throw asTimeout(e);
   } finally {
     clearTimeout(timer);
   }

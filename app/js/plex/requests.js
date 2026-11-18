@@ -70,6 +70,7 @@ export async function inspectRequest(item, { fresh = false } = {}) {
 }
 
 export function requestStatus(previous, availability, arrStatus, queue, unavailable) {
+  previous = previous || {};
   if (availability && availability.status === 'ready') {
     return { status: 'ready', unavailable, playable: availability.item, queue };
   }
@@ -185,7 +186,7 @@ function tick() {
 export function subscribeRequests(fn, item) {
   listeners.set(fn, item ? mediaKey(item) : '');
   if (!timer) { tick(); timer = setInterval(tick, 10000); }
-  fn();
+  try { fn(); } catch (e) { /* one screen can't stop the others */ }
   return () => {
     listeners.delete(fn);
     if (!listeners.size) { clearInterval(timer); timer = null; }
@@ -193,9 +194,10 @@ export function subscribeRequests(fn, item) {
 }
 
 export function describeRequest(row, live) {
-  const state = row.state;
+  const state = row && row.state || {};
   const queue = live && !live.estimated ? live : state.queue;
-  return [row.auto ? 'Auto-requested' : '', downloads.describe(queue || state),
+  const shown = queue || (state.status ? state : null);
+  return [row && row.auto ? 'Auto-requested' : '', shown ? downloads.describe(shown) : '',
     state.status === 'ready' && queue ? downloads.describe(state) : '',
     state.unavailable ? 'Status temporarily unavailable' : state.checking ? 'Checking your library' : '']
     .filter(Boolean).join(' · ');

@@ -56,7 +56,10 @@ async function fetchJson(url, { method = 'GET', body, headers = {}, timeout = 80
       signal: ctrl ? ctrl.signal : undefined,
     });
     let data = {};
-    try { data = await res.json(); } catch (e) { /* not JSON */ }
+    try {
+      const parsed = await res.json();
+      if (parsed != null) data = parsed;
+    } catch (e) { /* empty or not JSON */ }
     return { status: res.status, ok: res.ok, data };
   } finally {
     clearTimeout(timer);
@@ -81,28 +84,30 @@ export async function installerStatus() {
     throw new Error('Can\'t reach the installer at ' + base.replace(/^https?:\/\//, ''));
   }
   if (r.status === 401) throw new Error('The installer needs its password');
-  if (!r.ok || r.data.product !== 'flexplex-installer') throw new Error('That address isn\'t the Orama installer');
+  if (!r.ok || !r.data || typeof r.data !== 'object' || r.data.product !== 'flexplex-installer') throw new Error('That address isn\'t the Orama installer');
   return r.data;
 }
 
 export async function startInstall(version) {
   const r = await fetchJson(baseUrl() + '/api/install', { method: 'POST', body: version ? { version } : {}, headers: authHeaders() });
   if (r.status === 409) return { already: true };
-  if (!r.ok) throw new Error(r.data.error || ('The installer answered ' + r.status));
-  return r.data;
+  const data = r.data && typeof r.data === 'object' ? r.data : {};
+  if (!r.ok) throw new Error(data.error || ('The installer answered ' + r.status));
+  return data;
 }
 
 export async function installerCheck() {
   const r = await fetchJson(baseUrl() + '/api/check', { method: 'POST', headers: authHeaders(), timeout: 25000 });
-  if (!r.ok) throw new Error(r.data.error || ('The installer answered ' + r.status));
-  return r.data;
+  const data = r.data && typeof r.data === 'object' ? r.data : {};
+  if (!r.ok) throw new Error(data.error || ('The installer answered ' + r.status));
+  return data;
 }
 
 // Latest release straight from GitHub: { version, notes }.
 export async function githubLatest() {
   const r = await fetchJson('https://api.github.com/repos/' + GITHUB_REPO + '/releases/latest',
     { headers: { Accept: 'application/vnd.github+json' }, timeout: 10000 });
-  if (!r.ok) throw new Error(r.status === 404 ? 'No releases yet' : 'GitHub answered ' + r.status);
+  if (!r.ok || !r.data || typeof r.data !== 'object') throw new Error(r.status === 404 ? 'No releases yet' : 'GitHub answered ' + r.status);
   return { version: String(r.data.tag_name || '').replace(/^v/i, ''), notes: r.data.body || '' };
 }
 

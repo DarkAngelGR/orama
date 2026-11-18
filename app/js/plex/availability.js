@@ -29,7 +29,7 @@ export function matchMedia(target, item) {
 }
 
 export function hasPlayableMedia(item) {
-  return (item.Media || []).some(m => (m.Part || []).some(p =>
+  return !!item && (item.Media || []).some(m => (m.Part || []).some(p =>
     !!p.key && p.exists !== false && p.exists !== 0 && p.accessible !== false && p.accessible !== 0));
 }
 

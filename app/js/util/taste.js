@@ -25,7 +25,7 @@ export function tasteResetRevision() {
 export function tasteTitle(item) {
   return {
     id: String(item.ratingKey), title: item.title, kind: item.type, year: Number(item.year) || null,
-    genres: Array.from(new Set((item.Genre || []).map(g => g.tag).filter(Boolean))),
+    genres: Array.from(new Set((Array.isArray(item.Genre) ? item.Genre : []).map(g => g && g.tag).filter(Boolean))),
   };
 }
 
@@ -50,6 +50,7 @@ export function setFeedback(key, item, feedback) {
 function genreKeys(genres) {
   const keys = new Map();
   for (const name of genres) {
+    if (typeof name !== 'string' || !name) continue;
     for (const part of name.toLowerCase().split(/\s+&\s+/)) {
       const key = /^(science fiction|sci[ -]?fi)$/.test(part) ? 'science fiction' : part;
       keys.set(key, name);
@@ -83,9 +84,10 @@ export function rankLibraryCandidates(profile, seed, candidates, now = Date.now(
   const excluded = new Set(profile.filter(x => x.completedAt || x.feedback === 'less').map(x => x.id));
   if (seed) excluded.add(String(seed.ratingKey));
   const ranked = [];
-  for (const item of candidates) {
+  for (const item of candidates || []) {
+    if (!item || !item.ratingKey) continue;
     const id = String(item.ratingKey);
-    if (!item.ratingKey || excluded.has(id) || item.viewCount > 0 || item.viewOffset > 0 || item.viewedLeafCount > 0) continue;
+    if (excluded.has(id) || item.viewCount > 0 || item.viewOffset > 0 || item.viewedLeafCount > 0) continue;
     if (item.type !== 'movie' && item.type !== 'show') continue;
     excluded.add(id);
     let score = 0;

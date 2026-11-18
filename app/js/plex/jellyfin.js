@@ -5,7 +5,7 @@
 //
 // Routes are the long-standing /Users/{userId}/... ones, which Jellyfin 10.8
 // and every later version answer.
-import { withQuery, HttpError } from './client.js';
+import { withQuery, HttpError, readJson, asTimeout } from './client.js';
 import { clientId } from './client.js';
 import { VERSION } from '../config.js';
 import { hasPlayableMedia, matchMedia, mediaKey, playbackState } from './availability.js';
@@ -31,8 +31,9 @@ export async function jfRequest(base, path, { method = 'GET', token, params, bod
     });
     if (!res.ok) throw new HttpError(res.status, url);
     if (raw) return res;
-    const text = await res.text();
-    return text ? JSON.parse(text) : {};
+    return readJson(await res.text(), url);
+  } catch (e) {
+    throw asTimeout(e);
   } finally {
     clearTimeout(timer);
   }
@@ -128,8 +129,8 @@ function streamOf(itemId, src, s) {
 }
 
 function mediaOf(it) {
-  return (it.MediaSources || []).map(src => {
-    const streams = (src.MediaStreams || it.MediaStreams || []).map(s => streamOf(it.Id, src, s)).filter(Boolean);
+  return (it.MediaSources || []).filter(src => src && src.Id).map(src => {
+    const streams = (src.MediaStreams || it.MediaStreams || []).map(s => s && streamOf(it.Id, src, s)).filter(Boolean);
     const v = streams.find(s => s.streamType === 1) || {};
     const container = String(src.Container || '').split(',')[0].toLowerCase();
     return {
@@ -146,16 +147,18 @@ function mediaOf(it) {
 }
 
 function playableJellyfin(raw) {
-  return raw && !['Virtual', 'Offline'].includes(raw.LocationType) &&
+  const item = raw && toPlex(raw);
+  return !!item && !['Virtual', 'Offline'].includes(raw.LocationType) &&
     (!raw.PlayAccess || raw.PlayAccess === 'Full') &&
-    (raw.MediaSources || []).some(source => source && source.Id) && hasPlayableMedia(toPlex(raw));
+    (raw.MediaSources || []).some(source => source && source.Id) && hasPlayableMedia(item);
 }
 
 export function toPlex(it) {
+  if (!it || typeof it !== 'object' || it.Id == null || it.Id === '') return null;
   const ud = it.UserData || {};
   const type = TYPES[it.Type] || 'clip';
   const tags = it.ImageTags || {};
-  const people = it.People || [];
+  const people = (Array.isArray(it.People) ? it.People : []).filter(p => p && typeof p === 'object');
   const ids = it.ProviderIds || {};
   const leaf = it.RecursiveItemCount || 0;
   const o = {
@@ -164,13 +167,13 @@ export function toPlex(it) {
     contentRating: it.OfficialRating || '', duration: ms(it.RunTimeTicks),
     viewOffset: ms(ud.PlaybackPositionTicks) || undefined, viewCount: ud.Played ? 1 : 0,
     lastViewedAt: epoch(ud.LastPlayedDate), addedAt: epoch(it.DateCreated),
-    originallyAvailableAt: it.PremiereDate ? it.PremiereDate.slice(0, 10) : undefined,
+    originallyAvailableAt: typeof it.PremiereDate === 'string' ? it.PremiereDate.slice(0, 10) : undefined,
     index: it.IndexNumber, parentIndex: it.ParentIndexNumber,
     thumb: img(it.Id, 'Primary', tags.Primary),
     art: img(it.Id, 'Backdrop', (it.BackdropImageTags || [])[0], 0) ||
       img(it.ParentBackdropItemId, 'Backdrop', (it.ParentBackdropImageTags || [])[0], 0),
     Guid: Object.keys(ids).filter(k => /^(tmdb|imdb|tvdb)$/i.test(k) && ids[k]).map(k => ({ id: k.toLowerCase() + '://' + ids[k] })),
-    Genre: (it.Genres || []).map(tag => ({ tag })),
+    Genre: (Array.isArray(it.Genres) ? it.Genres : []).filter(tag => typeof tag === 'string' && tag).map(tag => ({ tag })),
     Director: people.filter(p => p.Type === 'Director').map(p => ({ tag: p.Name })),
     Writer: people.filter(p => p.Type === 'Writer').map(p => ({ tag: p.Name })),
     Role: people.filter(p => p.Type === 'Actor' || p.Type === 'GuestStar').map(p => ({
@@ -209,6 +212,17 @@ export function toPlex(it) {
   if (type === 'clip' && it.Type === 'Trailer') { o.extraType = 1; o.subtype = 'trailer'; }
   if (it.MediaSources) o.Media = mediaOf(it);
   return o;
+}
+
+// A list, or a { Items } page. Drops entries the server left empty.
+function plexList(list) {
+  const rows = Array.isArray(list) ? list : (list && Array.isArray(list.Items) ? list.Items : []);
+  const out = [];
+  for (const raw of rows) {
+    const item = toPlex(raw);
+    if (item && item.ratingKey) out.push(item);
+  }
+  return out;
 }
 
 // --- the server ----------------------------------------------------------------------
@@ -272,7 +286,7 @@ export class JellyfinServer {
         ParentId: m[1], PersonIds: params.person, Recursive: true, IncludeItemTypes: 'Movie,Series',
         SortBy: 'ProductionYear,SortName', SortOrder: 'Descending', Fields: LIST_FIELDS,
       } });
-      return { Metadata: (r.Items || []).map(toPlex) };
+      return { Metadata: plexList(r && r.Items) };
     }
     throw new Error('Not available on Jellyfin: ' + path);
   }
@@ -294,12 +308,12 @@ export class JellyfinServer {
       ...views.map(v => this.req(this.u('/Items/Latest'), { params: Object.assign({ ParentId: v.key, Limit: 24 }, fields) }).catch(() => [])),
     ]);
     const hubs = [
-      { hubIdentifier: 'home.continue', title: 'Continue Watching', type: 'mixed', Metadata: (resume.Items || []).map(toPlex) },
-      { hubIdentifier: 'home.ondeck', title: 'Next Up', type: 'episode', Metadata: (next.Items || []).map(toPlex) },
+      { hubIdentifier: 'home.continue', title: 'Continue Watching', type: 'mixed', Metadata: plexList(resume && resume.Items) },
+      { hubIdentifier: 'home.ondeck', title: 'Next Up', type: 'episode', Metadata: plexList(next && next.Items) },
     ];
     views.forEach((v, i) => hubs.push({
       hubIdentifier: (v.type === 'movie' ? 'movie' : 'tv') + '.recentlyadded.' + v.key,
-      title: 'Recently Added ' + v.title, type: v.type, Metadata: (latest[i] || []).map(toPlex),
+      title: 'Recently Added ' + v.title, type: v.type, Metadata: plexList(latest[i]),
     }));
     return hubs.map(hb => Object.assign(hb, { size: hb.Metadata.length })).filter(hb => hb.size);
   }
@@ -313,7 +327,7 @@ export class JellyfinServer {
       StartIndex: start, Limit: size, SortBy: by, SortOrder: order, Fields: 'ProviderIds,ChildCount,RecursiveItemCount,PremiereDate,CommunityRating',
       Filters: unwatched ? 'IsUnplayed' : undefined, EnableTotalRecordCount: true,
     } });
-    return { total: r.TotalRecordCount || 0, items: (r.Items || []).map(toPlex) };
+    return { total: r.TotalRecordCount || 0, items: plexList(r && r.Items) };
   }
 
   // Plex's "first character" index for the letter jump: titles in A–Z order,
@@ -338,6 +352,7 @@ export class JellyfinServer {
   async metadata(id) {
     const it = await this.req(this.u('/Items/' + id));
     const item = toPlex(it);
+    if (!item) return null;
     const extras = [];
     if (item.type === 'show') {
       extras.push(this.req('/Shows/NextUp', { params: { UserId: this.userId, SeriesId: id, Limit: 1, Fields: LIST_FIELDS } })
@@ -367,14 +382,14 @@ export class JellyfinServer {
       ParentId: id, SortBy: 'ParentIndexNumber,IndexNumber,SortName', SortOrder: 'Ascending',
       Fields: 'Overview,ProviderIds,ChildCount,RecursiveItemCount,PremiereDate',
     } });
-    return (r.Items || []).map(toPlex);
+    return plexList(r && r.Items);
   }
 
   async search(q) {
     const r = await this.req(this.u('/Items'), { params: {
       searchTerm: q, Recursive: true, IncludeItemTypes: 'Movie,Series,Episode', Limit: 60, Fields: 'ProviderIds,PremiereDate',
     } });
-    const all = (r.Items || []).map(toPlex);
+    const all = plexList(r && r.Items);
     return [['movie', 'Movies'], ['show', 'Shows'], ['episode', 'Episodes']]
       .map(([type, title]) => ({ type, title, hubIdentifier: 'search.' + type, Metadata: all.filter(x => x.type === type) }))
       .map(hb => Object.assign(hb, { size: hb.Metadata.length })).filter(hb => hb.size);
@@ -414,7 +429,7 @@ export class JellyfinServer {
       PersonTypes: person && person.id && f.personRole === 'director' ? 'Director' : undefined,
       SortBy: by, SortOrder: order, Limit: f.limit || 300, Fields: LIST_FIELDS + ',Genres',
     } });
-    return (r.Items || []).map(toPlex);
+    return plexList(r && r.Items);
   }
 
   async extras(id) {
@@ -426,11 +441,17 @@ export class JellyfinServer {
       Interview: 'interview', Scene: 'scene', Sample: 'scene', Short: 'short', Clip: 'clip', Unknown: 'clip' };
     const seen = new Set();
     const out = [];
-    (Array.isArray(trailers) ? trailers : []).forEach(it => { seen.add(it.Id); out.push(Object.assign(toPlex(it), { extraType: 1, subtype: 'trailer' })); });
+    (Array.isArray(trailers) ? trailers : []).forEach(it => {
+      const item = toPlex(it);
+      if (!item) return;
+      seen.add(it.Id);
+      out.push(Object.assign(item, { extraType: 1, subtype: 'trailer' }));
+    });
     (Array.isArray(features) ? features : []).forEach(it => {
-      if (seen.has(it.Id) || /^Theme/.test(it.ExtraType || '')) return;
+      const item = toPlex(it);
+      if (!item || seen.has(it.Id) || /^Theme/.test(it.ExtraType || '')) return;
       const subtype = SUBTYPE[it.ExtraType] || 'clip';
-      out.push(Object.assign(toPlex(it), { subtype, extraType: subtype === 'trailer' ? 1 : 0 }));
+      out.push(Object.assign(item, { subtype, extraType: subtype === 'trailer' ? 1 : 0 }));
     });
     return out;
   }
@@ -482,7 +503,9 @@ export class JellyfinServer {
             total = page.TotalRecordCount;
             if (!page.Items.length && total > rows.length) throw new Error('Incomplete library page');
             for (const raw of page.Items) {
-              const { ratingKey, type, title, year, Guid } = toPlex(raw);
+              const item = toPlex(raw);
+              if (!item) continue;
+              const { ratingKey, type, title, year, Guid } = item;
               rows.push({ ratingKey, type, title, year, Guid });
             }
           } while (rows.length < total && rows.length < 50000);

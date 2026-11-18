@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mediaKey, matchMedia, playbackState } from '../app/js/plex/availability.js';
+import { hasPlayableMedia, mediaKey, matchMedia, playbackState } from '../app/js/plex/availability.js';
 globalThis.window = {};
 globalThis.localStorage = new Map();
 localStorage.getItem = key => localStorage.get(key) ?? null;
 localStorage.setItem = (key, value) => localStorage.set(key, value);
 localStorage.removeItem = key => localStorage.delete(key);
-const { acquire, currentRequests, requestStatus, subscribeRequests } = await import('../app/js/plex/requests.js');
+const { acquire, currentRequests, describeRequest, requestStatus, subscribeRequests } = await import('../app/js/plex/requests.js');
 const { session } = await import('../app/js/session.js');
 const { setManualUrl } = await import('../app/js/plex/watchlist.js');
 const { Server } = await import('../app/js/plex/server.js');
@@ -25,6 +25,8 @@ test('matches provider IDs exactly and treats a metadata-only match as unavailab
   assert.equal(playbackState(original, [{ ...local, Media: [] }]).status, 'unknown');
   assert.equal(playbackState(original, [local]).item.ratingKey, '1');
   assert.equal(playbackState(original, [{ ...local, Media: [{ Part: [{ key: '/library/parts/1', exists: 0 }] }] }]).status, 'unknown');
+  assert.equal(hasPlayableMedia(null), false);
+  assert.equal(hasPlayableMedia({}), false);
 });
 
 test('preserves failed-poll state and waits for the media server after Arr import', () => {
@@ -164,4 +166,11 @@ test('recovers an auto-fetch receipt after the request response is lost', { time
     globalThis.fetch = originalFetch;
     setManualUrl('');
   }
+});
+
+test('a saved request with no state still describes and refreshes', () => {
+  assert.equal(requestStatus(null, { status: 'missing' }, 'requested', null, false).status, 'waiting');
+  assert.equal(requestStatus(undefined, null, null, null, true).unavailable, true);
+  assert.equal(describeRequest({ auto: true }), 'Auto-requested');
+  assert.equal(describeRequest({ state: { status: 'requested', unavailable: false } }), 'Requested');
 });

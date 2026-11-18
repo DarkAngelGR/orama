@@ -65,7 +65,7 @@ export function CatalogScreen(initial) {
 
   function playableItem(record) {
     if (checked && (!record || checked.at >= (record.checkedAt || 0))) return checked.availability.item;
-    return record && record.state.playable;
+    return record && record.state && record.state.playable;
   }
 
   function renderButtons() {
@@ -219,7 +219,7 @@ export function CatalogScreen(initial) {
 
   function showDownload() {
     const record = arr && requests.tracked(item);
-    const d = downloads.find(item) || (record && record.state.queue);
+    const d = downloads.find(item) || (record && record.state && record.state.queue);
     if (arr) {
       const playable = playableItem(record);
       setText(badge, playable ? 'In your library' : 'Library availability');

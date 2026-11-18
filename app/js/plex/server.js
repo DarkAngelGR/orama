@@ -1,5 +1,5 @@
 // Plex Media Server API, scoped to the features this client uses.
-import { request, withQuery, identity } from './client.js';
+import { request, withQuery, identity, unreadable } from './client.js';
 import { hasPlayableMedia, matchMedia, mediaIds, playbackState } from './availability.js';
 
 const SUPPORTED_HUB_TYPES = { movie: 1, show: 1, episode: 1, season: 1, mixed: 1, clip: 1 };
@@ -21,7 +21,9 @@ export class Server {
       if (hit && Date.now() - hit.t < maxAge) return hit.data;
     }
     const json = await request(this.uri + path, { token: this.token, params, timeout });
+    if (!json || typeof json !== 'object') throw unreadable(this.uri + path);
     const data = json.MediaContainer || json;
+    if (!data || typeof data !== 'object') throw unreadable(this.uri + path);
     if (maxAge) this.cache.set(key, { t: Date.now(), data });
     return data;
   }
@@ -170,9 +172,18 @@ export class Server {
   // any (Settings › Library › "Generate video preview thumbnails").
   async previewThumbs(part) {
     if (!part || !part.id || !/sd/.test(part.indexes || '')) return null;
-    const r = await fetch(this.url('/library/parts/' + part.id + '/indexes/sd'));
-    if (!r.ok) throw new Error('Plex answered ' + r.status);
-    return r.arrayBuffer();
+    const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timer = ctrl ? setTimeout(() => ctrl.abort(), 15000) : 0;
+    try {
+      const r = await fetch(this.url('/library/parts/' + part.id + '/indexes/sd'), { signal: ctrl ? ctrl.signal : undefined });
+      if (!r.ok) throw new Error('Plex answered ' + r.status);
+      return r.arrayBuffer();
+    } catch (e) {
+      if (e && e.name === 'AbortError') throw new Error('The server didn\'t answer in time');
+      throw e;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   async children(ratingKey) {

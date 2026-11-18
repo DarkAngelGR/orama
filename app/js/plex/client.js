@@ -53,6 +53,34 @@ export class HttpError extends Error {
   }
 }
 
+export function unreadable(url) {
+  const err = new HttpError(0, url || '');
+  err.message = 'The server sent an unreadable response';
+  return err;
+}
+
+// Objects, arrays and booleans are all real API bodies. null and broken text are not.
+export function readJson(text, url) {
+  const raw = text == null ? '' : String(text);
+  if (!raw.trim()) return {};
+  try {
+    const data = JSON.parse(raw);
+    if (data == null) throw unreadable(url);
+    return data;
+  } catch (e) {
+    if (e instanceof HttpError) throw e;
+    throw unreadable(url);
+  }
+}
+
+export function asTimeout(e) {
+  if (!e || e.name !== 'AbortError') return e;
+  const err = new Error('The server didn\'t answer in time');
+  err.name = 'AbortError';
+  err.status = 0;
+  return err;
+}
+
 export async function request(url, { method = 'GET', token, params, timeout = 15000, body, raw } = {}) {
   const headers = Object.assign({ Accept: 'application/json' }, identity());
   if (token) headers['X-Plex-Token'] = token;
@@ -63,8 +91,9 @@ export async function request(url, { method = 'GET', token, params, timeout = 15
     const res = await fetch(full, { method, headers, body, signal: ctrl ? ctrl.signal : undefined });
     if (!res.ok) throw new HttpError(res.status, full);
     if (raw) return res;
-    const text = await res.text();
-    return text ? JSON.parse(text) : {};
+    return readJson(await res.text(), full);
+  } catch (e) {
+    throw asTimeout(e);
   } finally {
     clearTimeout(timer);
   }
