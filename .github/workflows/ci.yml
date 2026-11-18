@@ -1,0 +1,26 @@
+# Tests and a bundled release build on every pull request and on pushes to any
+# branch. Publishing the .wgt stays in release.yml, which runs only on main.
+name: CI
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Test
+        run: node --test tools/test-*.mjs
+
+      - name: Build
+        run: |
+          printf '' > .env
+          ./scripts/deploy.sh --build-only
+          test ! -e build/app/js/screens/player.js
