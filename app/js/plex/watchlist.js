@@ -103,6 +103,10 @@ export async function info() {
   return data;
 }
 
+export async function recommend(body) {
+  return call('/api/tv/recommend', { method: 'POST', body, timeout: 6000 });
+}
+
 // Ask watchlist-sync to sync now, so a title just added to the Plex Watchlist
 // reaches Sonarr/Radarr in seconds instead of on its next cycle.
 export async function syncNow() {

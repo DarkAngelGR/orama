@@ -404,7 +404,7 @@ export class JellyfinServer {
       IsPlayed: f.watched === undefined ? undefined : f.watched,
       PersonIds: person && person.id ? person.id : undefined,
       PersonTypes: person && person.id && f.personRole === 'director' ? 'Director' : undefined,
-      SortBy: by, SortOrder: order, Limit: 300, Fields: LIST_FIELDS + ',Genres',
+      SortBy: by, SortOrder: order, Limit: f.limit || 300, Fields: LIST_FIELDS + ',Genres',
     } });
     return (r.Items || []).map(toPlex);
   }

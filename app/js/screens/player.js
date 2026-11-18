@@ -24,6 +24,10 @@ import { parseBif, bifIndex, bifPicture } from '../player/bif.js';
 import { subOffset, setSubOffset, offsetLabel } from '../player/subprefs.js';
 import * as lang from '../util/lang.js';
 import { NATIVE_AUDIO, pickTracks, rememberShowTracks, showKeyOf, learnShowGenres } from '../player/tracks.js';
+import { Picker } from '../ui/picker.js';
+import { activeTasteKey, prepareRecommendations } from '../plex/recommendations.js';
+import { recordCompletion } from '../util/taste.js';
+import { openItem } from '../nav.js';
 
 // What a 2022 Samsung (Tizen 6.5) decodes natively. No DTS on 2018+ models.
 const DIRECT = {
@@ -107,6 +111,10 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   const toastEl = h('div', 'toast', el);
   const panel = h('div', 'tracks hidden', el);
   const upnext = h('div', 'upnext hidden', el);
+  const postplayPicker = new Picker(el);
+  const tasteKey = activeTasteKey();
+  let postplay;
+  let ended = false;
   const errorEl = h('div', 'player-error hidden', el);
   // Watch Together: who's here (top right) and the waiting room before it starts.
   const togetherEl = h('div', 'together-chip hidden', el);
@@ -707,7 +715,9 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       renderProgress(position);
       showOsd();
       await open(offset);
-      if (together) startTogether(); else loadNeighbors();
+      if (together) startTogether();
+      else if (item.type === 'movie') preparePostplay();
+      else loadNeighbors();
     } catch (e) {
       failed(e.message || String(e));
     }
@@ -1093,21 +1103,66 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   // For the Episode column and the ⏮ ⏭ keys, looked up once playback runs.
   function loadNeighbors() {
     if (item.type !== 'episode') return;
-    Promise.all([neighborEpisode(-1).catch(() => null), neighborEpisode(1).catch(() => null)])
+    const next = neighborEpisode(1).then(ep => {
+      if (alive && !ep) preparePostplay();
+      return ep;
+    }).catch(() => null);
+    Promise.all([neighborEpisode(-1).catch(() => null), next])
       .then(([prev, next]) => { if (alive) neighbors = { prev, next }; });
   }
 
+  function preparePostplay() {
+    if (postplay) return postplay;
+    const seed = item.type === 'episode' ? session.server.metadata(item.grandparentRatingKey) : Promise.resolve(item);
+    postplay = seed.then(title => {
+      if (!title || !alive || !tasteKey || tasteKey !== activeTasteKey()) return null;
+      return { title, recommendations: prepareRecommendations(title) };
+    }).catch(() => null);
+    return postplay;
+  }
+
+  async function finishWithPicks() {
+    const completedAt = Date.now();
+    const seed = item.type === 'movie' ? item : {
+      ratingKey: item.grandparentRatingKey, title: item.grandparentTitle, type: 'show',
+    };
+    if (!tasteKey || tasteKey !== activeTasteKey()) { exit(); return; }
+    recordCompletion(tasteKey, seed, completedAt);
+    const pending = preparePostplay().then(data => {
+      if (!data || !alive || tasteKey !== activeTasteKey()) return [];
+      if (data.title !== seed) recordCompletion(tasteKey, data.title, completedAt);
+      return data.recommendations.picks();
+    }).catch(() => []);
+    let timer;
+    const deadline = new Promise(resolve => { timer = setTimeout(() => resolve([]), 1200); });
+    const picks = await Promise.race([pending, deadline]);
+    clearTimeout(timer);
+    if (!alive) return;
+    if (tasteKey !== activeTasteKey() || !picks.length) { exit(); return; }
+    const options = picks.slice(0, 3).map(({ item, reason }) => ({ label: item.title, detail: reason, value: item }));
+    options.push({ label: 'Back to details', value: null });
+    postplayPicker.open('What to watch next', options, pick => {
+      exit();
+      if (pick) openItem(pick);
+    });
+  }
+
   async function finished() {
+    if (!alive || ended) return;
+    ended = true;
     position = duration;
     activeMarker = null;
     toggleClass(skipBtn, 'hidden', true);
     report('stopped');
     clearInterval(timelineTimer);
+    hideOsd();
     player.close();
-    if (item.type !== 'episode' || link) { exit(); return; }
-    try { nextItem = neighbors.next || await neighborEpisode(1); } catch (e) { nextItem = null; }
+    if (link) { exit(); return; }
+    if (item.type === 'movie') { await finishWithPicks(); return; }
+    if (item.type !== 'episode') { exit(); return; }
+    try { nextItem = neighbors.next || await neighborEpisode(1); } catch (e) { if (alive) exit(); return; }
     if (!alive) return;
-    if (!nextItem) { exit(); return; }
+    if (!nextItem) { await finishWithPicks(); return; }
     let left = 10;
     upnext.classList.remove('hidden');
     const render = () => {
@@ -1206,6 +1261,11 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       if (!upnext.classList.contains('hidden')) {
         if (action === 'enter') { playNext(); return true; }
         if (action === 'back' || action === 'stop') { exit(); return true; }
+        return true;
+      }
+      if (ended) {
+        if (action === 'back' || action === 'stop') exit();
+        else if (postplayPicker.isOpen && (action === 'up' || action === 'down' || action === 'enter')) postplayPicker.onKey(action);
         return true;
       }
       if (!panel.classList.contains('hidden')) return panelKey(action);

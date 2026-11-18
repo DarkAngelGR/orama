@@ -20,6 +20,9 @@ import { UsersScreen } from './users.js';
 import * as themeMusic from '../ui/theme-music.js';
 import * as updates from '../plex/updates.js';
 import * as store from '../util/store.js';
+import { activeTasteKey, aiTasteEnabled, setAiTaste } from '../plex/recommendations.js';
+import { resetTaste } from '../util/taste.js';
+import { ConfirmScreen } from './confirm.js';
 
 const ROW = 110;     // .setting height + margin
 const VISIBLE = 6;   // rows that fit above the footer
@@ -45,6 +48,7 @@ export function SettingsScreen() {
 
   function build() {
     list.innerHTML = '';
+    const tasteKey = activeTasteKey();
     items = [].concat(isJellyfin() ? [
       // Jellyfin: one server per sign-in, no Plex Home profiles.
       { label: 'Server', value: session.server.name + ' (Jellyfin)', run: () => {} },
@@ -72,6 +76,16 @@ export function SettingsScreen() {
       { label: 'Performance overlay', value: hudEnabled() ? 'On' : 'Off', run: () => { setHud(!hudEnabled()); build(); } },
       // For before/after recordings: brings back the full-screen gradients that took ~2s per repaint.
       { label: 'Discover rows on Home', value: watchlist.discoverEnabled() ? 'On · trending and recommended to request' : 'Off', run: () => { watchlist.setDiscoverEnabled(!watchlist.discoverEnabled()); build(); } },
+      ...(tasteKey ? [
+        { label: 'AI recommendations', value: aiTasteEnabled(tasteKey) ? 'On · shares titles and genres with your model provider' : 'Off · enabling shares titles and genres with your model provider',
+          run: () => { setAiTaste(tasteKey, !aiTasteEnabled(tasteKey)); build(); } },
+        { label: 'Reset taste profile', value: 'Clear this viewer’s recommendations', run: () => router.push(ConfirmScreen({
+          title: 'Reset taste profile?',
+          message: 'This clears the viewing signals and feedback Orama saved for this viewer.',
+          confirmLabel: 'Reset',
+          run: () => { resetTaste(tasteKey); router.back(); },
+        })) },
+      ] : []),
       { label: 'Animations', value: motion.enabled() ? 'On' : 'Off · everything appears at once', run: () => { motion.setEnabled(!motion.enabled()); build(); } },
       { label: 'Demo: original slow renderer', value: legacyGradients() ? 'On' : 'Off', run: () => { setLegacyGradients(!legacyGradients()); build(); } },
     ]);

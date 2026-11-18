@@ -19,6 +19,8 @@ import * as watchlist from '../plex/watchlist.js';
 import * as together from '../plex/together.js';
 import { cwOpens } from '../player/options.js';
 import * as motion from '../ui/motion.js';
+import { activeTasteKey, prepareRecommendations } from '../plex/recommendations.js';
+import { readTaste, setFeedback } from '../util/taste.js';
 
 // Once per app start, a few seconds after home appears: is there a newer
 // Orama? Mentioned once per version.
@@ -37,6 +39,12 @@ function checkForUpdate() {
 
 const ROWS_TOP = 600;
 const NAV_PAD = 80; // wider than the 64px edge fade in app.css
+const TASTE_ROW = 'orama.for-you';
+
+export function libraryItem(it) {
+  return !!(it && it.ratingKey && !it.download && !it.catalog &&
+    (it.jellyfin === true || /^\d+$/.test(String(it.ratingKey))));
+}
 
 function slimHub(hub) {
   // Keep the cache small: only fields the home screen renders.
@@ -44,7 +52,7 @@ function slimHub(hub) {
     'grandparentThumb', 'grandparentArt', 'parentThumb', 'index', 'parentIndex', 'duration', 'viewOffset',
     'viewCount', 'leafCount', 'viewedLeafCount', 'childCount', 'contentRating', 'audienceRating', 'summary',
     'audienceRatingImage', 'rating', 'ratingImage',
-    'originallyAvailableAt', 'UltraBlurColors', 'grandparentRatingKey', 'parentRatingKey', 'Image'];
+    'originallyAvailableAt', 'UltraBlurColors', 'grandparentRatingKey', 'parentRatingKey', 'Image', 'jellyfin'];
   return {
     hubIdentifier: hub.hubIdentifier, title: hub.title, type: hub.type,
     Metadata: hub.Metadata.map(m => {
@@ -122,6 +130,9 @@ export function HomeScreen() {
   let togetherTimer = 0;
   let discoverHubs = [];   // titles you don't have yet (watchlist-sync), at the bottom
   let discoverLoadedAt = 0;
+  let tasteItems = [];
+  let shownTasteKey = '';
+  let tasteRequest = 0;
 
   function buildNav(sections) {
     navTrack.innerHTML = '';
@@ -188,7 +199,7 @@ export function HomeScreen() {
       setText(heroMeta, item.note + (u.title ? '  ·  ' + u.title : ''));
       setText(heroSummary, u.overview || '');
     } else {
-      setText(heroMeta, (item.type === 'episode' ? item.title + '  ·  ' : '') + metaLine(item));
+      setText(heroMeta, item.tasteReason || ((item.type === 'episode' ? item.title + '  ·  ' : '') + metaLine(item)));
       setText(heroSummary, item.summary || '');
     }
     ambience.set(item.UltraBlurColors);
@@ -244,7 +255,28 @@ export function HomeScreen() {
       hubs = hubs.slice(0, last + 1).concat([row], hubs.slice(last + 1));
     }
     if (discoverHubs.length && watchlist.discoverEnabled()) hubs = hubs.concat(discoverHubs);
+    if (tasteItems.length) {
+      hubs = hubs.concat([{ hubIdentifier: TASTE_ROW, title: 'For you', type: 'movie', size: tasteItems.length, Metadata: tasteItems }]);
+    }
     return hubs;
+  }
+
+  async function loadTaste() {
+    const key = activeTasteKey();
+    const profile = readTaste(key);
+    const request = ++tasteRequest;
+    if (key !== shownTasteKey) {
+      shownTasteKey = key;
+      if (tasteItems.length) { tasteItems = []; setHubs(composed()); }
+    }
+    if (!profile.length) {
+      if (tasteItems.length) { tasteItems = []; setHubs(composed()); }
+      return;
+    }
+    const picks = await prepareRecommendations(null, plexHubs).picks({ waitForAI: true });
+    if (request !== tasteRequest || key !== activeTasteKey()) return;
+    tasteItems = picks.slice(0, 12).map(({ item, reason }) => ({ ...item, tasteReason: reason }));
+    setHubs(composed());
   }
 
   // Watch Together invitations (Plex): checked now and every minute while Home is up.
@@ -396,6 +428,7 @@ export function HomeScreen() {
       plexHubs = hubs;
       setHubs(composed());
       store.set('homeCache', { server: server.id, sections, hubs: hubs.map(slimHub) });
+      loadTaste();
       loadUpcoming();
       loadDiscover();
       loadTogether();
@@ -449,13 +482,10 @@ export function HomeScreen() {
     return !!row && /continue|ondeck/i.test(row.hubId || '');
   }
 
-  function libraryItem(it) {
-    return it && it.ratingKey && !it.download && !it.catalog && /^\d+$/.test(String(it.ratingKey));
-  }
-
   function updateHint() {
     const row = rows[rowIndex];
-    toggleClass(holdHint, 'on', zone === 'rows' && !picker.isOpen && isContinueRow(row) && libraryItem(row.current()));
+    toggleClass(holdHint, 'on', zone === 'rows' && !picker.isOpen &&
+      (isContinueRow(row) || (row && row.hubId === TASTE_ROW)) && libraryItem(row.current()));
   }
 
   function openTileMenu() {
@@ -465,6 +495,8 @@ export function HomeScreen() {
     const server = session.server;
     const watched = it.type === 'show' ? it.viewedLeafCount >= it.leafCount : !!it.viewCount;
     const opts = [];
+    const tasteKey = row.hubId === TASTE_ROW ? activeTasteKey() : '';
+    if (tasteKey) opts.push({ label: 'More like this', value: 'more' }, { label: 'Not for me', value: 'less' });
     if (isContinueRow(row) || it.viewOffset) opts.push({ label: 'Remove from Continue Watching', value: 'remove' });
     if (!watched || it.viewOffset) opts.push({ label: 'Mark as watched', value: 'watched' });
     if (watched) opts.push({ label: 'Mark as unwatched', value: 'unwatched' });
@@ -476,6 +508,15 @@ export function HomeScreen() {
       updateHint();
       try {
         if (v === 'open') return selectItem(it);
+        if (v === 'more' || v === 'less') {
+          setFeedback(tasteKey, it, v);
+          if (v === 'less') {
+            tasteItems = tasteItems.filter(item => item.ratingKey !== it.ratingKey);
+            setHubs(composed());
+          }
+          loadTaste();
+          return;
+        }
         if (v === 'show') return openItem({ ratingKey: it.grandparentRatingKey, type: 'show', title: it.grandparentTitle });
         if (v === 'remove') await server.removeFromContinueWatching(it.ratingKey);
         if (v === 'watched') await server.scrobble(it.ratingKey);
@@ -501,13 +542,16 @@ export function HomeScreen() {
     el,
     name: 'home',
     onShow() {
+      const returning = !visible;
       visible = true;
       if (!unsubDownloads) unsubDownloads = downloads.subscribe(onDownloads);
       ambience.restore();
       checkForUpdate();
       renderNav(); // widths can't be measured while the screen was hidden
+      const profile = readTaste(activeTasteKey());
+      if (!profile.length && tasteItems.length) loadTaste();
       // Coming back from playback: progress and Continue Watching changed.
-      if (stale || Date.now() - loadedAt > 5000) { stale = false; load(); }
+      if (stale || Date.now() - loadedAt > 5000 || (returning && profile.length)) { stale = false; load(); }
     },
     onHide() {
       visible = false;
@@ -515,6 +559,7 @@ export function HomeScreen() {
       clearTimeout(togetherTimer);
     },
     destroy() {
+      tasteRequest++;
       clearTimeout(togetherTimer);
       unsubscribe();
       if (unsubDownloads) unsubDownloads();

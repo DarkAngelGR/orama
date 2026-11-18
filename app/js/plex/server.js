@@ -107,7 +107,7 @@ export class Server {
     const secs = (await this.sections()).filter(s => !f.type || s.type === f.type);
     const found = await Promise.all(secs.map(async s => {
       const type = s.type === 'show' ? 2 : 1;
-      const params = { type, sort: SORT[f.sort] || 'audienceRating:desc', 'X-Plex-Container-Start': 0, 'X-Plex-Container-Size': 300 };
+      const params = { type, sort: SORT[f.sort] || 'audienceRating:desc', 'X-Plex-Container-Start': 0, 'X-Plex-Container-Size': f.limit || 300 };
       if (f.genres.length) {
         // The first wish's genre as this library names it; the rest are checked on the TV.
         const g = this.genreIndex.find(x => x.section === String(s.key) && f.genres[0].includes(x.title));

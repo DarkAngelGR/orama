@@ -132,6 +132,10 @@ The Apps screen shows **Develop mode** at the top when it's on.
 - **Smart search:** type what you're in the mood for, like *80s horror*, *unwatched comedies
   under 2 hours*, *best sci-fi shows* or *Keanu Reeves movies*, and get a row of matches from your
   library. Genres, decades, length, watched state and people; no AI involved.
+- **What to watch next** suggests titles from your library after a movie or when you catch up on
+  a series. Each viewer has a taste profile on the TV and a **For you** row on Home. Hold OK on a
+  suggestion to choose **More like this** or **Not for me**. **Settings › AI recommendations**
+  enables optional model ranking through a configured [Watchlist Sync companion](https://github.com/DarkAngelGR/watchlist-sync#optional-ai-ranking-for-orama).
 - **Discover rows** on Home (with watchlist-sync): *Trending this week* and *Recommended for you*,
   only titles you don't have yet, each one press of OK away from being requested.
 - **Search beyond your library:** find any movie or show and add it to your Plex Watchlist, or on
