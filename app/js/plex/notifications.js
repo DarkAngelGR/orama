@@ -78,6 +78,7 @@ function onTimeline(list) {
 }
 
 function onMessage(e) {
+  if (e.target && e.target !== ws) return;
   let data;
   try { data = JSON.parse(e.data); } catch (err) { return; }
   const c = data && data.NotificationContainer;
@@ -123,11 +124,13 @@ function connect() {
 
 async function poll() {
   const s = session.server;
-  if (!s) return;
+  const bound = server;
+  if (!s || (bound && s !== bound)) return;
   let list;
   try {
     const mc = await s.get('/activities');
-    list = (mc.Activity || []).filter(isLibrary);
+    if (session.server !== s || server !== bound) return;
+    list = (mc && mc.Activity || []).filter(isLibrary);
   } catch (e) {
     return; // not allowed (shared user) or unreachable: just show nothing
   }
@@ -161,8 +164,13 @@ function disconnect() {
   clearTimeout(retryTimer);
   clearTimeout(changeTimer);
   stopPolling();
-  if (ws) { ws.onclose = null; try { ws.close(); } catch (e) { /* already closed */ } }
+  if (ws) {
+    const old = ws;
+    old.onopen = old.onmessage = old.onerror = old.onclose = null;
+    try { old.close(); } catch (e) { /* already closed */ }
+  }
   ws = null;
+  server = null;
   activities.clear();
   retry = 0;
 }

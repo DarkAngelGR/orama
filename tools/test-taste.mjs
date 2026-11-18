@@ -169,3 +169,13 @@ test('invalidates ranking before transmission and after the provider replies whe
     setManualUrl('');
   }
 });
+
+test('ranks past a missing candidate and a hub list that is not a list', async () => {
+  const { session } = await import('../app/js/session.js');
+  const { prepareRecommendations } = await import('../app/js/plex/recommendations.js');
+  session.server = { id: 'broken-hubs', smartSearch: async () => [null, mystery], hubs: async () => null };
+  session.user = { uuid: 'broken-hubs' };
+  const picks = await prepareRecommendations(dark).picks();
+  assert.deepEqual(picks.map(p => p.item.ratingKey), ['4']);
+  assert.deepEqual(taste.rankLibraryCandidates([], dark, [null, mystery], now).map(p => p.item.title), ['The Fall']);
+});

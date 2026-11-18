@@ -136,6 +136,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   let paused = false;
   let started = false;
   let alive = true;
+  let openGen = 0;
   let audioStream = null;
   let subStream = null;
   let seekTarget = null;
@@ -493,7 +494,9 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   }
 
   async function open(atMs) {
+    const gen = ++openGen;
     const server = session.server;
+    if (!alive || !server || !part) return;
     const t0 = Date.now();
     started = false;
     toggleClass(spinner, 'on', true);
@@ -519,6 +522,10 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
         // Jellyfin: it decides how to convert and hands back the stream address.
         if (hlsStarted) server.stopTranscode(playSession);
         const prepared = await server.prepareTranscode(item, opts);
+        if (!alive || gen !== openGen) {
+          if (!alive) server.stopTranscode(playSession);
+          return;
+        }
         url = prepared.url;
         hlsStarted = true;
         showPlayback(prepared.decision);
@@ -527,21 +534,29 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
         hlsStarted = true;
         // PMS 1.42+ rejects start.m3u8 unless a decision was made for the session first.
         const decision = await request(url.replace('/start.m3u8', '/decision'));
-        const mc = decision.MediaContainer || {};
+        if (!alive || gen !== openGen) return;
+        const mc = decision && typeof decision === 'object' ? (decision.MediaContainer || {}) : {};
         if (mc.generalDecisionCode && mc.generalDecisionCode >= 2000) throw new Error(mc.generalDecisionText || 'Server refused to convert this file');
         showPlayback(mc);
       }
     }
+    if (!alive || gen !== openGen) return;
     if (mode === 'direct') showPlayback(null);
     log('play', mode, quality.id, item.title, media.container + '/' + media.videoCodec + '/' + (audioStream && audioStream.codec), 'at', clock(atMs));
     const uhdOut = !quality.kbps || quality.height >= 2160;
     player.open(url, { uhd: uhdOut && media.videoResolution === '4k' && supports4K() });
-    await player.prepare();
-    if (!alive) return;
+    try {
+      await player.prepare();
+    } catch (e) {
+      if (!alive || gen !== openGen) return;
+      throw e;
+    }
+    if (!alive || gen !== openGen) return;
     if (mode === 'direct') {
       applyTracks();
       if (atMs > 0) await player.seek(atMs);
     }
+    if (!alive || gen !== openGen) return;
     syncSidecar();
     player.play();
     // Some TVs switch to the file's default subtitle once playback starts:
@@ -642,7 +657,10 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     const stream = subStream;
     cueTrack = null;
     subOff = subOffset(stream.id);
-    fetch(session.server.url(stream.key, { encoding: 'utf-8' }))
+    if (!session.server) return;
+    const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const subWait = ctrl ? setTimeout(() => ctrl.abort(), 15000) : 0;
+    fetch(session.server.url(stream.key, { encoding: 'utf-8' }), { signal: ctrl ? ctrl.signal : undefined })
       .then(r => {
         if (!r.ok) { const e = new Error('Plex answered ' + r.status); e.status = r.status; throw e; }
         return r.text();
@@ -656,6 +674,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       })
       .catch(e => {
         if (cueFor !== stream || !alive) return;
+        if (e && e.name === 'AbortError') e = new Error('The server didn\'t answer in time');
         warn('subtitle fetch failed', e.message);
         if ((e.status === 404 || e.status === 400 || e.status === 500) && !refreshedFor[stream.id]) {
           // The file moved (Bazarr often replaces subtitles after a download):
@@ -666,7 +685,8 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
         } else {
           toast('Couldn\'t load the subtitles (' + e.message + ')');
         }
-      });
+      })
+      .finally(() => clearTimeout(subWait));
     clearInterval(cueTimer);
     cueTimer = setInterval(() => {
       // Positive offset = show each line later, so look up an earlier time.
@@ -808,15 +828,18 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     position = target;
     if (link) link.local({ seek: true });
     try {
+      if (!alive) return;
       if (mode === 'direct') {
         toggleClass(spinner, 'on', true);
         await player.seek(target);
+        if (!alive) return;
         toggleClass(spinner, 'on', false);
         if (paused && !link) togglePause();
       } else {
         await open(target);
       }
     } catch (e) {
+      if (!alive) return;
       warn('seek failed, reopening', e.message);
       open(target).catch(err => failed(err.message));
     }

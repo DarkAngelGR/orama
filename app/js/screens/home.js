@@ -136,6 +136,7 @@ export function HomeScreen() {
   let requestItems = [];
   let shownTasteKey = '';
   let tasteRequest = 0;
+  let loadGen = 0;
   let worthSignature = '';
 
   function buildNav(sections) {
@@ -283,20 +284,24 @@ export function HomeScreen() {
     const key = activeTasteKey();
     const profile = readTaste(key);
     const request = ++tasteRequest;
-    if (key !== shownTasteKey) {
-      shownTasteKey = key;
-      if (tasteItems.length || worthItems.length) { tasteItems = []; worthItems = []; setHubs(composed()); }
+    try {
+      if (key !== shownTasteKey) {
+        shownTasteKey = key;
+        if (tasteItems.length || worthItems.length) { tasteItems = []; worthItems = []; setHubs(composed()); }
+      }
+      if (!profile.length) {
+        worthSignature = '';
+        if (tasteItems.length || worthItems.length) { tasteItems = []; worthItems = []; setHubs(composed()); }
+        return;
+      }
+      const picks = await prepareRecommendations(null, plexHubs).picks({ waitForAI: true });
+      if (request !== tasteRequest || key !== activeTasteKey()) return;
+      tasteItems = picks.slice(0, 12).map(({ item, reason }) => ({ ...item, tasteReason: reason }));
+      setHubs(composed());
+      loadWorthRequesting();
+    } catch (e) {
+      if (request === tasteRequest) error('for you row failed', e);
     }
-    if (!profile.length) {
-      worthSignature = '';
-      if (tasteItems.length || worthItems.length) { tasteItems = []; worthItems = []; setHubs(composed()); }
-      return;
-    }
-    const picks = await prepareRecommendations(null, plexHubs).picks({ waitForAI: true });
-    if (request !== tasteRequest || key !== activeTasteKey()) return;
-    tasteItems = picks.slice(0, 12).map(({ item, reason }) => ({ ...item, tasteReason: reason }));
-    setHubs(composed());
-    loadWorthRequesting();
   }
 
   async function loadWorthRequesting() {
@@ -464,9 +469,16 @@ export function HomeScreen() {
 
   async function load() {
     const server = session.server;
+    const user = session.user;
+    const gen = ++loadGen;
     loadedAt = Date.now();
+    if (!server) {
+      if (!rows.length) setText(empty, 'Couldn\'t load your library. Press OK to retry.');
+      return;
+    }
     try {
       const [sections, hubs] = await Promise.all([server.sections(), server.hubs()]);
+      if (gen !== loadGen || session.server !== server || session.user !== user) return;
       buildNav(sections);
       plexHubs = hubs;
       setHubs(composed());
@@ -477,7 +489,7 @@ export function HomeScreen() {
       loadTogether();
     } catch (e) {
       error('home load failed', e);
-      if (!rows.length) setText(empty, 'Couldn\'t load from ' + server.name + '. Press OK to retry.');
+      if (gen === loadGen && !rows.length) setText(empty, 'Couldn\'t load from ' + (server.name || 'the server') + '. Press OK to retry.');
     }
   }
 
@@ -522,7 +534,7 @@ export function HomeScreen() {
     buildNav([]);
   }
   // The web font swaps in after first paint and changes the label widths.
-  if (document.fonts) document.fonts.ready.then(renderNav);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(renderNav, () => {});
   load();
 
   // --- Hold OK on a tile: remove from Continue Watching, watched / unwatched ---
@@ -610,7 +622,10 @@ export function HomeScreen() {
     },
     destroy() {
       tasteRequest++;
+      loadGen++;
       worthSignature = '';
+      clearTimeout(artTimer);
+      clearTimeout(heroTimer);
       clearTimeout(togetherTimer);
       unsubscribe();
       if (unsubDownloads) unsubDownloads();

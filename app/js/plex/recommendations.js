@@ -64,7 +64,8 @@ export function prepareRecommendations(seed = null, hubs = null) {
   const searches = current() ? searchGenres.map(async genre => {
     try {
       const items = await server.smartSearch({ genres: [[genre]], watched: false, limit: 30 });
-      return items.map(it => it.Genre && it.Genre.length ? it : { ...it, Genre: [{ tag: genre }] });
+      return (Array.isArray(items) ? items : []).filter(it => it && it.ratingKey).map(it =>
+        it.Genre && it.Genre.length ? it : { ...it, Genre: [{ tag: genre }] });
     } catch (e) {
       return [];
     }
@@ -73,14 +74,15 @@ export function prepareRecommendations(seed = null, hubs = null) {
   const available = Promise.all([Promise.all(searches), resumeHubs]).then(([pools, home]) => {
     if (!current()) return [];
     const inProgress = new Set();
-    for (const hub of home) {
-      if (!/continue|ondeck/i.test(hub.hubIdentifier || '')) continue;
-      for (const item of (hub.Metadata || [])) {
+    for (const hub of (Array.isArray(home) ? home : [])) {
+      if (!hub || !/continue|ondeck/i.test(hub.hubIdentifier || '')) continue;
+      for (const item of (Array.isArray(hub.Metadata) ? hub.Metadata : [])) {
+        if (!item) continue;
         const id = item.type === 'episode' ? item.grandparentRatingKey : item.ratingKey;
         if (id) inProgress.add(String(id));
       }
     }
-    const candidates = [].concat(...pools).filter(item => !inProgress.has(String(item.ratingKey)));
+    const candidates = [].concat(...pools).filter(item => item && !inProgress.has(String(item.ratingKey)));
     const local = rankLibraryCandidates(profile, seed, candidates).slice(0, 24);
     if (companion && local.length > 1 && aiTasteEnabled(key) && companion === baseUrl()) {
       pendingAI = modelRanking(key, reset, companion, profile, seed, local).then(picks => {
@@ -107,8 +109,9 @@ export async function requestablePicks(sections, { seed = null, moviesOnly = fal
     companion === baseUrl() && reset === tasteResetRevision();
   const profile = readTaste(key);
   if (!current() || !companion || (!profile.length && !seed)) return [];
-  const candidates = [].concat(...sections.map(section => section.items || [])).filter(item =>
-    item.arrStatus === 'none' && (!moviesOnly || item.type === 'movie') && !tracked(item) &&
+  const candidates = [].concat(...(Array.isArray(sections) ? sections : []).map(section =>
+    section && Array.isArray(section.items) ? section.items : [])).filter(item =>
+    item && item.arrStatus === 'none' && (!moviesOnly || item.type === 'movie') && !tracked(item) &&
     (!seed || matchMedia(seed, item) !== true));
   let ranked = rankLibraryCandidates(profile, seed, candidates).slice(0, 12);
   if (aiTasteEnabled(key) && ranked.length > 1) {

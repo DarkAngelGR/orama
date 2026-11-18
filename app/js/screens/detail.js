@@ -913,12 +913,16 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
         if (action === 'left') { episodes.row.move(-1); return true; }
         if (action === 'right') { episodes.row.move(1); return true; }
         if (action === 'enter') { episodes.row.select(); return true; }
-        if (action === 'info') { router.push(DetailScreen(episodes.row.current())); return true; }
+        if (action === 'info') {
+          const ep = episodes.row.current();
+          if (ep) router.push(DetailScreen(ep));
+          return true;
+        }
       }
       if (action === 'back' && zone !== 'buttons') { zone = 'buttons'; renderFocus(); return true; }
       return false;
     },
     onHide() { shownNow = false; themeMusic.stopSoon(); },
-    destroy() { alive = false; themeMusic.stopSoon(); },
+    destroy() { alive = false; clearTimeout(epTimer); themeMusic.stopSoon(); },
   };
 }
