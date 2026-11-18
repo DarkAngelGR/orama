@@ -5,6 +5,26 @@
 import { actionFor } from './platform/tizen.js';
 
 const NAV = { left: 1, right: 1, up: 1, down: 1 };
+// Held keys repeat. Direction and seek should; Back, OK and Play must not,
+// or a held Back walks off the screen and out of the app.
+const REPEATABLE = { left: 1, right: 1, up: 1, down: 1, ff: 1, rw: 1, pageup: 1, pagedown: 1 };
+const heldAt = {};
+
+export function gateKey(action, repeat, now) {
+  if (!action) return false;
+  if (REPEATABLE[action]) return true;
+  const pending = Object.prototype.hasOwnProperty.call(heldAt, action);
+  if (pending && (repeat || now - heldAt[action] < 800)) {
+    heldAt[action] = now;
+    return false;
+  }
+  heldAt[action] = now;
+  return true;
+}
+
+export function releaseKey(action) {
+  if (action) delete heldAt[action];
+}
 
 let handler = null;
 let pending = null;
@@ -48,6 +68,7 @@ document.addEventListener('keydown', e => {
   if (tag === 'INPUT' && action !== 'back' && action !== 'down' && action !== 'up' && action !== 'enter') return;
   e.preventDefault();
   stats.keyAt = performance.now();
+  if (!gateKey(action, !!e.repeat, stats.keyAt)) return;
 
   if (NAV[action]) {
     const now = performance.now();
@@ -95,7 +116,9 @@ export function inject(action) {
 }
 
 document.addEventListener('keyup', e => {
-  if (holdTimer && actionFor(e) === 'enter') {
+  const released = actionFor(e);
+  if (released) releaseKey(released);
+  if (holdTimer && released === 'enter') {
     const pressed = holdTimer !== -1;
     clearTimeout(holdTimer);
     holdTimer = 0;
@@ -107,4 +130,8 @@ document.addEventListener('keyup', e => {
 
 export function isFast() {
   return root.classList.contains('fast');
+}
+
+if (typeof window !== 'undefined' && window.addEventListener) {
+  window.addEventListener('blur', () => { for (const k in heldAt) delete heldAt[k]; });
 }
