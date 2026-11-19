@@ -195,7 +195,8 @@ html.playing .ambience { display: none; }
 
 .row {
   position: absolute; top: 0; left: 0; width: 1920px;
-  will-change: transform;
+  will-change: transform, opacity;
+  transition: opacity 250ms ease;   /* fade out when scrolled above the hero */
 }
 .row.above { opacity: 0; }
 .row:not(.active) .row-clip { opacity: 0.5; }
@@ -290,9 +291,9 @@ html.fast .row-clip, html.no-motion .row-clip { transition: none; }
 .key-yellow { display: inline-block; width: 18px; height: 18px; border-radius: 4px; background: #F5C518; vertical-align: -2px; }
 .key-green { display: inline-block; width: 18px; height: 18px; border-radius: 4px; background: #2EB872; vertical-align: -2px; }
 
-.grid { position: absolute; left: 88px; width: 1776px; overflow: hidden; }
+.grid { position: absolute; left: 80px; width: 1792px; overflow: hidden; }   /* 16px either side for the 12px ring outset */
 .grid-track {
-  position: absolute; top: 12px; left: 8px;
+  position: absolute; top: 12px; left: 16px;
   will-change: transform; transition: transform 260ms var(--ease);
 }
 .grid-row { position: absolute; top: 0; left: 0; will-change: transform; }

@@ -14,7 +14,7 @@ import { error } from '../util/log.js';
 import { metaLine } from '../util/format.js';
 
 const PAGE = 140;
-// Same geometry as the Grid below (.grid left 88 + .grid-track left/top 8/12).
+// Same geometry as the Grid below (.grid left 80 + .grid-track left/top 16/12).
 const GRID_TOP = 200;
 const GRID_H = 880;
 const GRID_COLS = 7;
