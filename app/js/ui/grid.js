@@ -27,8 +27,9 @@ export class Grid {
     this.el.style.height = height + 'px';
     this.track = h('div', 'grid-track', this.el);
     this.ring = h('div', 'ring on', this.track);
-    this.ring.style.width = (this.size.w + 16) + 'px';
-    this.ring.style.height = (this.size.h + 16) + 'px';
+    this.ring.style.top = '0px';
+    this.ring.style.width = (this.size.w + 24) + 'px';
+    this.ring.style.height = (this.size.h + 24) + 'px';
 
     this.visibleRows = Math.ceil(height / this.stepY) + 1;
     this.poolRows = this.visibleRows + 2;
@@ -143,6 +144,6 @@ export class Grid {
 
     setTransform(this.track, 'translateY(' + (-this.scrollRow * this.stepY) + 'px)');
     const col = this.index % this.cols;
-    setTransform(this.ring, 'translate(' + (col * this.stepX - 8) + 'px,' + (focusRow * this.stepY - 8) + 'px)');
+    setTransform(this.ring, 'translate(' + (col * this.stepX - 12) + 'px,' + (focusRow * this.stepY - 12) + 'px)');
   }
 }

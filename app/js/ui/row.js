@@ -29,9 +29,11 @@ export class Row {
     this.track = h('div', 'row-track', clip);
     this.track.style.left = LEFT + 'px';
     this.ring = h('div', 'ring', clip);
-    this.ring.style.left = (LEFT - 8) + 'px';
-    this.ring.style.width = (this.size.w + 16) + 'px';
-    this.ring.style.height = (this.size.h + 16) + 'px';
+    // Track is top/left 12/96. A 12px outset (7px border + 5px gap) starts the ring at 0,84.
+    this.ring.style.top = '0px';
+    this.ring.style.left = (LEFT - 12) + 'px';
+    this.ring.style.width = (this.size.w + 24) + 'px';
+    this.ring.style.height = (this.size.h + 24) + 'px';
 
     this.captionH = caption ? 70 : 0;
     clip.style.height = (this.size.h + this.captionH + 24) + 'px';
