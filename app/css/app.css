@@ -296,6 +296,15 @@ html.fast .row-clip, html.no-motion .row-clip { transition: none; }
   will-change: transform; transition: transform 260ms var(--ease);
 }
 .grid-row { position: absolute; top: 0; left: 0; will-change: transform; }
+/* Library loading: same slots as real posters, no shimmer. Sits under the grid. */
+.lib-ph {
+  position: absolute; left: 96px; top: 212px; width: 1800px; height: 868px;
+  overflow: hidden; pointer-events: none;
+}
+.lib-ph-tile {
+  position: absolute; top: 0; left: 0; border-radius: 18px;
+  background: linear-gradient(180deg, #1e1e2c, var(--raised) 70%);
+}
 
 /* ---------- detail ---------- */
 

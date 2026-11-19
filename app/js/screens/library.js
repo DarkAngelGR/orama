@@ -3,9 +3,10 @@
 // OK changes it; the yellow button changes the sort too, on remotes that have
 // one). Both are remembered per library and profile. CH▲/CH▼ jump by letter
 // (title sort) or by page.
-import { h, setText, toggleClass } from '../util/dom.js';
+import { h, setText, setTransform, toggleClass } from '../util/dom.js';
 import * as store from '../util/store.js';
 import { Grid } from '../ui/grid.js';
+import { KINDS } from '../ui/tile.js';
 import { useAmbience } from '../ui/backdrop.js';
 import { session } from '../session.js';
 import { openItem, playItem } from '../nav.js';
@@ -13,6 +14,13 @@ import { error } from '../util/log.js';
 import { metaLine } from '../util/format.js';
 
 const PAGE = 140;
+// Same geometry as the Grid below (.grid left 88 + .grid-track left/top 8/12).
+const GRID_TOP = 200;
+const GRID_H = 880;
+const GRID_COLS = 7;
+const GRID_GAP_X = 41;
+const GRID_GAP_Y = 28;
+const GRID_CAP = 70;
 const SORTS = [
   { id: 'titleSort', label: 'A–Z' },
   { id: 'addedAt:desc', label: 'Recently added' },
@@ -69,7 +77,8 @@ export function LibraryScreen(section) {
   // those early calls are skipped, and reload() below loads the first page.
   let grid = null;
   grid = new Grid({
-    top: 200, height: 880, total: 0,
+    cols: GRID_COLS, gapX: GRID_GAP_X, gapY: GRID_GAP_Y, captionH: GRID_CAP,
+    top: GRID_TOP, height: GRID_H, total: 0,
     getItem: i => items[i],
     onFocus: (item, index) => {
       if (!grid) return;
@@ -85,6 +94,33 @@ export function LibraryScreen(section) {
   });
   el.appendChild(grid.el);
 
+  // Static poster boxes in the grid's slots until the first page arrives.
+  // Painted under the grid so the focus ring still sits on the first cell.
+  let placeholders = null;
+  function showPlaceholders() {
+    if (placeholders) return;
+    const size = KINDS.grid;
+    const stepX = size.w + GRID_GAP_X;
+    const stepY = size.h + GRID_CAP + GRID_GAP_Y;
+    const rows = Math.ceil((GRID_H - 12) / stepY);
+    const ph = h('div', 'lib-ph');
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < GRID_COLS; c++) {
+        const box = h('div', 'lib-ph-tile', ph);
+        box.style.width = size.w + 'px';
+        box.style.height = size.h + 'px';
+        setTransform(box, 'translate(' + (c * stepX) + 'px,' + (r * stepY) + 'px)');
+      }
+    }
+    el.insertBefore(ph, grid.el);
+    placeholders = ph;
+  }
+  function hidePlaceholders() {
+    if (!placeholders) return;
+    placeholders.remove();
+    placeholders = null;
+  }
+
   // What's going on while the first page isn't there yet.
   let failures = 0;
   let retryTimer = 0;
@@ -97,13 +133,14 @@ export function LibraryScreen(section) {
     if (grid.total && p * PAGE >= grid.total) return;
     pages.set(p, 'loading');
     const gen = generation;
-    if (p === 0 && !items.length) status('Loading ' + section.title + '…');
+    if (p === 0 && !items.length) showPlaceholders();
     try {
       const res = await session.server.items(section.key, p * PAGE, PAGE, { sort: SORTS[sortIndex].id, type, unwatched });
       if (gen !== generation) return;
       res.items.forEach((it, i) => { items[p * PAGE + i] = it; });
       pages.set(p, true);
       failures = 0;
+      if (p === 0) hidePlaceholders();
       if (p === 0 && !res.items.length) status(unwatched ? 'Nothing unwatched in ' + section.title : section.title + ' is empty');
       if (grid.total !== res.total) {
         grid.setTotal(res.total);
@@ -121,9 +158,13 @@ export function LibraryScreen(section) {
       const why = /abort/i.test(e.name + e.message) ? 'the server took too long' : e.message;
       clearTimeout(retryTimer);
       if (failures <= 3) {
-        if (p === 0 && !items.length) status('Couldn\'t load ' + section.title + ' (' + why + '). Trying again…');
+        if (p === 0 && !items.length) {
+          hidePlaceholders();
+          status('Couldn\'t load ' + section.title + ' (' + why + '). Trying again…');
+        }
         retryTimer = setTimeout(() => { if (gen === generation) loadPage(p); }, 2000 * failures);
       } else if (p === 0 && !items.length) {
+        hidePlaceholders();
         status('Couldn\'t load ' + section.title + ' (' + why + '). Press OK to try again.');
       }
     }
