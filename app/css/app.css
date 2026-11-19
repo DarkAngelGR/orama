@@ -332,13 +332,13 @@ html.fast .row-clip, html.no-motion .row-clip { transition: none; }
 .btn.focus { background: var(--cream); box-shadow: none; color: var(--bg); }
 
 /* Quality / audio / subtitle choices under the Play buttons */
-.detail-options { margin-top: 18px; height: 46px; white-space: nowrap; }
+.detail-options { margin-top: 18px; height: 64px; white-space: nowrap; }
 .opt {
   display: inline-flex; align-items: center; vertical-align: top;
-  height: 46px; padding: 0 22px; margin-right: 12px; border-radius: 23px;
-  background: var(--faint); color: var(--dim); font: 500 22px var(--body);
+  height: 64px; padding: 0 26px; margin-right: 12px; border-radius: 32px;
+  background: var(--faint); color: var(--dim); font: 500 26px var(--body);
 }
-.opt svg { width: 22px; height: 22px; margin-right: 10px; flex: none; }
+.opt svg { width: 26px; height: 26px; margin-right: 10px; flex: none; }
 .opt-name { margin-right: 10px; }
 .opt-value { color: var(--cream); font-weight: 600; max-width: 460px; overflow: hidden; text-overflow: ellipsis; }
 .opt.focus { background: var(--cream); color: rgba(11, 11, 18, 0.65); }

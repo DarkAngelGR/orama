@@ -28,7 +28,7 @@ import { subLang } from '../player/subprefs.js';
 import * as lang from '../util/lang.js';
 
 const SHIFT = 400;    // how far the body slides up to reveal seasons/episodes
-const OPTIONS_H = 64; // .detail-options height + margin, added to SHIFT when shown
+const OPTIONS_H = 82; // .detail-options height + margin, added to SHIFT when shown
 
 export function DetailScreen(initial, { autoplay = false } = {}) {
   const el = h('div', 'screen detail');
