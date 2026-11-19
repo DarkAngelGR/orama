@@ -9,7 +9,7 @@ import { scores } from '../util/ratings.js';
 import * as router from '../router.js';
 import { versionRows } from '../player/options.js';
 
-const VIEW_H = 780;  // visible height of the scrolling area
+const VIEW_H = 752;  // visible height of the scrolling area (.info-view)
 const STEP = 320;    // px per Up/Down press
 const CAST_MAX = 24;
 

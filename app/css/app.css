@@ -180,7 +180,7 @@ html.playing .ambience { display: none; }
 .home.in-nav .hero-info { opacity: 0.5; }
 .home-rows { position: absolute; left: 0; width: 1920px; bottom: 0; overflow: hidden; }
 .home-hint {
-  position: absolute; right: 96px; top: 560px; font: 500 22px var(--body); color: var(--dim);
+  position: absolute; right: 96px; top: 560px; font: 500 28px/1 var(--body); color: var(--dim);
   opacity: 0; transition: opacity 200ms var(--ease);
 }
 .home-hint.on { opacity: 1; }
@@ -279,11 +279,11 @@ html.fast .row-track, html.fast .rows-track, html.fast .grid-track, html.fast .r
 .lib-sort.focus { background: var(--cream); color: var(--bg); }
 .lib-sort.lib-filter { margin-left: 16px; }
 .lib-focus {
-  position: absolute; top: 146px; left: 96px; width: 1300px;
+  position: absolute; top: 146px; left: 96px; width: 1160px;
   font: 500 26px var(--body); color: var(--cream);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.lib-hint { position: absolute; top: 150px; right: 96px; font: 500 22px var(--body); color: var(--dim); }
+.lib-hint { position: absolute; top: 150px; right: 96px; font: 500 28px/1 var(--body); color: var(--dim); }
 .key-yellow { display: inline-block; width: 18px; height: 18px; border-radius: 4px; background: #F5C518; vertical-align: -2px; }
 .key-green { display: inline-block; width: 18px; height: 18px; border-radius: 4px; background: #2EB872; vertical-align: -2px; }
 
@@ -418,7 +418,7 @@ html.fast .row-track, html.fast .rows-track, html.fast .grid-track, html.fast .r
   display: flex; justify-content: space-between; font: 500 26px var(--body);
 }
 .osd-info { color: var(--dim); }
-.osd-hint { position: absolute; left: 96px; bottom: 40px; font: 500 20px var(--body); color: var(--dim); }
+.osd-hint { position: absolute; left: 96px; bottom: 64px; font: 500 28px/1 var(--body); color: var(--dim); }
 
 .pause-big {
   position: absolute; left: 880px; top: 380px; width: 160px; height: 160px; padding: 36px;
@@ -522,7 +522,7 @@ html.subs-bg .subs-text {
 }
 .upnext-label { font: 700 22px var(--body); color: var(--accent); letter-spacing: 0.08em; text-transform: uppercase; }
 .upnext-title { margin: 12px 0; font: 600 40px/1.1 var(--display); letter-spacing: -0.015em; }
-.upnext-hint { font: 500 20px var(--body); color: var(--dim); }
+.upnext-hint { font: 500 28px/1 var(--body); color: var(--dim); }
 
 .player-error {
   position: absolute; left: 360px; right: 360px; top: 470px; padding: 40px;
@@ -577,7 +577,7 @@ html.subs-bg .subs-text {
 .btn-danger.focus { background: var(--danger); color: #fff; }
 .confirm-status { position: absolute; left: 160px; top: 510px; width: 1500px; font: 500 26px/1.5 var(--body); color: var(--dim); }
 .confirm-status.error { color: var(--danger); }
-.prompt-hint { position: absolute; top: 350px; left: 160px; font: 500 24px var(--body); color: var(--dim); }
+.prompt-hint { position: absolute; top: 350px; left: 160px; font: 500 28px/1 var(--body); color: var(--dim); }
 
 /* ---------- search ---------- */
 
@@ -610,7 +610,7 @@ html.subs-bg .subs-text {
 .info-head { position: absolute; left: 96px; top: 70px; width: 1728px; }
 .info-title { font: 600 68px/1.05 var(--display); letter-spacing: -0.025em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .info-meta { margin-top: 12px; font: 500 26px var(--body); color: var(--dim); }
-.info-view { position: absolute; left: 96px; top: 220px; width: 1728px; height: 780px; overflow: hidden; }
+.info-view { position: absolute; left: 96px; top: 220px; width: 1728px; height: 752px; overflow: hidden; }
 .info-track { position: absolute; left: 0; top: 0; width: 1728px; will-change: transform; transition: transform 300ms var(--ease); }
 .info-track::after { content: ''; display: block; clear: both; }
 .info-left { float: left; width: 1040px; padding-bottom: 40px; }
@@ -625,7 +625,7 @@ html.subs-bg .subs-text {
 .info-role { margin-top: 4px; font: 400 20px var(--body); color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .info-fact { margin-bottom: 22px; }
 .info-value { margin-top: 6px; font: 500 24px/1.4 var(--body); white-space: pre-line; }
-.info-hint { position: absolute; right: 96px; bottom: 40px; font: 500 22px var(--body); color: var(--dim); }
+.info-hint { position: absolute; right: 96px; bottom: 64px; font: 500 28px/1 var(--body); color: var(--dim); }
 
 /* App-wide notice (e.g. "Orama 0.9.0 is available") */
 .notice { left: 460px; width: 1000px; z-index: 50; }
@@ -756,5 +756,5 @@ html.no-motion .ring { transition: none; }
 }
 .together-lobby-title { font: 600 44px var(--display); color: var(--cream); }
 .together-lobby-people { margin-top: 18px; font: 500 28px var(--body); color: var(--dim); }
-.together-lobby-hint { margin-top: 28px; font: 600 24px var(--body); color: var(--accent); }
+.together-lobby-hint { margin-top: 28px; font: 600 28px/1 var(--body); color: var(--accent); }
 .in-lobby .pause-big { display: none; }
