@@ -399,24 +399,24 @@ html.fast .row-clip, html.no-motion .row-clip { transition: none; }
   position: absolute; bottom: 0; left: 0; width: 1920px; height: 320px;
   background: linear-gradient(0deg, rgba(0, 0, 0, 0.85), transparent);
 }
-.osd-bar { position: absolute; left: 96px; width: 1728px; bottom: 150px; height: 8px; border-radius: 4px; background: rgba(244, 243, 255, 0.25); }
+.osd-bar { position: absolute; left: 96px; width: 1728px; bottom: 150px; height: 16px; border-radius: 8px; background: rgba(244, 243, 255, 0.3); }
 .osd-fill {
   position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-  border-radius: 4px; background: var(--accent); transform-origin: 0 0; will-change: transform;
+  border-radius: 8px; background: var(--accent); transform-origin: 0 0; will-change: transform;
 }
 .osd-knob {
-  position: absolute; left: -12px; top: -8px; width: 24px; height: 24px; border-radius: 12px;
+  position: absolute; left: -18px; top: -10px; width: 36px; height: 36px; border-radius: 18px;
   background: var(--cream); box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5); will-change: transform;
 }
 .osd-seek {
-  display: none; position: absolute; bottom: 40px; left: 12px;
+  display: none; position: absolute; bottom: 52px; left: 18px;
   transform: translateX(-50%); padding: 8px 16px; border-radius: 10px;
   background: var(--cream); color: var(--bg); font: 700 28px var(--body); white-space: nowrap;
 }
 .seeking .osd-seek { display: block; }
 /* Preview picture of the seek target, above the time label */
 .osd-thumb {
-  display: none; position: absolute; left: 0; bottom: 230px; width: 320px; height: 180px;
+  display: none; position: absolute; left: 0; bottom: 240px; width: 320px; height: 180px;
   border-radius: 12px; overflow: hidden; background: #000;
   box-shadow: 0 0 0 3px var(--cream), 0 8px 30px rgba(0, 0, 0, 0.6); will-change: transform;
 }
@@ -426,8 +426,8 @@ html.fast .row-clip, html.no-motion .row-clip { transition: none; }
 .osd-thumb.sprite .osd-sprite { display: block; }
 .seeking .osd-thumb.has { display: block; }
 .osd-times {
-  position: absolute; left: 96px; width: 1728px; bottom: 90px;
-  display: flex; justify-content: space-between; font: 500 26px var(--body);
+  position: absolute; left: 96px; width: 1728px; bottom: 104px;
+  display: flex; justify-content: space-between; font: 500 28px/1 var(--body);
 }
 .osd-info { color: var(--dim); }
 .osd-hint { position: absolute; left: 96px; bottom: 64px; font: 500 28px/1 var(--body); color: var(--dim); }
