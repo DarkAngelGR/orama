@@ -195,16 +195,18 @@ html.playing .ambience { display: none; }
 
 .row {
   position: absolute; top: 0; left: 0; width: 1920px;
-  will-change: transform, opacity;
-  transition: opacity 250ms ease;
+  will-change: transform;
 }
-.row:not(.active) { opacity: 0.5; }
 .row.above { opacity: 0; }
+.row:not(.active) .row-clip { opacity: 0.5; }
 .row-title {
   height: 52px; margin-left: 96px;
   font: 500 30px/52px var(--display); letter-spacing: -0.01em; color: var(--cream);
 }
-.row-clip { position: relative; width: 1920px; }
+.row-clip {
+  position: relative; width: 1920px;
+  will-change: opacity; transition: opacity 250ms ease;
+}
 .row-track {
   position: absolute; top: 12px; left: 96px;
   will-change: transform; transition: transform 260ms var(--ease);
@@ -266,6 +268,7 @@ html.playing .ambience { display: none; }
 html.fast .row-track, html.fast .rows-track, html.fast .grid-track, html.fast .ring, html.fast .nav-track {
   transition-duration: 110ms;
 }
+html.fast .row-clip, html.no-motion .row-clip { transition: none; }
 
 /* ---------- library grid ---------- */
 
