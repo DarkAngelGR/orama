@@ -150,6 +150,8 @@ The Apps screen shows **Develop mode** at the top when it's on.
 - With [watchlist-sync](#optional-companions), Watchlist adds reach Sonarr and Radarr in seconds,
   and a *Downloading* row shows their progress live.
 - Library scans show up on the home screen as they happen, and new media appears by itself.
+  When a download then shows up in the library, Home says it is ready to watch and puts it
+  first in Recently Added (or a *Just added* row, if the server has no such row).
 - **Delete** a movie or show from its page (server owner only). With watchlist-sync it's removed
   from Radarr or Sonarr too, so it won't come back.
 - With watchlist-sync and Bazarr: search for more subtitles from the TV, and a *Coming up* row

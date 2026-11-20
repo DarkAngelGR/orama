@@ -8,6 +8,8 @@
 // contents change. It returns an unsubscribe function; the connection only
 // runs while someone is subscribed.
 import { session } from '../session.js';
+import { clientId } from './client.js';
+import { jellyfinLibraryEvent } from './ready.js';
 import { warn } from '../util/log.js';
 
 const POLL_MS = 15000;
@@ -22,6 +24,7 @@ let retry = 0;
 let retryTimer = 0;
 let pollTimer = 0;
 let changeTimer = 0;
+let keepAlive = 0;
 const activities = new Map(); // uuid -> { type, title, subtitle, progress, sectionId }
 
 function emit(ev) {
@@ -92,9 +95,58 @@ function wsUrl(s) {
   return base + '/:/websockets/notifications?X-Plex-Token=' + encodeURIComponent(s.token);
 }
 
+function jfUrl(s) {
+  const base = s.uri.replace(/^http/i, 'ws').replace(/\/+$/, '');
+  return base + '/socket?api_key=' + encodeURIComponent(s.token) + '&deviceId=' + encodeURIComponent(clientId);
+}
+
+function startKeepAlive(seconds) {
+  clearInterval(keepAlive);
+  const ms = Math.max(15000, (Number(seconds) || 60) * 500);
+  keepAlive = setInterval(() => {
+    if (ws && ws.readyState === 1) {
+      try { ws.send('{"MessageType":"KeepAlive"}'); } catch (e) { /* closed */ }
+    }
+  }, ms);
+}
+
+// Jellyfin has no /activities feed. /socket reports library adds and removals.
+function connectJellyfin() {
+  try {
+    ws = new WebSocket(jfUrl(server));
+  } catch (e) {
+    return;
+  }
+  ws.onopen = () => {
+    retry = 0;
+    startKeepAlive(60);
+    try { ws.send('{"MessageType":"KeepAlive"}'); } catch (err) { /* closed */ }
+  };
+  ws.onmessage = e => {
+    if (e.target && e.target !== ws) return;
+    let data;
+    try { data = JSON.parse(e.data); } catch (err) { return; }
+    if (data && data.MessageType === 'ForceKeepAlive') startKeepAlive(data.Data && data.Data.Timeout ? data.Data.Timeout : data.Data);
+    else if (jellyfinLibraryEvent(data)) libraryChanged();
+  };
+  ws.onclose = () => {
+    ws = null;
+    clearInterval(keepAlive);
+    keepAlive = 0;
+    if (!listeners.size) return;
+    retry++;
+    clearTimeout(retryTimer);
+    retryTimer = setTimeout(() => { if (listeners.size && !ws && !paused) connect(); }, Math.min(60000, 2000 * Math.pow(2, retry)));
+  };
+  ws.onerror = () => { /* onclose follows */ };
+}
+
 function connect() {
   server = session.server;
-  if (server && server.kind === 'jellyfin') return; // Plex's notification feed only
+  if (server && server.kind === 'jellyfin') {
+    if (typeof WebSocket !== 'undefined') connectJellyfin();
+    return;
+  }
   if (!server || typeof WebSocket === 'undefined') { startPolling(); return; }
   let opened = false;
   try {
@@ -163,6 +215,8 @@ function stopPolling() {
 function disconnect() {
   clearTimeout(retryTimer);
   clearTimeout(changeTimer);
+  clearInterval(keepAlive);
+  keepAlive = 0;
   stopPolling();
   if (ws) {
     const old = ws;

@@ -13,6 +13,7 @@ import { error, log } from '../util/log.js';
 import * as updates from '../plex/updates.js';
 import * as notifications from '../plex/notifications.js';
 import * as downloads from '../plex/downloads.js';
+import { leftQueue, findReady, placeReady, queueId } from '../plex/ready.js';
 import { notice } from '../ui/notice.js';
 import { Picker } from '../ui/picker.js';
 import * as watchlist from '../plex/watchlist.js';
@@ -127,6 +128,10 @@ export function HomeScreen() {
   let stale = false;       // the library changed while another screen was on top
   let plexHubs = [];       // the server's hubs, before the Downloading row is added
   let dlItems = [];        // downloads in progress, as tiles
+  let queueSnap = null;    // last queue, so a title leaving it can be announced
+  let waitingReady = [];   // left the queue, not in the library yet
+  let readyItems = [];     // library items to pin at the front of Recently Added
+  const readyTold = new Set();
   let upItems = [];        // episodes airing soon (Sonarr's calendar), as tiles
   let upLoadedAt = 0;
   let upcomingGen = 0;
@@ -250,7 +255,7 @@ export function HomeScreen() {
   // row right after Continue Watching.
   // and a "Coming up" row after the recently added ones.
   function composed() {
-    let hubs = plexHubs;
+    let hubs = placeReady(plexHubs, readyItems);
     if (togetherItems.length) {
       hubs = [{ hubIdentifier: 'flexplex.together', title: 'Watch Together', type: 'movie', size: togetherItems.length, Metadata: togetherItems }].concat(hubs);
     }
@@ -500,6 +505,7 @@ export function HomeScreen() {
       if (gen !== loadGen || session.server !== server || session.user !== user) return;
       buildNav(sections);
       plexHubs = hubs;
+      absorbReady();
       setHubs(composed());
       store.set('homeCache', { server: server.id, sections, hubs: hubs.map(slimHub) });
       loadTaste();
@@ -533,7 +539,44 @@ export function HomeScreen() {
     }
   });
 
+  // The queue poll already running for the Downloading row. A title that
+  // leaves it is remembered until a library refresh shows it in Recently Added.
+  function noteQueue(list) {
+    if (queueSnap) {
+      leftQueue(queueSnap, list).forEach(d => {
+        const id = queueId(d);
+        if (id && !waitingReady.some(w => queueId(w) === id)) waitingReady.push(d);
+      });
+    }
+    queueSnap = list.slice();
+  }
+
+  function absorbReady() {
+    if (waitingReady.length) {
+      const done = new Set();
+      findReady(waitingReady, plexHubs).forEach(hit => {
+        const id = queueId(hit.download);
+        done.add(id);
+        if (!readyTold.has(id)) {
+          readyTold.add(id);
+          if (visible) notice((hit.download.title || hit.item.title) + ' is ready to watch');
+        }
+        readyItems = [hit.item].concat(readyItems.filter(it => it.ratingKey !== hit.item.ratingKey));
+      });
+      if (done.size) waitingReady = waitingReady.filter(d => !done.has(queueId(d)));
+    }
+    // Drop a pin once that title is no longer in Recently Added.
+    const still = new Set();
+    plexHubs.forEach(h => {
+      if (!/recentlyadded/i.test(h.hubIdentifier || '')) return;
+      (h.Metadata || []).forEach(it => { if (it && it.ratingKey) still.add(it.ratingKey); });
+    });
+    readyItems = readyItems.filter(it => still.has(it.ratingKey)).slice(0, 12);
+  }
+
   function onDownloads(list) {
+    noteQueue(list);
+    absorbReady();
     dlItems = list.map(downloads.asItem);
     setHubs(composed());
   }
