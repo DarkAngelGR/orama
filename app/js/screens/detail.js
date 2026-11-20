@@ -573,10 +573,20 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     if (item.type !== 'movie' || !watchlist.baseUrl()) return;
     const tmdb = tmdbOf(item);
     if (!tmdb || collFor === String(tmdb)) return;
-    collFor = String(tmdb);
+    const mine = String(tmdb);
+    collFor = mine;
     let c;
-    try { c = await watchlist.collection(tmdb); } catch (e) { return; }
-    if (!alive || !c || !c.movies) return;
+    try { c = await watchlist.collection(tmdb); }
+    catch (e) {
+      // Remembering the failure blocks every later visit to this page.
+      if (collFor === mine) collFor = '';
+      return;
+    }
+    if (!alive || collFor !== mine) return;
+    if (!c || !c.movies) {
+      if (collFor === mine) collFor = '';
+      return;
+    }
     const others = c.movies.filter(p => p.tmdb !== tmdb);
     if (!others.length) return;
     const items = await Promise.all(others.map(async p => {
@@ -587,7 +597,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
       return { ratingKey: 'coll-' + p.tmdb, type: 'movie', title: p.title, year: p.year, thumb: p.poster || '',
         note: partNote(p), lookup: { title: p.title, year: p.year, kind: 'movie', id: p.tmdb } };
     }));
-    if (!alive) return;
+    if (!alive || collFor !== mine) return;
     if (collWrap.parentNode !== body) body.insertBefore(collWrap, castWrap.parentNode === body ? castWrap : seasonsEl);
     const onSelect = it => (it.lookup ? openCatalogLookup(it.lookup) : openItem(it));
     if (!coll) {
