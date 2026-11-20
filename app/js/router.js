@@ -62,6 +62,8 @@ export function pushAsync(make) {
     if (mine !== ticket || stack[stack.length - 1] !== from) { destroy(screen); return; }
     push(screen);
   }, e => {
+    // Same rule as a late screen: Back or another open already moved on.
+    if (mine !== ticket || stack[stack.length - 1] !== from) return;
     console.error('could not open screen', e);
     notice('Couldn\'t open that (' + (e && e.message || e) + ')', 4000);
   });
