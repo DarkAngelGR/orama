@@ -76,6 +76,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
   let episodes = null;
   let zone = 'buttons';
   let alive = true;
+  let viewGen = 0;   // season changes and reloads; a late reply must not paint the old one
   let shown = false;
   let shownNow = true;   // on top (not behind the player or another page)
 
@@ -674,9 +675,9 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
   // focus: { key, next } lands on that episode (or the one after it); without
   // it, on the first unwatched one. Returns 'past-end' when the one after is
   // in the next season.
-  async function loadEpisodes(season, focus) {
+  async function loadEpisodes(season, focus, gen = ++viewGen) {
     const kids = await session.server.children(season.ratingKey);
-    if (!alive) return;
+    if (!alive || gen !== viewGen) return;
     if (!episodes) {
       const row = new Row({
         kind: 'episode', caption: true, items: kids,
@@ -750,6 +751,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
   }
 
   async function load() {
+    const gen = ++viewGen;
     try {
       // Coming back (from the player, an episode's page…): keep your place in
       // the seasons and episodes instead of starting over at season 1.
@@ -760,7 +762,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
       let preferSeason = null;
       if (item.type === 'season') { preferSeason = item.ratingKey; key = item.parentRatingKey; }
       const full = await session.server.metadata(key);
-      if (!alive || !full) return;
+      if (!alive || gen !== viewGen || !full) return;
       item = full;
       rememberShowGenres(full);   // anime? decides the default audio/subtitles
       // Fresh metadata carries the server's current track selection (which
@@ -772,9 +774,11 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
       renderCollection();
       loadTrailer();
       playTheme();
+      loadedOnce = true;
       if (isShowLike()) {
-        seasons = (await session.server.children(item.ratingKey)).filter(s => s.type === 'season');
-        if (!alive) return;
+        const nextSeasons = (await session.server.children(item.ratingKey)).filter(s => s.type === 'season');
+        if (!alive || gen !== viewGen) return;
+        seasons = nextSeasons;
         const deckSeason = item.onDeck ? seasons.findIndex(s => s.ratingKey === item.onDeck.parentRatingKey) : -1;
         const pref = preferSeason ? seasons.findIndex(s => s.ratingKey === preferSeason) : -1;
         // Back from playing an episode of this show: that episode (or the next
@@ -788,17 +792,17 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
         renderSeasons();
         if (seasons[seasonIndex]) {
           const focus = place < 0 ? null : fromPlayer ? { key: fromPlayer.key, next: fromPlayer.finished } : { key: keepEp };
-          const landed = await loadEpisodes(seasons[seasonIndex], focus);
-          if (!alive) return;
+          const landed = await loadEpisodes(seasons[seasonIndex], focus, gen);
+          if (!alive || gen !== viewGen) return;
           if (landed === 'past-end' && seasons[seasonIndex + 1]) {
             // Finished a season's last episode: on to the next season.
             seasonIndex++;
             renderSeasons();
-            await loadEpisodes(seasons[seasonIndex]);
+            await loadEpisodes(seasons[seasonIndex], null, gen);
           }
         }
       }
-      loadedOnce = true;
+      if (!alive || gen !== viewGen) return;
       renderButtons();
       if (autoplay) {
         autoplay = false;
@@ -808,6 +812,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
       }
       prepareChoice().catch(e => error('play options failed', e));
     } catch (e) {
+      if (!alive || gen !== viewGen) return;
       error('detail load failed', e);
       setText(summary, 'Couldn\'t load details.');
     }
@@ -923,6 +928,6 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
       return false;
     },
     onHide() { shownNow = false; themeMusic.stopSoon(); },
-    destroy() { alive = false; clearTimeout(epTimer); themeMusic.stopSoon(); },
+    destroy() { alive = false; viewGen++; clearTimeout(epTimer); themeMusic.stopSoon(); },
   };
 }
