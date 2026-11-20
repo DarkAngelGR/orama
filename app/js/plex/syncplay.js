@@ -383,8 +383,9 @@ export class SyncPlayLink {
       return;
     }
     if (this.nudging && this.hooks.rate) { this.hooks.rate(1); this.nudging = false; }
-    // Samsung TVs can only seek. Three seeks that never land in step mean the clock
-    // estimate is off; stop instead of seeking every few seconds for the whole film.
+    // Devices that cannot nudge the playback rate (Samsung AVPlay) can only seek.
+    // Three seeks that never land in step mean the clock estimate is off; stop
+    // instead of seeking every few seconds for the whole film.
     this.seekStreak = (this.seekStreak || 0) + 1;
     if (this.seekStreak > MAX_SEEK_STREAK) return;
     if (this.hooks.apply) this.hooks.apply({ positionMs: Math.max(0, expected), seek: true, quiet: true, by: 'The group' });

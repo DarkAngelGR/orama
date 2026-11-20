@@ -2,6 +2,8 @@
 import * as lang from '../util/lang.js';
 import { TEXT_SUBS, dvWithoutFallback } from './options.js';
 import { NATIVE_AUDIO, audioPlayable } from './tracks.js';
+import { isWebOS } from '../platform/tizen.js';
+import { webosDirect } from './caps.js';
 
 // What a 2022 Samsung (Tizen 6.5) decodes natively. No DTS on 2018+ models.
 export const DIRECT = {
@@ -32,7 +34,8 @@ export function playbackMode({ quality, media, audio, sub, forced, refused }) {
   if (dvWithoutFallback(media)) return 'hls';
   if (forced) return 'direct';
   if (refused) return 'hls';
-  const directOk = DIRECT.container[media.container] && DIRECT.video[media.videoCodec] && audioDirectOk(audio);
+  const caps = isWebOS() ? webosDirect() : DIRECT;
+  const directOk = caps.container[media.container] && caps.video[media.videoCodec] && audioDirectOk(audio);
   const subsOk = !sub || isEmbeddedText(sub) || isSidecarText(sub);
   return directOk && subsOk ? 'direct' : 'hls';
 }

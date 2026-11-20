@@ -1,5 +1,6 @@
 // Plex Media Server API, scoped to the features this client uses.
 import { request, withQuery, identity, unreadable } from './client.js';
+import { plexProfileExtra } from '../player/caps.js';
 import { hasPlayableMedia, matchMedia, mediaIds, playbackState } from './availability.js';
 import { asObj } from '../util/shape.js';
 import { listingFilter } from '../util/kids.js';
@@ -279,10 +280,7 @@ export class Server {
   // forceVideo: convert the picture even when it could be copied (Dolby Vision
   // profile 5, which the TV can't show; Plex tone maps it).
   transcodeUrl(item, { session, offsetMs = 0, mediaIndex = 0, maxBitrate = 40000, resolution = '3840x2160', audioStreamID, subtitleStreamID, forceVideo = false } = {}) {
-    const extra = [
-      'add-transcode-target(type=videoProfile&context=streaming&protocol=hls&container=mpegts&videoCodec=h264,hevc&audioCodec=aac,ac3,eac3)',
-      'add-direct-play-profile(type=videoProfile&container=mp4,mkv&videoCodec=h264,hevc&audioCodec=aac,ac3,eac3)',
-    ].join('+');
+    const extra = plexProfileExtra();
     return withQuery(this.uri + '/video/:/transcode/universal/start.m3u8', Object.assign({}, identity(), {
       path: '/library/metadata/' + item.ratingKey,
       mediaIndex, partIndex: 0,

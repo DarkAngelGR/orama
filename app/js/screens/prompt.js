@@ -1,5 +1,5 @@
 // A one-field text entry (address, password). Focusing the input brings up
-// Samsung's on-screen keyboard; Done or OK saves, Back cancels.
+// the TV keyboard (Samsung IME or the webOS virtual keyboard); Done or OK saves, Back cancels.
 import { h } from '../util/dom.js';
 import { useAmbience } from '../ui/backdrop.js';
 import * as router from '../router.js';

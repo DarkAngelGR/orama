@@ -1,7 +1,7 @@
 // Boot: restore the session and go straight to Home when we can; otherwise sign in.
 import { DEV, DEV_HOST, DEV_PLEX_URL, VERSION } from './config.js';
 import * as router from './router.js';
-import { isTizen, registerKeys } from './platform/tizen.js';
+import { isTizen, isWebOS, registerKeys } from './platform/tizen.js';
 import { session, reconnect, signOut, isJellyfin } from './session.js';
 import { HomeScreen } from './screens/home.js';
 import { LoginScreen } from './screens/login.js';
@@ -92,7 +92,7 @@ export function boot() {
   log('boot', VERSION, navigator.userAgent);
   registerKeys();
   applySubtitleStyle();
-  if (!isTizen) {
+  if (!isTizen && !isWebOS()) {
     fitWindow();
     window.addEventListener('resize', fitWindow);
   }

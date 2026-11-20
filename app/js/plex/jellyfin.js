@@ -8,6 +8,8 @@
 import { withQuery, HttpError, readJson, asTimeout } from './client.js';
 import { clientId } from './client.js';
 import { VERSION } from '../config.js';
+import { isWebOS } from '../platform/tizen.js';
+import { jellyfinTranscodeCodecs } from '../player/caps.js';
 import * as store from '../util/store.js';
 import { hasPlayableMedia, matchMedia, mediaKey, playbackState } from './availability.js';
 import { asList, asObj } from '../util/shape.js';
@@ -16,7 +18,8 @@ import { listingFilter } from '../util/kids.js';
 const TICKS = 10000; // Jellyfin counts time in 100 ns ticks; Plex in ms
 
 function authHeader(token) {
-  return 'MediaBrowser Client="Orama", Device="Samsung TV", DeviceId="' + clientId + '", Version="' + VERSION + '"' +
+  const device = isWebOS() ? 'LG TV' : 'Samsung TV';
+  return 'MediaBrowser Client="Orama", Device="' + device + '", DeviceId="' + clientId + '", Version="' + VERSION + '"' +
     (token ? ', Token="' + token + '"' : '');
 }
 
@@ -641,17 +644,20 @@ export class JellyfinServer {
   // Ask Jellyfin how to convert, and return { url, decision } where decision
   // looks like the Plex transcode decision the player shows.
   async prepareTranscode(item, { session, offsetMs = 0, mediaSourceId, maxBitrate, audioStreamID, subtitleStreamID, forceVideo = false } = {}) {
+    const codecs = jellyfinTranscodeCodecs();
     const profile = {
       MaxStreamingBitrate: maxBitrate ? maxBitrate * 1000 : 140000000,
       MaxStaticBitrate: 200000000,
       DirectPlayProfiles: [],
       TranscodingProfiles: [{
         Container: 'ts', Type: 'Video', Protocol: 'hls', Context: 'Streaming',
-        VideoCodec: 'hevc,h264', AudioCodec: 'eac3,ac3,aac', MaxAudioChannels: '6', BreakOnNonKeyFrames: true,
+        VideoCodec: codecs.VideoCodec, AudioCodec: codecs.AudioCodec, MaxAudioChannels: '6', BreakOnNonKeyFrames: true,
       }],
       ContainerProfiles: [],
-      // No Dolby Vision on Samsung: only Dolby Vision with an HDR10/SDR/HLG picture
-      // underneath counts as playable, so profile 5 gets converted (tone mapped).
+      // No Dolby Vision through this player (Samsung has none; webOS <video>
+      // does not pass a Dolby Vision signal). Only Dolby Vision with an
+      // HDR10/SDR/HLG picture underneath counts as playable, so profile 5
+      // gets converted (tone mapped).
       CodecProfiles: [{ Type: 'Video', Codec: 'hevc', Conditions: [{ Condition: 'EqualsAny', Property: 'VideoRangeType',
         Value: 'SDR|HDR10|HDR10Plus|HLG|DOVIWithHDR10|DOVIWithHLG|DOVIWithSDR|DOVIWithHDR10Plus', IsRequired: false }] }],
       SubtitleProfiles: ['srt', 'subrip', 'ass', 'ssa', 'vtt', 'webvtt'].map(Format => ({ Format, Method: 'External' })),

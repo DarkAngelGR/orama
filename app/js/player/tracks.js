@@ -12,14 +12,19 @@ import * as store from '../util/store.js';
 import * as lang from '../util/lang.js';
 import { streamsOf, forceDirect, audioExtras } from './options.js';
 import { preferredSub, animeSub, isSigns } from './subprefs.js';
+import { isWebOS } from '../platform/tizen.js';
+import { LG_AUDIO } from './caps.js';
 
 // What a Samsung TV decodes natively. No DTS on 2018+ models; TrueHD only
 // when Settings › Audio formats says the soundbar takes it.
+// webOS uses LG_AUDIO (no DTS, TrueHD, mp2, vorbis or pcm) unless that
+// setting adds them.
 export const NATIVE_AUDIO = { aac: 1, ac3: 1, eac3: 1, mp3: 1, mp2: 1, flac: 1, opus: 1, vorbis: 1, pcm: 1 };
 
 export function audioPlayable(s) {
   const c = String((s && s.codec) || '').toLowerCase();
-  return !!(NATIVE_AUDIO[c] || audioExtras().codecs[c]);
+  const native = isWebOS() ? LG_AUDIO : NATIVE_AUDIO;
+  return !!(native[c] || audioExtras().codecs[c]);
 }
 
 function isCommentary(s) {

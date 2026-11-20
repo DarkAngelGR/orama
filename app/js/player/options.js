@@ -72,8 +72,9 @@ function partOf(media) {
 }
 
 // Dolby Vision with nothing underneath the TV can show (profile 5, as in many
-// streaming downloads): Samsung TVs have no Dolby Vision, so played as is the
-// picture comes out purple and green. Profile 8.1 (HDR10 underneath) and 7
+// streaming downloads): Samsung has no Dolby Vision, and webOS <video> does
+// not pass a Dolby Vision signal to the panel, so played as is the picture
+// comes out purple and green. Profile 8.1 (HDR10 underneath) and 7
 // (Blu-ray, HDR10 base layer) play fine as HDR10.
 export function dvWithoutFallback(media) {
   const v = streamsOf(partOf(media), 1)[0];

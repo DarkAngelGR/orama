@@ -1,6 +1,6 @@
 // Shared request plumbing for plex.tv and Plex Media Server.
 import { VERSION } from '../config.js';
-import { deviceInfo } from '../platform/tizen.js';
+import { deviceInfo, isWebOS } from '../platform/tizen.js';
 import * as store from '../util/store.js';
 import { uuid } from '../util/format.js';
 
@@ -16,17 +16,19 @@ export { clientId };
 const device = deviceInfo();
 
 // Identity params, also needed as query params on URLs we hand to AVPlay
-// (which can't send headers).
+// (which can't send headers). webOS re-reads deviceInfo so a late
+// webOS.deviceInfo callback can fill in the model.
 export function identity() {
+  const d = isWebOS() ? deviceInfo() : device;
   return {
     'X-Plex-Product': PRODUCT,
     'X-Plex-Version': VERSION,
     'X-Plex-Client-Identifier': clientId,
-    'X-Plex-Platform': device.platform,
-    'X-Plex-Platform-Version': '6.5',
-    'X-Plex-Device': device.model,
-    'X-Plex-Device-Name': device.name,
-    'X-Plex-Model': device.model,
+    'X-Plex-Platform': d.platform,
+    'X-Plex-Platform-Version': d.platformVersion || '6.5',
+    'X-Plex-Device': d.model,
+    'X-Plex-Device-Name': d.name,
+    'X-Plex-Model': d.model,
   };
 }
 
