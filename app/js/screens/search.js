@@ -32,6 +32,7 @@ export function SearchScreen() {
   let rows = [];
   let rowIndex = -1; // -1 = input
   let timer = 0;
+  let focusTimer = 0;
   let query = '';
   let generation = 0;
 
@@ -182,6 +183,7 @@ export function SearchScreen() {
   }
 
   function focusInput() {
+    clearTimeout(focusTimer);
     rowIndex = -1;
     render();
     input.focus();
@@ -209,12 +211,14 @@ export function SearchScreen() {
     name: 'search',
     onShow() {
       ambience.restore();
-      if (rowIndex < 0) setTimeout(focusInput, 50);
+      clearTimeout(focusTimer);
+      // After this screen is covered, the timer must not pull focus back.
+      if (rowIndex < 0) focusTimer = setTimeout(focusInput, 50);
     },
-    onHide() { input.blur(); },
+    onHide() { clearTimeout(focusTimer); input.blur(); },
     onKey(action) {
       if (rowIndex < 0) {
-        if (action === 'down' && rows.length) { input.blur(); rowIndex = 0; render(); return true; }
+        if (action === 'down' && rows.length) { clearTimeout(focusTimer); input.blur(); rowIndex = 0; render(); return true; }
         if (action === 'enter') { input.focus(); return true; }
         if (action === 'back') { input.blur(); return false; }
         return true;
@@ -235,6 +239,6 @@ export function SearchScreen() {
       }
       return false;
     },
-    destroy() { clearTimeout(timer); generation++; },
+    destroy() { clearTimeout(focusTimer); clearTimeout(timer); generation++; },
   };
 }

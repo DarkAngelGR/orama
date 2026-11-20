@@ -22,6 +22,7 @@ export function PromptScreen({ title, hint = '', value = '', placeholder = '', s
   h('div', 'prompt-hint', el).textContent = (hint ? hint + '  ·  ' : '') + 'OK to save, Back to cancel';
 
   let done = false;
+  let focusTimer = 0;
   function save() {
     if (done) return;
     done = true;
@@ -38,8 +39,13 @@ export function PromptScreen({ title, hint = '', value = '', placeholder = '', s
   return {
     el,
     name: 'prompt',
-    onShow() { ambience.restore(); setTimeout(() => input.focus(), 50); },
-    onHide() { input.blur(); },
+    onShow() {
+      ambience.restore();
+      clearTimeout(focusTimer);
+      focusTimer = setTimeout(() => input.focus(), 50);
+    },
+    onHide() { clearTimeout(focusTimer); input.blur(); },
+    destroy() { clearTimeout(focusTimer); },
     onKey(action) {
       if (action === 'enter') {
         if (document.activeElement === input) save();
