@@ -40,28 +40,45 @@ export function openPerson(person) {
 }
 
 // A title's catalog page (details, Add to Watchlist), found by title and year.
+// A second lookup, or leaving the screen, drops the one already in flight.
+let lookupGen = 0;
 export async function openCatalogLookup({ title, year, kind, id }) {
-  if (session.server && session.server.kind === 'jellyfin') {
-    // No catalog on Jellyfin: open it from the library if it's there already.
+  const gen = ++lookupGen;
+  const from = router.top();
+  const still = () => gen === lookupGen && router.top() === from;
+  try {
+    if (session.server && session.server.kind === 'jellyfin') {
+      // No catalog on Jellyfin: open it from the library if it's there already.
+      const type = kind === 'show' ? 'show' : 'movie';
+      const hubs = await session.server.search(title);
+      if (!still()) return false;
+      const all = [].concat(...hubs.map(hb => hb.Metadata || []));
+      const m = all.find(x => x.type === type && (!year || Math.abs((x.year || 0) - year) <= 1));
+      if (m) { openItem(m); return true; }
+      // Not there yet: Radarr/Sonarr's record, to request it.
+      const { lookup, baseUrl } = await import('./plex/watchlist.js');
+      if (!still()) return false;
+      const found = baseUrl() ? await lookup(type, id ? { id } : { q: title }).catch(() => null) : null;
+      if (!still()) return false;
+      const c = (found || []).find(x => !year || !x.year || Math.abs(x.year - year) <= 1);
+      if (c) { openCatalog(c); return true; }
+      if (!still() || !session.server) return false;
+      notice(title + ' isn\'t on ' + (session.server.name || 'this server') + ' yet', 4000);
+      return false;
+    }
+    const { search } = await import('./plex/discover.js');
+    if (!still()) return false;
+    const found = await search(title, { limit: 10 });
+    if (!still()) return false;
     const type = kind === 'show' ? 'show' : 'movie';
-    const hubs = await session.server.search(title);
-    const all = [].concat(...hubs.map(hb => hb.Metadata || []));
-    const m = all.find(x => x.type === type && (!year || Math.abs((x.year || 0) - year) <= 1));
-    if (m) { openItem(m); return true; }
-    // Not there yet: Radarr/Sonarr's record, to request it.
-    const { lookup, baseUrl } = await import('./plex/watchlist.js');
-    const found = baseUrl() ? await lookup(type, id ? { id } : { q: title }).catch(() => null) : null;
-    const c = (found || []).find(x => !year || !x.year || Math.abs(x.year - year) <= 1);
-    if (c) { openCatalog(c); return true; }
-    notice(title + ' isn\'t on ' + session.server.name + ' yet', 4000);
-    return false;
+    const m = found.find(x => x.type === type && (!year || Math.abs((x.year || 0) - year) <= 1)) || found.find(x => x.type === type);
+    if (m) openCatalog(m);
+    return !!m;
+  } catch (e) {
+    // The screen that asked is gone; don't surface a failure there.
+    if (!still()) return false;
+    throw e;
   }
-  const { search } = await import('./plex/discover.js');
-  const found = await search(title, { limit: 10 });
-  const type = kind === 'show' ? 'show' : 'movie';
-  const m = found.find(x => x.type === type && (!year || Math.abs((x.year || 0) - year) <= 1)) || found.find(x => x.type === type);
-  if (m) openCatalog(m);
-  return !!m;
 }
 
 export function openCatalog(item) {

@@ -599,7 +599,10 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     }));
     if (!alive || collFor !== mine) return;
     if (collWrap.parentNode !== body) body.insertBefore(collWrap, castWrap.parentNode === body ? castWrap : seasonsEl);
-    const onSelect = it => (it.lookup ? openCatalogLookup(it.lookup) : openItem(it));
+    const onSelect = it => {
+      if (!it.lookup) { openItem(it); return; }
+      openCatalogLookup(it.lookup).catch(e => error('catalog lookup failed', e));
+    };
     if (!coll) {
       const row = new Row({ title: c.title || 'Collection', kind: 'poster', caption: true, items, onSelect });
       collWrap.appendChild(row.el);
