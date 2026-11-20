@@ -377,11 +377,12 @@ export class JellyfinServer {
 
   async items(sectionId, start, size, { sort = 'titleSort', type, unwatched = false } = {}) {
     const [by, order] = SORTS[sort] || SORTS.titleSort;
-    const kid = listingFilter('jellyfin');
+    const kidsOn = !!listingFilter('jellyfin');
+    const kid = listingFilter('jellyfin', sectionId);   // none for a kids library: keep its unrated titles
     const r = await this.req(this.u('/Items'), { timeout: 40000, params: {
       ParentId: sectionId, Recursive: true, IncludeItemTypes: type === 2 ? 'Series' : 'Movie',
       StartIndex: start, Limit: size, SortBy: by, SortOrder: order,
-      Fields: 'ProviderIds,ChildCount,RecursiveItemCount,PremiereDate,CommunityRating' + (kid ? ',OfficialRating' : ''),
+      Fields: 'ProviderIds,ChildCount,RecursiveItemCount,PremiereDate,CommunityRating' + (kidsOn ? ',OfficialRating' : ''),
       MaxOfficialRating: kid ? kid.MaxOfficialRating : undefined,
       Filters: unwatched ? 'IsUnplayed' : undefined, EnableTotalRecordCount: true,
     } });

@@ -7,7 +7,7 @@ import { session } from '../session.js';
 import { notice } from '../ui/notice.js';
 import { PromptScreen } from './prompt.js';
 import {
-  enabled, read, LEVELS, levelById, setLevel, setOn, toggleLibrary, savePin, pinMatches,
+  enabled, read, LEVELS, levelById, setLevel, setOn, toggleLibrary, savePin, pinMatches, pinLockedFor,
 } from '../util/kids.js';
 
 const ROW = 110;
@@ -32,8 +32,10 @@ export function confirmPin() {
       secret: true,
       numeric: true,
       onDone: async v => {
-        if (await pinMatches(v)) resolve(true);
-        else { notice('Wrong PIN', 3000); resolve(false); }
+        if (await pinMatches(v)) { resolve(true); return; }
+        const wait = pinLockedFor();
+        notice(wait ? 'Too many tries. Try again in ' + Math.ceil(wait / 60000) + ' min' : 'Wrong PIN', 3000);
+        resolve(false);
       },
       onCancel: () => resolve(false),
     }));

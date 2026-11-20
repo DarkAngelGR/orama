@@ -11,6 +11,7 @@ const DRIFT_IGNORE_MS = 150;
 const DRIFT_SEEK_MS = 1000;
 const DRIFT_LARGE_MS = 2000;
 const DRIFT_HOLD_MS = 4000;
+const MAX_SEEK_STREAK = 3;
 const CLOCK_WINDOW = 7;
 
 export function msOf(ticks) {
@@ -348,6 +349,7 @@ export class SyncPlayLink {
     const action = playbackOf(parsed);
     if (!action) return;
     this.lastCommandAt = receivedAt;
+    this.seekStreak = 0;   // a real group command: corrections may start again
     if (parsed.command === 'Pause' || parsed.command === 'Unpause') {
       this.anchor = { positionMs: parsed.positionMs, when: parsed.when, paused: parsed.command === 'Pause' };
     } else if (parsed.command === 'Seek') {
@@ -370,6 +372,7 @@ export class SyncPlayLink {
       sinceCommandMs: since,
     });
     if (!action) {
+      this.seekStreak = 0;
       if (this.nudging && this.hooks.rate) { this.hooks.rate(1); this.nudging = false; }
       return;
     }
@@ -380,6 +383,10 @@ export class SyncPlayLink {
       return;
     }
     if (this.nudging && this.hooks.rate) { this.hooks.rate(1); this.nudging = false; }
+    // Samsung TVs can only seek. Three seeks that never land in step mean the clock
+    // estimate is off; stop instead of seeking every few seconds for the whole film.
+    this.seekStreak = (this.seekStreak || 0) + 1;
+    if (this.seekStreak > MAX_SEEK_STREAK) return;
     if (this.hooks.apply) this.hooks.apply({ positionMs: Math.max(0, expected), seek: true, quiet: true, by: 'The group' });
   }
 

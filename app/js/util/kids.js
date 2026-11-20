@@ -43,6 +43,8 @@ export function levelById(id) {
 function norm(raw) {
   let s = String(raw == null ? '' : raw).trim().toUpperCase();
   if (!s) return '';
+  // Plex keeps the country in front for non-US ratings: gr/K-12, gb/PG, de/16.
+  s = s.replace(/^[A-Z]{2}\//, '');
   s = s.replace(/Κ/g, 'K').replace(/Ä/g, 'A').replace(/Ö/g, 'O').replace(/Ü/g, 'U');
   s = s.replace(/[\s.+/-]+/g, '');
   if (/^(NR|NOTRATED|UNRATED|UR|NA|NONE|NULL)$/.test(s)) return '';
@@ -118,13 +120,35 @@ export async function hashPin(pin, salt) {
   return hex(digest);
 }
 
-export async function pinMatches(pin, state) {
+// A 4-digit PIN is only 10,000 guesses: after FREE_TRIES wrong ones, wait a
+// minute, doubling each time up to an hour. Kept in storage so a restart
+// doesn't reset it.
+const FREE_TRIES = 5;
+const LOCK_KEY = 'kidsLock';
+
+export function pinLockedFor(now = Date.now()) {
+  const lock = store.get(LOCK_KEY, null);
+  return lock && lock.until > now ? lock.until - now : 0;
+}
+
+function notePinResult(ok, now) {
+  if (ok) { store.set(LOCK_KEY, undefined); return; }
+  const lock = store.get(LOCK_KEY, null) || { fails: 0, until: 0 };
+  lock.fails = (lock.fails || 0) + 1;
+  if (lock.fails >= FREE_TRIES) {
+    lock.until = now + Math.min(60 * 60000, 60000 * Math.pow(2, lock.fails - FREE_TRIES));
+  }
+  store.set(LOCK_KEY, lock);
+}
+
+export async function pinMatches(pin, state, now = Date.now()) {
   const saved = state || read();
-  if (!saved.salt || !saved.hash || !/^\d{4}$/.test(String(pin || ''))) return false;
+  if (pinLockedFor(now)) return false;
+  if (!saved.salt || !saved.hash || !/^\d{4}$/.test(String(pin || ''))) { notePinResult(false, now); return false; }
   const got = await hashPin(pin, saved.salt);
-  if (got.length !== saved.hash.length) return false;
-  let diff = 0;
+  let diff = got.length ^ saved.hash.length;
   for (let i = 0; i < got.length; i++) diff |= got.charCodeAt(i) ^ saved.hash.charCodeAt(i);
+  notePinResult(diff === 0, now);
   return diff === 0;
 }
 
@@ -174,10 +198,13 @@ export function playbackBlocked(item) {
   return enabled() && !allows(item, read());
 }
 
-// Params for a library listing. Null when kids mode is off.
-export function listingFilter(kind) {
+// Params for a library listing. Null when kids mode is off, or for a library
+// marked as a kids library: the server would drop its unrated titles, which
+// kids mode shows there, so those listings are filtered here only.
+export function listingFilter(kind, libraryId) {
   const state = read();
   if (!state.on) return null;
+  if (libraryId != null && state.libraries.indexOf(String(libraryId)) >= 0) return null;
   const level = levelById(state.level);
   if (kind === 'jellyfin') return { MaxOfficialRating: level.jellyfin };
   const ratings = [];

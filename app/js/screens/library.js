@@ -195,7 +195,7 @@ export function LibraryScreen(section) {
     try {
       const params = { type };
       if (unwatched) params[type === 2 ? 'unwatchedLeaves' : 'unwatched'] = 1;
-      const extra = listingFilter(isJellyfin() ? 'jellyfin' : 'plex');
+      const extra = listingFilter(isJellyfin() ? 'jellyfin' : 'plex', section.key);
       if (extra) Object.assign(params, extra);
       const mc = await session.server.get('/library/sections/' + section.key + '/firstCharacter', params);
       const next = lettersIfCurrent(gen, generation, mc && mc.Directory);
