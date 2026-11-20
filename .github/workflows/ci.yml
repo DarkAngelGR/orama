@@ -1,5 +1,5 @@
 # Tests and a bundled release build on every pull request and on pushes to any
-# branch. Publishing the .wgt stays in release.yml, which runs only on main.
+# branch, including the webOS .ipk. Publishing stays in release.yml, which runs only on main.
 name: CI
 
 on:
@@ -30,6 +30,12 @@ jobs:
           printf '' > .env
           ./scripts/deploy.sh --build-only
           test ! -e build/app/js/screens/player.js
+          test ! -e build/app/appinfo.json
+          ./scripts/deploy.sh --webos --build-only
+          test ! -e build/app-webos/config.xml
+          test -f build/app-webos/appinfo.json
+          test ! -e build/app-webos/js/screens/player.js
+          node -e 'const fs=require("fs"); const v=fs.readFileSync("app/config.xml","utf8").match(/<widget[^>]* version="([^"]+)"/)[1]; if (!fs.existsSync("build/Orama-"+v+".ipk")) { console.error("missing ipk for "+v); process.exit(1); } const info=JSON.parse(fs.readFileSync("build/app-webos/appinfo.json","utf8")); if (info.version!==v || info.disableBackHistoryAPI!==true || !Array.isArray(info.requiredACG)) process.exit(1);'
 
   # Pictures of Home, the library and a title page. Baselines are committed from
   # this job (update baselines), not from a developer's machine: font and WebGL

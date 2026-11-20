@@ -6,6 +6,7 @@ import * as router from '../router.js';
 import * as updates from '../plex/updates.js';
 import { VERSION } from '../config.js';
 import { PromptScreen } from './prompt.js';
+import { isWebOS } from '../platform/tizen.js';
 
 export function UpdatesScreen() {
   const el = h('div', 'screen settings');
@@ -28,6 +29,20 @@ export function UpdatesScreen() {
     clearInterval(poll);
     status = 'Checking…';
     build();
+    if (isWebOS()) {
+      latest = null;
+      try {
+        latest = await updates.githubLatest();
+        if (gen !== generation) return;
+        status = updates.newer(latest.version, VERSION) ? 'Orama ' + latest.version + ' is available' : 'Up to date';
+      } catch (e) {
+        if (gen !== generation) return;
+        latest = null;
+        status = e.message;
+      }
+      build();
+      return;
+    }
     installer = null;
     installerError = '';
     try {
@@ -81,6 +96,7 @@ export function UpdatesScreen() {
   }
 
   function build() {
+    if (isWebOS()) { buildWebOS(); return; }
     const base = updates.baseUrl();
     const m = updates.mode();
     const canInstall = !!(installer && latest && !installer.busy);
@@ -109,6 +125,27 @@ export function UpdatesScreen() {
     setText(notes, fresh && latest.notes ? 'What\'s new in ' + latest.version + ':\n' + latest.notes
       : installer ? '' : 'Updates install through the Orama installer on your server (port '
         + updates.DEFAULT_PORT + '); see installer/README.md on GitHub.');
+    render();
+  }
+
+  // LG updates through Homebrew Channel or the release .ipk, not the Samsung installer.
+  function buildWebOS() {
+    const fresh = latest && updates.newer(latest.version, VERSION);
+    list.innerHTML = '';
+    const latestValue = !latest ? status
+      : latest.version + (fresh ? '' : '  ·  this is the installed version');
+    items = [
+      { label: 'Installed', value: 'Orama ' + VERSION, run: () => check(true) },
+      { label: 'Latest on GitHub', value: latestValue, run: () => check(true), action: 'Check again' },
+    ];
+    index = Math.min(index, items.length - 1);
+    items.forEach(it => {
+      it.el = h('div', 'setting', list);
+      h('span', 'setting-label', it.el).textContent = it.label;
+      h('span', 'setting-value', it.el).textContent = it.value + (it.action ? '  ·  ' + it.action : '');
+    });
+    const notesText = fresh && latest.notes ? 'What\'s new in ' + latest.version + ':\n' + latest.notes + '\n\n' : '';
+    setText(notes, notesText + 'Update through the webOS Homebrew Channel, or install the .ipk from the GitHub release.');
     render();
   }
 

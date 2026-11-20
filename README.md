@@ -16,6 +16,7 @@
   <a href="https://github.com/DarkAngelGR/orama/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/DarkAngelGR/orama?label=release&color=8B7CFF&style=flat-square"></a>
   <img alt="Works with Plex and Jellyfin" src="https://img.shields.io/badge/works%20with-Plex%20%C2%B7%20Jellyfin-171724?style=flat-square">
   <img alt="Samsung Tizen" src="https://img.shields.io/badge/Samsung-Tizen%206.5%2B-171724?style=flat-square">
+  <img alt="LG webOS" src="https://img.shields.io/badge/LG-webOS%205%2B-171724?style=flat-square">
   <a href="LICENSE"><img alt="License: GPL-3.0" src="https://img.shields.io/badge/license-GPL--3.0-171724?style=flat-square"></a>
 </p>
 
@@ -95,6 +96,23 @@ The Apps screen shows **Develop mode** at the top when it's on.
 | The app disappeared | Firmware updates can remove sideloaded apps; install it again. |
 | The sign-in code expired | Press **OK** on the sign-in screen for a new one. |
 </details>
+
+## LG webOS
+
+You need an LG TV on webOS 5 or newer (2020 models onward) and the same Plex or Jellyfin server.
+
+1. Download `Orama-x.y.z.ipk` from the **[latest release](https://github.com/DarkAngelGR/orama/releases/latest)**.
+2. Turn on **Developer Mode** from the LG Content Store (Dev Mode Status **On**), then reboot the TV.
+3. Install the `.ipk` with [webOS Dev Manager](https://github.com/webosbrew/dev-manager) or the [Homebrew Channel](https://github.com/webosbrew/webos-homebrew-channel).
+
+Homebrew Channel installs later versions from the release manifest (`com.darkangelgr.orama.manifest.json`). On LG, Orama does not install updates itself.
+
+From source, with `WEBOS_DEVICE` in `.env` set to the name you gave the TV in the webOS CLI:
+
+```sh
+./scripts/deploy.sh --webos --build-only   # writes build/Orama-<version>.ipk
+./scripts/deploy.sh --webos                 # also installs and opens it on that TV
+```
 
 ## Features
 
@@ -292,7 +310,7 @@ app/            the TV app (plain ES modules, no framework)
   js/player/    track, version and quality choices, subtitles, seek previews
   js/ui/        rows, grids, tiles, pickers, image loader, backdrop, theme music
   js/plex/      plex.tv sign-in, Plex Media Server, Jellyfin, Discover, watchlist-sync, updates
-  js/platform/  Tizen keys and device info, AVPlay / <video> player
+  js/platform/  Tizen and webOS keys and device info, AVPlay / <video> player
 installer/      the Orama installer (Docker)
 scripts/        setup.sh, deploy.sh, make-logo.py
 tools/          dev server, TV eval, network remote
@@ -303,6 +321,8 @@ as is (dev builds ship it unchanged). Release builds pack it with esbuild (fetch
 into one minified start-up file plus small pieces for the screens that load on first use
 (search, settings, a person, the catalog, More info), with `<link rel="modulepreload">` for
 what start-up needs. Without Node, `deploy.sh` ships the plain modules instead.
+`./scripts/deploy.sh --webos` is the same build for LG, targeted at Chromium 68 (webOS 5)
+and packaged as an `.ipk`.
 </details>
 
 <details>
@@ -340,7 +360,8 @@ install it elsewhere and set `PLAYWRIGHT_MODULE` to its `index.js`.
 - Plex Media Server 1.42+ returns `400` for `start.m3u8` unless
   `/video/:/transcode/universal/decision` was called for the same session first.
 - `X-Plex-Platform=Tizen` selects the server's profile for the official app, which rejects these
-  transcode requests, so Orama identifies itself as `Samsung`.
+  transcode requests, so Orama identifies itself as `Samsung`. On LG it sends `LG` rather than
+  `webOS`, for the same reason.
 - Samsung TVs from 2018 on don't decode DTS themselves; Orama converts it unless
   **Settings › Audio formats** says your setup (e.g. a soundbar over eARC) can play it.
 </details>
@@ -364,5 +385,5 @@ You can use, study, change and share it; anything you distribute that's built on
 open source under the same license.
 
 <sub>Orama is an independent project, not made by, endorsed by or affiliated with Plex, Inc., the
-Jellyfin project or Samsung. "Plex" is a trademark of Plex, Inc., used only to say which media
+Jellyfin project, Samsung or LG. "Plex" is a trademark of Plex, Inc., used only to say which media
 servers Orama works with.</sub>

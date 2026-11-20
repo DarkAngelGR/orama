@@ -4,6 +4,7 @@
 // still asks GitHub directly so it can tell you an update is out.
 import * as store from '../util/store.js';
 import { VERSION } from '../config.js';
+import { isWebOS } from '../platform/tizen.js';
 import { plexLanHost } from './watchlist.js';
 import { asObj } from '../util/shape.js';
 
@@ -115,10 +116,13 @@ export async function githubLatest() {
 // Latest version available, from the installer if it's there (it also means
 // "can be installed from the TV"), else GitHub. { version, notes, viaInstaller }
 export async function latest() {
-  try {
-    const s = await installerStatus();
-    if (s.latest) return { version: s.latest.version, notes: s.latest.notes || '', viaInstaller: true };
-  } catch (e) { /* fall back to GitHub */ }
+  // LG has no Orama installer; Homebrew Channel (or the release .ipk) updates it.
+  if (!isWebOS()) {
+    try {
+      const s = await installerStatus();
+      if (s.latest) return { version: s.latest.version, notes: s.latest.notes || '', viaInstaller: true };
+    } catch (e) { /* fall back to GitHub */ }
+  }
   const g = await githubLatest();
   return Object.assign(g, { viaInstaller: false });
 }

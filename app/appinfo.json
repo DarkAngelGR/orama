@@ -1,0 +1,13 @@
+{
+  "id": "com.darkangelgr.orama",
+  "version": "0.29.0",
+  "vendor": "DarkAngelGR",
+  "type": "web",
+  "main": "index.html",
+  "title": "Orama",
+  "icon": "icon-orama.png",
+  "largeIcon": "icon-orama.png",
+  "resolution": "1920x1080",
+  "disableBackHistoryAPI": true,
+  "requiredACG": []
+}

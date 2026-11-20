@@ -1,6 +1,6 @@
-# Publishes a GitHub release with the .wgt whenever the version in
-# app/config.xml changes on main. The Orama installer (installer/) and the
-# app itself watch these releases.
+# Publishes a GitHub release with the .wgt and the webOS .ipk whenever the
+# version in app/config.xml changes on main. The Orama installer (installer/)
+# and the app itself watch these releases. Homebrew Channel reads the manifest.
 name: Release
 
 on:
@@ -33,12 +33,36 @@ jobs:
           printf '' > .env
           ./scripts/deploy.sh --build-only
           (cd build/app && zip -qr -X "../../Orama-${{ steps.v.outputs.version }}.wgt" .)
+          ./scripts/deploy.sh --webos --build-only
+          V="${{ steps.v.outputs.version }}"
+          cp "build/Orama-$V.ipk" "Orama-$V.ipk"
+          HASH=$(sha256sum "Orama-$V.ipk" | awk '{print $1}')
+          REPO="${GITHUB_REPOSITORY}"
+          V="$V" HASH="$HASH" REPO="$REPO" node <<'END'
+          const fs = require("fs");
+          const app = JSON.parse(fs.readFileSync("app/appinfo.json", "utf8"));
+          const v = process.env.V;
+          const repo = process.env.REPO;
+          const manifest = {
+            id: app.id,
+            version: v,
+            type: "web",
+            title: "Orama",
+            iconUri: "https://raw.githubusercontent.com/" + repo + "/v" + v + "/app/icon-orama.png",
+            sourceUrl: "https://github.com/" + repo,
+            rootRequired: false,
+            ipkUrl: "https://github.com/" + repo + "/releases/download/v" + v + "/Orama-" + v + ".ipk",
+            ipkHash: { sha256: process.env.HASH },
+          };
+          fs.writeFileSync(app.id + ".manifest.json", JSON.stringify(manifest, null, 2) + "\n");
+          END
 
       - name: Publish
         if: steps.v.outputs.exists != 'true'
         run: |
           git log -1 --pretty=%B | grep -vE '^(Co-Authored-By|Claude-Session):' > notes.md
-          gh release create "v$V" "Orama-$V.wgt" --title "Orama $V" --notes-file notes.md --target "$GITHUB_SHA"
+          APP_ID=$(node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync("app/appinfo.json","utf8")).id)')
+          gh release create "v$V" "Orama-$V.wgt" "Orama-$V.ipk" "$APP_ID.manifest.json" --title "Orama $V" --notes-file notes.md --target "$GITHUB_SHA"
         env:
           GH_TOKEN: ${{ github.token }}
           V: ${{ steps.v.outputs.version }}
