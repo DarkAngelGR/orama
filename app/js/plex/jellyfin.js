@@ -8,6 +8,7 @@
 import { withQuery, HttpError, readJson, asTimeout } from './client.js';
 import { clientId } from './client.js';
 import { VERSION } from '../config.js';
+import * as store from '../util/store.js';
 import { hasPlayableMedia, matchMedia, mediaKey, playbackState } from './availability.js';
 import { asList, asObj } from '../util/shape.js';
 
@@ -77,6 +78,50 @@ export function signInWithQuickConnect(base, secret) {
 
 export function signInWithPassword(base, username, password) {
   return jfRequest(base, '/Users/AuthenticateByName', { method: 'POST', body: { Username: username, Pw: password || '' } });
+}
+
+export function userMe(base, token) {
+  return jfRequest(base, '/Users/Me', { token, timeout: 8000 });
+}
+
+// Public profiles on a server: name, avatar, and whether a password is set.
+// /Users/Public needs no token.
+export function publicUserCards(base, list) {
+  const root = String(base || '').replace(/\/+$/, '');
+  return (Array.isArray(list) ? list : []).filter(u => u && u.Id).map(u => ({
+    id: u.Id,
+    title: u.Name || 'User',
+    thumb: u.PrimaryImageTag
+      ? root + '/Users/' + encodeURIComponent(u.Id) + '/Images/Primary?tag=' + encodeURIComponent(u.PrimaryImageTag) + '&maxWidth=400'
+      : '',
+    hasPassword: u.HasPassword !== false && u.HasConfiguredPassword !== false,
+  }));
+}
+
+export function publicUsers(base) {
+  return jfRequest(base, '/Users/Public', { timeout: 8000 }).then(list => publicUserCards(base, list));
+}
+
+// Tokens of users who have signed in on this TV, per server, so switching
+// back doesn't ask again. Kept across sign-out of the current user.
+export function savedJellyfinUser(serverId, userId) {
+  const all = store.get('jfUsers') || {};
+  const hit = (all[serverId] || {})[userId];
+  return hit && hit.token ? hit : null;
+}
+
+export function rememberJellyfinUser(serverId, auth) {
+  const u = auth && auth.User;
+  if (!serverId || !u || !u.Id || !auth.AccessToken) return;
+  const all = store.get('jfUsers') || {};
+  const bucket = Object.assign({}, all[serverId]);
+  bucket[u.Id] = {
+    token: auth.AccessToken,
+    name: u.Name || '',
+    admin: !!(u.Policy && u.Policy.IsAdministrator),
+  };
+  all[serverId] = bucket;
+  store.set('jfUsers', all);
 }
 
 // --- translating items -------------------------------------------------------------

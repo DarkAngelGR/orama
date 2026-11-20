@@ -718,7 +718,8 @@ html.subs-bg .subs-text {
 .user.focus .user-name { color: var(--cream); }
 .user-lock svg { width: 22px; height: 22px; margin-left: 10px; vertical-align: -2px; color: var(--dim); }
 .user-current { margin-top: 8px; font: 500 20px var(--body); color: var(--accent); }
-.users-note { position: absolute; left: 0; right: 0; top: 760px; text-align: center; font: 500 26px var(--body); color: var(--cream); }
+.users-note { position: absolute; left: 200px; right: 200px; top: 760px; text-align: center; font: 500 26px var(--body); color: var(--cream); }
+.users-code { position: absolute; left: 0; right: 0; top: 430px; height: auto; margin: 0; text-align: center; }
 
 /* ---------- motion (ui/motion.js) ----------
    Opacity and transform only, short, and never in the way of a key press:

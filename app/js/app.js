@@ -2,7 +2,7 @@
 import { DEV, DEV_HOST, DEV_PLEX_URL, VERSION } from './config.js';
 import * as router from './router.js';
 import { isTizen, registerKeys } from './platform/tizen.js';
-import { session, reconnect, signOut } from './session.js';
+import { session, reconnect, signOut, isJellyfin } from './session.js';
 import { HomeScreen } from './screens/home.js';
 import { LoginScreen } from './screens/login.js';
 import { initHud } from './ui/hud.js';
@@ -21,7 +21,9 @@ function goHome() {
 // "Who's watching?" first, when asked for in Settings (and not right after a
 // switch, which restarts the app as the new profile).
 function goHomeOrProfiles() {
-  if (store.get('askProfile') && session.accountToken && !session.skipProfileOnce) {
+  // Plex Home, or a Jellyfin server with more than one public user.
+  const ask = store.get('askProfile') && !session.skipProfileOnce && (session.accountToken || isJellyfin());
+  if (ask) {
     import('./screens/users.js').then(m => router.reset(m.UsersScreen({ onDone: goHome })), goHome);
   } else {
     goHome();

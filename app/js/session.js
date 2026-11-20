@@ -2,7 +2,7 @@
 // goes straight to the home screen.
 import * as store from './util/store.js';
 import { Server } from './plex/server.js';
-import { JellyfinServer } from './plex/jellyfin.js';
+import { JellyfinServer, rememberJellyfinUser } from './plex/jellyfin.js';
 import { getServers, connect } from './plex/auth.js';
 import { log } from './util/log.js';
 
@@ -45,6 +45,7 @@ export function useJellyfin(uri, info, auth) {
   store.set('user', session.user);
   store.set('server', rec);
   store.set('homeCache', undefined);
+  rememberJellyfinUser(rec.id, auth);
 }
 
 export function signIn(token, user) {

@@ -3,8 +3,12 @@
 import { h, setText, toggleClass } from '../util/dom.js';
 import { useAmbience } from '../ui/backdrop.js';
 import * as router from '../router.js';
-import { session, useProfile, useServer } from '../session.js';
+import { session, useProfile, useServer, useJellyfin, isJellyfin } from '../session.js';
 import { homeUsers, switchHomeUser, getServers, connect } from '../plex/auth.js';
+import {
+  publicUsers, savedJellyfinUser, userMe, quickConnectEnabled, quickConnectStart, quickConnectDone,
+  signInWithQuickConnect, signInWithPassword, rememberJellyfinUser,
+} from '../plex/jellyfin.js';
 import { PromptScreen } from './prompt.js';
 import { error, log } from '../util/log.js';
 
@@ -21,12 +25,16 @@ export function UsersScreen({ onDone } = {}) {
   const ambience = useAmbience();
   h('h1', 'users-title', el).textContent = 'Who\'s watching?';
   const list = h('div', 'users-list', el);
+  const codeEl = h('div', 'login-code users-code hidden', el);
   const note = h('div', 'users-note', el);
 
   let users = [];
   let index = 0;
   let busy = false;
   let alive = true;
+  let mode = 'list';   // list | code
+  let round = 0;
+  let codeTimer = 0;
 
   // Cards are built once; moving only moves the highlight, so the pictures
   // never reload (rebuilding them on every press made them flicker).
@@ -57,7 +65,13 @@ export function UsersScreen({ onDone } = {}) {
 
   async function load() {
     try {
-      users = await homeUsers(session.accountToken);
+      if (isJellyfin()) {
+        users = (await publicUsers(session.server.uri)).map(u => ({
+          title: u.title, uuid: u.id, thumb: u.thumb, hasPassword: u.hasPassword, protected: u.hasPassword,
+        }));
+      } else {
+        users = await homeUsers(session.accountToken);
+      }
     } catch (e) {
       error('home users failed', e);
       if (onDone) { onDone(); return; }
@@ -67,11 +81,135 @@ export function UsersScreen({ onDone } = {}) {
     if (!alive) return;
     if (users.length < 2 && onDone) { onDone(); return; }
     index = Math.max(0, users.findIndex(u => session.user && u.uuid === session.user.uuid));
-    if (!users.length) setText(note, 'No Plex Home profiles on this account.');
+    if (!users.length) setText(note, isJellyfin() ? 'No public users on this server.' : 'No Plex Home profiles on this account.');
     build();
   }
 
+  function finishJellyfin(auth) {
+    const info = { ServerName: session.server.name, Id: session.server.id };
+    useJellyfin(session.server.uri, info, auth);
+    log('switched jellyfin user', auth.User && auth.User.Name);
+    if (onDone) onDone();
+    else { session.skipProfileOnce = true; window.dispatchEvent(new Event('flexplex:restart')); }
+  }
+
+  function showList() {
+    mode = 'list';
+    round++;
+    clearTimeout(codeTimer);
+    toggleClass(list, 'hidden', false);
+    toggleClass(codeEl, 'hidden', true);
+    setText(codeEl, '');
+  }
+
+  async function startCode(u) {
+    const gen = ++round;
+    clearTimeout(codeTimer);
+    mode = 'code';
+    try {
+      const qc = await quickConnectStart(session.server.uri);
+      if (!alive || gen !== round) return;
+      toggleClass(list, 'hidden', true);
+      toggleClass(codeEl, 'hidden', false);
+      setText(codeEl, qc.Code);
+      setText(note, 'On a phone already signed in as ' + u.title + ', open Quick Connect and enter this code. OK for a password.');
+      const poll = async () => {
+        if (!alive || gen !== round || mode !== 'code') return;
+        try {
+          if (await quickConnectDone(session.server.uri, qc.Secret)) {
+            const auth = await signInWithQuickConnect(session.server.uri, qc.Secret);
+            if (!alive || gen !== round) return;
+            if (!auth.User || auth.User.Id !== u.uuid) {
+              rememberJellyfinUser(session.server.id, auth);
+              showList();
+              setText(note, 'That signed in as ' + ((auth.User && auth.User.Name) || 'someone else') + ', not ' + u.title + '.');
+              return;
+            }
+            finishJellyfin(auth);
+            return;
+          }
+        } catch (e) {
+          error('quick connect poll failed', e);
+        }
+        if (alive && gen === round && mode === 'code') codeTimer = setTimeout(poll, 2000);
+      };
+      codeTimer = setTimeout(poll, 2000);
+    } catch (e) {
+      error('quick connect failed', e);
+      if (!alive || gen !== round) return;
+      showList();
+      setText(note, 'Quick Connect didn\'t start. Press OK to use a password.');
+      u.forcePassword = true;
+    }
+  }
+
+  function askPassword(u) {
+    showList();
+    router.push(PromptScreen({
+      title: 'Password for ' + u.title,
+      hint: u.hasPassword ? 'OK to save, Back to cancel' : 'Leave empty if this user has none',
+      secret: true,
+      onDone: async pw => {
+        if (!alive) return;
+        if (pw == null) return;
+        busy = true;
+        setText(note, 'Signing in as ' + u.title + '…');
+        try {
+          const auth = await signInWithPassword(session.server.uri, u.title, pw);
+          if (!alive) return;
+          finishJellyfin(auth);
+        } catch (e) {
+          error('jellyfin sign-in failed', e);
+          if (alive) setText(note, e.status === 401 ? 'Wrong password for ' + u.title : 'Couldn\'t sign in (' + e.message + ')');
+        } finally {
+          busy = false;
+        }
+      },
+    }));
+  }
+
+  async function chooseJellyfin(u) {
+    if (busy) return;
+    if (session.user && u.uuid === session.user.uuid && !onDone) { router.back(); return; }
+    if (u.forcePassword) { askPassword(u); return; }
+    busy = true;
+    setText(note, 'Switching to ' + u.title + '…');
+    const saved = savedJellyfinUser(session.server.id, u.uuid);
+    if (saved) {
+      try {
+        const me = await userMe(session.server.uri, saved.token);
+        if (!alive) { busy = false; return; }
+        if (me && me.Id === u.uuid) {
+          finishJellyfin({ AccessToken: saved.token, User: me, ServerId: session.server.id });
+          busy = false;
+          return;
+        }
+      } catch (e) { /* saved token no longer works */ }
+    }
+    if (!alive) { busy = false; return; }
+    if (!u.hasPassword) {
+      try {
+        const auth = await signInWithPassword(session.server.uri, u.title, '');
+        if (!alive) { busy = false; return; }
+        finishJellyfin(auth);
+        busy = false;
+        return;
+      } catch (e) { /* ask another way */ }
+    }
+    if (!alive) { busy = false; return; }
+    try {
+      if (await quickConnectEnabled(session.server.uri)) {
+        busy = false;
+        startCode(u);
+        return;
+      }
+    } catch (e) { /* password instead */ }
+    busy = false;
+    if (alive) askPassword(u);
+  }
+
   async function choose(u, pin) {
+    if (isJellyfin()) { chooseJellyfin(u); return; }
     if (busy) return;
     if (session.user && u.uuid === session.user.uuid && !onDone) { router.back(); return; }
     if (u.protected && !pin) {
@@ -115,11 +253,16 @@ export function UsersScreen({ onDone } = {}) {
     name: 'users',
     onShow() { ambience.restore(); },
     onKey(action) {
+      if (mode === 'code') {
+        if (action === 'enter' && users[index]) { askPassword(users[index]); return true; }
+        if (action === 'back') { showList(); setText(note, ''); return true; }
+        return true;
+      }
       if (action === 'left') { index = Math.max(0, index - 1); render(); return true; }
       if (action === 'right') { index = Math.min(users.length - 1, index + 1); render(); return true; }
       if (action === 'enter' && users[index]) { choose(users[index]); return true; }
       return action === 'up' || action === 'down';
     },
-    destroy() { alive = false; },
+    destroy() { alive = false; round++; clearTimeout(codeTimer); },
   };
 }

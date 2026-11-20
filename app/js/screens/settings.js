@@ -51,10 +51,10 @@ export function SettingsScreen() {
     list.innerHTML = '';
     const tasteKey = activeTasteKey();
     items = [].concat(isJellyfin() ? [
-      // Jellyfin: one server per sign-in, no Plex Home profiles.
       { label: 'Server', value: session.server.name + ' (Jellyfin)', run: () => {} },
-      { label: 'User', value: session.user ? session.user.title : '—', run: () => {} },
-      { label: 'Sign out', value: 'To switch server or user', run: doSignOut },
+      { label: 'User', value: session.user ? session.user.title : '—', run: () => router.push(UsersScreen()), action: 'Switch' },
+      { label: 'Who\'s watching at start', value: store.get('askProfile') ? 'Ask' : 'Last user', run: () => { store.set('askProfile', store.get('askProfile') ? undefined : true); build(); } },
+      { label: 'Sign out', value: 'To switch server', run: doSignOut },
     ] : [
       { label: 'Server', value: session.server ? session.server.name : '—', run: switchServer },
       { label: 'Profile', value: session.user ? session.user.title : '—', run: () => router.push(UsersScreen()), action: 'Switch' },

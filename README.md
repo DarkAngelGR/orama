@@ -156,7 +156,10 @@ The Apps screen shows **Develop mode** at the top when it's on.
   shows episodes airing this week.
 
 ### 🏠 Made for the household
-- Plex Home profiles with PINs, and an optional *Who's watching?* at start.
+- Plex Home profiles with PINs, and an optional *Who's watching?* at start. On Jellyfin,
+  **Settings › User** opens the same picker: Quick Connect when the server allows it,
+  otherwise a password. People who have already signed in on this TV switch straight back,
+  and *Who's watching?* at start works for them too.
 - **Watch Together** (Plex): press *Watch together* on a title, pick a Plex friend, and you both
   watch in sync, even if they're on Plex Web on a PC. Whoever pauses, plays or skips moves
   everyone. Invitations show up as a row at the top of Home. Uses Plex's own Watch Together
@@ -211,17 +214,16 @@ To switch back to Plex, use **Settings › Sign out**.
 | Skip intro / credits | ✓ | ✓ ¹ |
 | Theme music, trailers, extras, cast, delete | ✓ | ✓ ² |
 | watchlist-sync extras (downloads, collections, Bazarr subtitles) | ✓ | ✓ |
-| Search outside your library and get it | ✓ Watchlist | ✓ Request ⁴ |
+| Search outside your library and get it | ✓ Watchlist | ✓ Request ³ |
 | Smart search, Discover rows | ✓ | ✓ |
 | Watch Together | ✓ | – |
-| Home profiles with PINs | ✓ | – ³ |
-| Preview pictures while seeking | ✓ | ✓ ⁵ |
+| Switch user without signing out | ✓ PINs | ✓ |
+| Preview pictures while seeking | ✓ | ✓ ⁴ |
 
 ¹ With media segments (Jellyfin 10.10+, e.g. the Intro Skipper plugin).
 ² Deleting needs an administrator.
-³ Sign out to change user.
-⁴ Through watchlist-sync 1.3+, which searches Sonarr/Radarr and adds the title there.
-⁵ From Jellyfin's trickplay images (Jellyfin 10.9+, turned on per library).
+³ Through watchlist-sync 1.3+, which searches Sonarr/Radarr and adds the title there.
+⁴ From Jellyfin's trickplay images (Jellyfin 10.9+, turned on per library).
 
 ## Optional companions
 
