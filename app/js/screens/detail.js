@@ -76,7 +76,8 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
   let episodes = null;
   let zone = 'buttons';
   let alive = true;
-  let viewGen = 0;   // season changes and reloads; a late reply must not paint the old one
+  let viewGen = 0;   // reloads; a late reply must not paint the old page
+  let epGen = 0;     // season changes; a late episode list must not replace the current season
   let shown = false;
   let shownNow = true;   // on top (not behind the player or another page)
 
@@ -688,9 +689,10 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
   // focus: { key, next } lands on that episode (or the one after it); without
   // it, on the first unwatched one. Returns 'past-end' when the one after is
   // in the next season.
-  async function loadEpisodes(season, focus, gen = ++viewGen) {
+  async function loadEpisodes(season, focus) {
+    const gen = ++epGen;
     const kids = await session.server.children(season.ratingKey);
-    if (!alive || gen !== viewGen) return;
+    if (!alive || gen !== epGen) return;
     if (!episodes) {
       const row = new Row({
         kind: 'episode', caption: true, items: kids,
@@ -805,13 +807,13 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
         renderSeasons();
         if (seasons[seasonIndex]) {
           const focus = place < 0 ? null : fromPlayer ? { key: fromPlayer.key, next: fromPlayer.finished } : { key: keepEp };
-          const landed = await loadEpisodes(seasons[seasonIndex], focus, gen);
+          const landed = await loadEpisodes(seasons[seasonIndex], focus);
           if (!alive || gen !== viewGen) return;
           if (landed === 'past-end' && seasons[seasonIndex + 1]) {
             // Finished a season's last episode: on to the next season.
             seasonIndex++;
             renderSeasons();
-            await loadEpisodes(seasons[seasonIndex], null, gen);
+            await loadEpisodes(seasons[seasonIndex]);
           }
         }
       }
