@@ -103,7 +103,7 @@ export function publicUsers(base) {
 }
 
 // Tokens of users who have signed in on this TV, per server, so switching
-// back doesn't ask again. Kept across sign-out of the current user.
+// back doesn't ask again. Sign out forgets them all.
 export function savedJellyfinUser(serverId, userId) {
   const all = store.get('jfUsers') || {};
   const hit = (all[serverId] || {})[userId];

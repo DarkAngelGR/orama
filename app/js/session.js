@@ -102,6 +102,8 @@ export function signOut() {
   store.set('user', undefined);
   store.set('server', undefined);
   store.set('homeCache', undefined);
+  // Saved Jellyfin users too: signing out must not leave a way back in.
+  store.set('jfUsers', undefined);
 }
 
 // The saved URI can go stale (DHCP, remote vs. home). Re-resolve it from plex.tv.
