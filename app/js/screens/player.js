@@ -34,6 +34,11 @@ import { activeTasteKey, fetchAfterCompletion, prepareRecommendations } from '..
 import { recordCompletion } from '../util/taste.js';
 import { openItem } from '../nav.js';
 import { playDone } from '../util/perf.js';
+import {
+  sleepChoices, sleepMode, setSleep, clearSleep, sleepDue, sleepAtEnd,
+  noteActivity, noteAutoplay, shouldAskStillWatching, resetAutoplay,
+  STILL_WAIT_MS, SLEEP_COUNTDOWN_S,
+} from '../player/sleep.js';
 
 const OSD_HIDE_MS = 4000;
 const SEEK_COMMIT_MS = 900;
@@ -104,6 +109,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   const toastEl = h('div', 'toast', el);
   const panel = h('div', 'tracks hidden', el);
   const upnext = h('div', 'upnext hidden', el);
+  const guardEl = h('div', 'upnext hidden', el);
   const postplayPicker = new Picker(el);
   const tasteKey = activeTasteKey();
   let postplay;
@@ -142,6 +148,11 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   let signTimer = 0;
   let lastText = 0;
   let upnextTimer = 0;
+  let guard = '';          // 'sleep' | 'still' while a countdown card is up
+  let guardLeft = 0;
+  let guardIndex = 0;
+  let guardTimer = 0;
+  let sleepClock = 0;
   let nextItem = null;
   let cueTrack = null;
   let cueTimer = 0;
@@ -894,6 +905,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     { name: 'Subtitles', icon: icons.subtitles },
     { name: 'Quality', icon: icons.quality },
     { name: 'Episode', icon: icons.tv },
+    { name: 'Sleep', icon: icons.sleep },
   ];
   let panelCols = PANEL_COLS.slice(0, 3); // Episode only for episodes with neighbours
   let panelCol = 0;
@@ -919,10 +931,14 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     const eps = [];
     if (neighbors.prev) eps.push({ label: 'Previous  ·  ' + episodeLabel(neighbors.prev) + '  ' + neighbors.prev.title, episode: neighbors.prev });
     if (neighbors.next) eps.push({ label: 'Next  ·  ' + episodeLabel(neighbors.next) + '  ' + neighbors.next.title, episode: neighbors.next });
-    if (eps.length) panelLists.push(eps);
-    panelCols = PANEL_COLS.slice(0, panelLists.length);
+    panelCols = PANEL_COLS.slice(0, 3);
+    if (eps.length) { panelLists.push(eps); panelCols.push(PANEL_COLS[3]); }
+    const curSleep = sleepMode();
+    panelLists.push(sleepChoices(item.type === 'movie').map(c => ({ label: c.label, sleep: c.id, on: c.id === curSleep })));
+    panelCols.push(PANEL_COLS[4]);
     if (panelLists[2].some(o => o.version != null)) panelCols[2] = { name: 'Version', icon: icons.versions };
-    toggleClass(panel, 'tracks-4', panelCols.length > 3);
+    toggleClass(panel, 'tracks-4', panelCols.length === 4);
+    toggleClass(panel, 'tracks-5', panelCols.length >= 5);
     // External subtitle files are drawn by us, so their timing can be nudged.
     if (isSidecarText(subStream)) panelLists[1].push({ offset: true, label: timingLabel() });
     panelIndex = panelLists.map(l => Math.max(0, l.findIndex(x => x.on)));
@@ -981,7 +997,13 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
 
   async function choose(col, opt) {
     const server = session.server;
-    if (col === 3) { playEpisode(opt.episode); return; }
+    if (opt.sleep != null) {
+      const picked = setSleep(opt.sleep, Date.now());
+      panel.classList.add('hidden');
+      toast(picked === 'off' ? 'Sleep off' : 'Sleep: ' + opt.label);
+      return;
+    }
+    if (opt.episode) { playEpisode(opt.episode); return; }
     if (col === 2 && opt.version != null) {
       panel.classList.add('hidden');
       if (opt.version !== mediaIdx) switchVersion(opt.version);
@@ -1142,11 +1164,18 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     hideOsd();
     player.close();
     if (link) { exit(); return; }
+    if (sleepAtEnd() || sleepDue(Date.now())) { showGuard('sleep'); return; }
+    await offerNext();
+  }
+
+  async function offerNext() {
+    if (!alive) return;
     if (item.type === 'movie') { await finishWithPicks(); return; }
     if (item.type !== 'episode') { exit(); return; }
     try { nextItem = neighbors.next || await neighborEpisode(1); } catch (e) { if (alive) exit(); return; }
     if (!alive) return;
     if (!nextItem) { await finishWithPicks(); return; }
+    if (shouldAskStillWatching()) { showGuard('still'); return; }
     let left = 10;
     upnext.classList.remove('hidden');
     const render = () => {
@@ -1158,13 +1187,100 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     render();
     upnextTimer = setInterval(() => {
       left--;
-      if (left <= 0) playNext();
+      if (left <= 0) playNext(true);
       else render();
     }, 1000);
   }
 
-  function playNext() {
+  function playNext(auto) {
+    clearInterval(upnextTimer);
+    upnext.classList.add('hidden');
+    if (auto && shouldAskStillWatching()) { showGuard('still'); return; }
+    if (auto) noteAutoplay();
+    else resetAutoplay();
     playEpisode(nextItem);
+  }
+
+  // Sleep and "Still watching?" share one card. Any key cancels a sleep
+  // countdown; still-watching waits STILL_WAIT_MS and then stops.
+  function showGuard(kind) {
+    clearInterval(upnextTimer);
+    clearInterval(guardTimer);
+    upnext.classList.add('hidden');
+    panel.classList.add('hidden');
+    guard = kind;
+    guardIndex = 0;
+    guardLeft = kind === 'still' ? Math.round(STILL_WAIT_MS / 1000) : SLEEP_COUNTDOWN_S;
+    renderGuard();
+    guardTimer = setInterval(() => {
+      guardLeft--;
+      if (guardLeft <= 0) {
+        if (guard === 'still') { clearGuard(); exit(); }
+        else stopForSleep();
+      } else renderGuard();
+    }, 1000);
+  }
+
+  function renderGuard() {
+    guardEl.innerHTML = '';
+    guardEl.classList.remove('hidden');
+    if (guard === 'sleep') {
+      h('div', 'upnext-label', guardEl).textContent = 'Sleeping in ' + guardLeft;
+      h('div', 'upnext-title', guardEl).textContent = 'Press any key to keep watching';
+      h('div', 'upnext-hint', guardEl).textContent = 'Playback stops when this reaches zero';
+      return;
+    }
+    h('div', 'upnext-label', guardEl).textContent = 'Still watching?';
+    const cont = h('div', 'opt', guardEl);
+    cont.textContent = 'Continue';
+    const stop = h('div', 'opt', guardEl);
+    stop.textContent = 'Stop';
+    toggleClass(cont, 'focus', guardIndex === 0);
+    toggleClass(stop, 'focus', guardIndex === 1);
+    h('div', 'upnext-hint', guardEl).textContent = 'Stops in ' + guardLeft + 's if you don\'t answer';
+  }
+
+  function clearGuard() {
+    guard = '';
+    clearInterval(guardTimer);
+    guardTimer = 0;
+    guardEl.classList.add('hidden');
+  }
+
+  function cancelSleep() {
+    const atEnd = ended;
+    clearGuard();
+    clearSleep();
+    toast('Sleep off');
+    if (atEnd) offerNext();
+  }
+
+  function stopForSleep() {
+    clearGuard();
+    clearSleep();
+    // Leave like Back: teardown reports progress once, the same as a normal stop.
+    if (!ended && started && !paused) {
+      player.pause();
+      paused = true;
+      markPaused(true);
+    }
+    exit();
+  }
+
+  function guardKey(action) {
+    noteActivity();
+    if (guard === 'sleep') { cancelSleep(); return true; }
+    if (action === 'left' || action === 'up') { guardIndex = 0; renderGuard(); return true; }
+    if (action === 'right' || action === 'down') { guardIndex = 1; renderGuard(); return true; }
+    if (action === 'enter') {
+      const stop = guardIndex === 1;
+      clearGuard();
+      if (stop) exit();
+      else { resetAutoplay(); playEpisode(nextItem); }
+      return true;
+    }
+    if (action === 'back' || action === 'stop') { clearGuard(); exit(); return true; }
+    return true;
   }
 
   // Keep the quality and the track languages the user was watching with.
@@ -1208,6 +1324,8 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     dropThumbs();
     clearInterval(timelineTimer);
     clearInterval(upnextTimer);
+    clearInterval(guardTimer);
+    clearInterval(sleepClock);
     clearInterval(cueTimer);
     clearInterval(clockTimer);
     player.destroy();
@@ -1240,10 +1358,17 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       background(false);
       renderTitles();
       if (!started) start();
+      clearInterval(sleepClock);
+      sleepClock = setInterval(() => {
+        if (!alive || guard || ended) return;
+        if (sleepDue(Date.now())) showGuard('sleep');
+      }, 1000);
     },
     onKey(action) {
+      if (guard) return guardKey(action);
+      noteActivity();
       if (!upnext.classList.contains('hidden')) {
-        if (action === 'enter') { playNext(); return true; }
+        if (action === 'enter') { playNext(false); return true; }
         if (action === 'back' || action === 'stop') { exit(); return true; }
         return true;
       }

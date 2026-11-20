@@ -116,6 +116,9 @@ The Apps screen shows **Develop mode** at the top when it's on.
   shows which one is on, you can switch mid-film, and Resume picks up the same file.
 - **Skip intro and credits**, up next with your languages kept, and every show remembers the
   audio and subtitle languages you picked for it.
+- **Sleep timer** (off, end of this title, 30, 60 or 90 minutes) from the player's options.
+  It counts down on screen, and any key cancels it. After three episodes play on their own,
+  *Still watching?* asks before a fourth; no answer in a minute stops.
 - **Subtitles your way:** timing, size (up to Huge) and colour (white, greys, yellow).
 - **Seek with pictures** (when Plex makes them: Settings › Library › *Generate video preview
   thumbnails*), ⏪ ⏩ to jump 30 seconds, and the previous or next episode one press away.

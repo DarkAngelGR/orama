@@ -505,6 +505,8 @@ html.subs-bg .subs-text {
   background: rgba(11, 11, 18, 0.94);
 }
 .tracks.tracks-4 { width: 1640px; }
+.tracks.tracks-5 { width: 1860px; padding-left: 36px; padding-right: 24px; }
+.tracks.tracks-5 .tracks-col { margin-right: 16px; }
 .tracks-col { flex: 1; margin-right: 32px; overflow: hidden; }
 .tracks-head { display: flex; align-items: center; margin-bottom: 24px; font: 600 24px var(--body); color: var(--dim); letter-spacing: 0.08em; text-transform: uppercase; }
 .tracks-head svg { width: 30px; height: 30px; margin-right: 12px; }
@@ -536,6 +538,7 @@ html.subs-bg .subs-text {
 .upnext-label { font: 700 22px var(--body); color: var(--accent); letter-spacing: 0.08em; text-transform: uppercase; }
 .upnext-title { margin: 12px 0; font: 600 40px/1.1 var(--display); letter-spacing: -0.015em; }
 .upnext-hint { font: 500 28px/1 var(--body); color: var(--dim); }
+.upnext .opt { display: flex; margin: 16px 0 0; }
 
 .player-error {
   position: absolute; left: 360px; right: 360px; top: 470px; padding: 40px;
