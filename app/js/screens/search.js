@@ -10,6 +10,7 @@ import { parse as parseSmart, label as smartLabel, matches as smartMatches } fro
 import { error, warn } from '../util/log.js';
 import * as icons from '../ui/icons.js';
 import { useAmbience } from '../ui/backdrop.js';
+import { enabled as kidsOn, filterHubs, filterItems } from '../util/kids.js';
 
 const CATALOG_MAX = 20;
 const IME_DONE = 65376;
@@ -55,6 +56,7 @@ export function SearchScreen() {
     try {
       hubs = await session.server.search(q);
       if (gen !== generation) return;
+      if (kidsOn()) hubs = filterHubs(hubs);
       setRows(hubs);
     } catch (e) {
       error('search failed', e);
@@ -63,13 +65,17 @@ export function SearchScreen() {
     const sm = await smart;
     if (gen !== generation) return;
     if (sm) {
+      const before = hubs.length;
       hubs = [sm].concat(hubs);
+      if (kidsOn()) hubs = filterHubs(hubs);
       const at = rowIndex;
+      const added = hubs.length > before;
       setRows(hubs);
-      if (at >= 0) { rowIndex = Math.min(rows.length - 1, at + 1); render(); }   // stay on the same row
+      if (at >= 0 && added) { rowIndex = Math.min(rows.length - 1, at + 1); render(); }   // stay on the same row
     }
-    const elsewhere = await notOwned(await catalog, hubs);
+    let elsewhere = await notOwned(await catalog, hubs);
     if (gen !== generation) return;
+    if (kidsOn()) elsewhere = filterItems(elsewhere);
     if (elsewhere.length) {
       addRow({ title: 'Not on your server', Metadata: elsewhere.slice(0, CATALOG_MAX), onSelect: openCatalog });
     }

@@ -171,6 +171,12 @@ The Apps screen shows **Develop mode** at the top when it's on.
   show on Home. Play, pause and seek stay together. A small drift is eased with playback
   speed when the TV allows it, otherwise with a short jump, and the group moves on to the
   next episode together. Sleep stops by leaving the group.
+- **Kids mode** (this TV): Settings › Kids mode picks a maximum rating, from G / TV-Y up to
+  TV-14, and a 4-digit PIN stored only as a salted hash. Titles above that rating are hidden
+  on Home, in libraries, search, cast pages, collections and the Discover rows, and they will
+  not play, including from Continue Watching or a Watch Together invite. Unrated titles stay
+  hidden unless their library is marked as a kids library on that same page. Requesting and
+  Delete are off. Leaving kids mode, switching profile, or signing out asks for the PIN.
 - Updates from GitHub Releases, installed from the TV itself with the optional
   [Orama installer](installer/).
 

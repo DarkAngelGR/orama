@@ -7,6 +7,7 @@ import { h, setText, setTransform, toggleClass } from '../util/dom.js';
 import { createPlayer } from '../platform/player.js';
 import { setScreenSaver, supports4K } from '../platform/tizen.js';
 import { session } from '../session.js';
+import { playbackBlocked } from '../util/kids.js';
 import { clock, episodeLabel, uuid } from '../util/format.js';
 import * as icons from '../ui/icons.js';
 import * as router from '../router.js';
@@ -679,7 +680,15 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       const full = fresh ? preloaded : await session.server.metadata(item.ratingKey);
       if (!alive) return;
       if (fresh) log('player: using the details already loaded');
+      const lib = item.librarySectionID;
       item = full;
+      if (lib && !item.librarySectionID) item.librarySectionID = lib;
+      if (playbackBlocked(item)) {
+        toast('Kids mode is on. This is above the rating.');
+        if (together && together.syncplay) import('../plex/syncplay.js').then(m => m.leaveGroup()).catch(() => {});
+        setTimeout(() => { if (alive) exit(); }, 1600);
+        return;
+      }
       duration = item.duration || duration;
       const medias = item.Media || [];
       // The version picked on the detail page, else the one played last time.
@@ -1192,6 +1201,14 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     try {
       const ep = await session.server.metadata(jump.itemId);
       if (!alive || !ep) { following = false; return; }
+      if (item.librarySectionID && !ep.librarySectionID) ep.librarySectionID = item.librarySectionID;
+      if (playbackBlocked(ep)) {
+        following = false;
+        toast('Kids mode is on. This is above the rating.');
+        import('../plex/syncplay.js').then(m => m.leaveGroup()).catch(() => {});
+        setTimeout(() => { if (alive) exit(); }, 1600);
+        return;
+      }
       const langs = {
         audio: langOf(audioStream),
         sub: subStream ? langOf(subStream) : null,

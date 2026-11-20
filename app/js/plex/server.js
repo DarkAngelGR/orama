@@ -2,6 +2,7 @@
 import { request, withQuery, identity, unreadable } from './client.js';
 import { hasPlayableMedia, matchMedia, mediaIds, playbackState } from './availability.js';
 import { asObj } from '../util/shape.js';
+import { listingFilter } from '../util/kids.js';
 
 const SUPPORTED_HUB_TYPES = { movie: 1, show: 1, episode: 1, season: 1, mixed: 1, clip: 1 };
 
@@ -71,6 +72,8 @@ export class Server {
       excludeFields: 'summary,tagline',
     };
     if (unwatched) params[type === 2 ? 'unwatchedLeaves' : 'unwatched'] = 1;
+    const kid = listingFilter('plex');
+    if (kid) Object.assign(params, kid);
     const mc = await this.get('/library/sections/' + sectionId + '/all', params, { timeout: 40000 }); // a big library on a busy server can be slow
     return { total: mc.totalSize != null ? mc.totalSize : mc.size, items: mc.Metadata || [] };
   }
@@ -125,6 +128,8 @@ export class Server {
         const [k, v] = person.filter.split('=');
         params[k] = v;
       }
+      const kid = listingFilter('plex');
+      if (kid) Object.assign(params, kid);
       try {
         const mc = await this.get('/library/sections/' + s.key + '/all', params, { timeout: 30000 });
         return mc.Metadata || [];

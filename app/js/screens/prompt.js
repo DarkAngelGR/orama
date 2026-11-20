@@ -7,7 +7,7 @@ import * as router from '../router.js';
 const IME_DONE = 65376;
 const IME_CANCEL = 65385;
 
-export function PromptScreen({ title, hint = '', value = '', placeholder = '', secret = false, numeric = false, onDone }) {
+export function PromptScreen({ title, hint = '', value = '', placeholder = '', secret = false, numeric = false, onDone, onCancel }) {
   const el = h('div', 'screen prompt');
   const ambience = useAmbience();
   h('h1', 'settings-title', el).textContent = title;
@@ -52,7 +52,12 @@ export function PromptScreen({ title, hint = '', value = '', placeholder = '', s
         else input.focus();
         return true;
       }
-      if (action === 'back') { input.blur(); return false; }
+      if (action === 'back') {
+        input.blur();
+        // The router pops after this returns. onCancel must not pop again.
+        if (onCancel && !done) { done = true; onCancel(); }
+        return false;
+      }
       if (action === 'up' || action === 'down') { input.focus(); return true; }
       return true;
     },

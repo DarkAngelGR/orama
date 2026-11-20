@@ -3,7 +3,8 @@
 import { h, setText, setTransform } from '../util/dom.js';
 import { useAmbience } from '../ui/backdrop.js';
 import { Row } from '../ui/row.js';
-import { session } from '../session.js';
+import { session, isJellyfin } from '../session.js';
+import { enabled as kidsOn, filterItems, listingFilter } from '../util/kids.js';
 import { openItem, playItem } from '../nav.js';
 import { error } from '../util/log.js';
 
@@ -60,9 +61,14 @@ export function PersonScreen(person) {
     if (!Object.keys(params).length) { setText(sub, 'No filmography for this person'); return; }
     try {
       const sections = await session.server.sections();
+      const extra = listingFilter(isJellyfin() ? 'jellyfin' : 'plex');
       const found = await Promise.all(sections.map(s =>
-        session.server.get('/library/sections/' + s.key + '/all', Object.assign({ sort: 'year:desc' }, params))
-          .then(mc => ({ section: s, items: mc.Metadata || [] }))
+        session.server.get('/library/sections/' + s.key + '/all', Object.assign({ sort: 'year:desc' }, params, extra || {}))
+          .then(mc => {
+            const items = mc.Metadata || [];
+            if (kidsOn()) items.forEach(it => { if (!it.librarySectionID) it.librarySectionID = s.key; });
+            return { section: s, items: kidsOn() ? filterItems(items, s.key) : items };
+          })
           .catch(() => ({ section: s, items: [] }))));
       if (!alive) return;
       const withItems = found.filter(f => f.items.length);

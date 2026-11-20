@@ -10,6 +10,8 @@ import {
   signInWithQuickConnect, signInWithPassword, rememberJellyfinUser,
 } from '../plex/jellyfin.js';
 import { PromptScreen } from './prompt.js';
+import { confirmPin } from './kids.js';
+import { enabled as kidsOn, setOn as setKids } from '../util/kids.js';
 import { error, log } from '../util/log.js';
 
 const LOCK = '<svg viewBox="0 0 24 24"><rect fill="currentColor" x="5" y="10.5" width="14" height="10" rx="2.5"/><path fill="none" stroke="currentColor" stroke-width="2.4" d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg>';
@@ -35,6 +37,8 @@ export function UsersScreen({ onDone } = {}) {
   let mode = 'list';   // list | code
   let round = 0;
   let codeTimer = 0;
+  let unlocked = false;  // kids PIN already accepted on this screen
+  let leaveKids = false; // a different profile was chosen after that PIN
 
   // Cards are built once; moving only moves the highlight, so the pictures
   // never reload (rebuilding them on every press made them flicker).
@@ -88,6 +92,7 @@ export function UsersScreen({ onDone } = {}) {
   function finishJellyfin(auth) {
     const info = { ServerName: session.server.name, Id: session.server.id };
     useJellyfin(session.server.uri, info, auth);
+    if (leaveKids) setKids(false);
     log('switched jellyfin user', auth.User && auth.User.Name);
     if (onDone) onDone();
     else { session.skipProfileOnce = true; window.dispatchEvent(new Event('flexplex:restart')); }
@@ -168,9 +173,20 @@ export function UsersScreen({ onDone } = {}) {
     }));
   }
 
+  // Same profile, or kids mode off: no PIN. A different profile asks once.
+  async function allowSwitch(u) {
+    if (!kidsOn() || unlocked) return true;
+    if (session.user && u.uuid === session.user.uuid) return true;
+    if (!await confirmPin()) return false;
+    unlocked = true;
+    leaveKids = true;
+    return true;
+  }
+
   async function chooseJellyfin(u) {
     if (busy) return;
     if (session.user && u.uuid === session.user.uuid && !onDone) { router.back(); return; }
+    if (!await allowSwitch(u)) return;
     if (u.forcePassword) { askPassword(u); return; }
     busy = true;
     setText(note, 'Switching to ' + u.title + '…');
@@ -212,6 +228,7 @@ export function UsersScreen({ onDone } = {}) {
     if (isJellyfin()) { chooseJellyfin(u); return; }
     if (busy) return;
     if (session.user && u.uuid === session.user.uuid && !onDone) { router.back(); return; }
+    if (!await allowSwitch(u)) return;
     if (u.protected && !pin) {
       router.push(PromptScreen({
         title: 'PIN for ' + u.title, hint: 'The 4-digit Plex Home PIN', secret: true, numeric: true,
@@ -235,6 +252,7 @@ export function UsersScreen({ onDone } = {}) {
       if (!alive) return;
       useProfile(switched.authToken, Object.assign({}, u, switched, { title: u.title, thumb: u.thumb }));
       useServer(resource, uri);
+      if (leaveKids) setKids(false);
       log('switched profile', u.title);
       if (onDone) onDone();
       else { session.skipProfileOnce = true; window.dispatchEvent(new Event('flexplex:restart')); }

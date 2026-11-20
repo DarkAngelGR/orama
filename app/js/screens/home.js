@@ -24,12 +24,13 @@ import { activeTasteKey, discoverySections, prepareRecommendations, requestableP
 import { readTaste, setFeedback } from '../util/taste.js';
 import { currentRequests, describeRequest, subscribeRequests, tracked } from '../plex/requests.js';
 import { arm, homeEnter, homeReady } from '../util/perf.js';
+import { enabled as kidsOn, filterHubs, playbackBlocked } from '../util/kids.js';
 
 // Once per app start, a few seconds after home appears: is there a newer
 // Orama? Mentioned once per version.
 let updateChecked = false;
 function checkForUpdate() {
-  if (updateChecked) return;
+  if (kidsOn() || updateChecked) return;
   updateChecked = true;
   setTimeout(() => {
     updates.latest().then(l => {
@@ -54,7 +55,7 @@ function slimHub(hub) {
   const keep = ['ratingKey', 'key', 'type', 'title', 'grandparentTitle', 'parentTitle', 'year', 'thumb', 'art',
     'grandparentThumb', 'grandparentArt', 'parentThumb', 'index', 'parentIndex', 'duration', 'viewOffset',
     'viewCount', 'leafCount', 'viewedLeafCount', 'childCount', 'contentRating', 'audienceRating', 'summary',
-    'audienceRatingImage', 'rating', 'ratingImage',
+    'audienceRatingImage', 'rating', 'ratingImage', 'librarySectionID',
     'originallyAvailableAt', 'UltraBlurColors', 'grandparentRatingKey', 'parentRatingKey', 'Image', 'jellyfin'];
   return {
     hubIdentifier: hub.hubIdentifier, title: hub.title, type: hub.type,
@@ -97,6 +98,19 @@ export function HomeScreen() {
   const libStatusText = h('span', '', libStatus);
   const who = h('div', 'topbar-who', top);
   setText(who, (session.user && session.user.title ? session.user.title + '  ·  ' : '') + (session.server ? session.server.name : ''));
+  let kidsBadge = null;
+  let kidsWas = kidsOn();
+  function paintKids() {
+    const on = kidsOn();
+    if (on && !kidsBadge) {
+      kidsBadge = h('div', 'kids-badge', top);
+      kidsBadge.textContent = 'Kids';
+    } else if (!on && kidsBadge) {
+      kidsBadge.remove();
+      kidsBadge = null;
+    }
+  }
+  paintKids();
 
   const info = h('div', 'hero-info', el);
   let heroItem = null;
@@ -292,7 +306,7 @@ export function HomeScreen() {
     if (worth.length) {
       hubs = hubs.concat([{ hubIdentifier: 'orama.worth-requesting', title: 'Worth requesting', type: 'movie', size: worth.length, Metadata: worth }]);
     }
-    return hubs;
+    return filterHubs(hubs);
   }
 
   async function loadTaste() {
@@ -408,6 +422,11 @@ export function HomeScreen() {
       if (!play || !play.itemId) { notice('That group isn\'t playing anything yet', 5000); return; }
       const meta = await session.server.metadata(play.itemId);
       if (!visible) return;
+      if (playbackBlocked(meta)) {
+        notice('Kids mode is on. This is above the rating.', 5000);
+        sync.leaveGroup();
+        return;
+      }
       playItem(meta, {
         offset: play.startMs || 0,
         together: {
@@ -718,6 +737,8 @@ export function HomeScreen() {
       if (!unsubDownloads) unsubDownloads = downloads.subscribe(onDownloads);
       if (!unsubRequests) unsubRequests = subscribeRequests(onRequests);
       ambience.restore();
+      paintKids();
+      if (kidsOn() !== kidsWas) { kidsWas = kidsOn(); stale = true; }
       checkForUpdate();
       renderNav(); // widths can't be measured while the screen was hidden
       const profile = readTaste(activeTasteKey());

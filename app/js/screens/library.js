@@ -8,7 +8,8 @@ import * as store from '../util/store.js';
 import { Grid } from '../ui/grid.js';
 import { KINDS } from '../ui/tile.js';
 import { useAmbience } from '../ui/backdrop.js';
-import { session } from '../session.js';
+import { session, isJellyfin } from '../session.js';
+import { enabled as kidsOn, filterItems, listingFilter } from '../util/kids.js';
 import { openItem, playItem } from '../nav.js';
 import { error } from '../util/log.js';
 import { metaLine } from '../util/format.js';
@@ -58,6 +59,10 @@ export function LibraryScreen(section) {
   const count = h('div', 'lib-count', head);
   const sortEl = h('div', 'lib-sort', head);
   const filterEl = h('div', 'lib-sort lib-filter', head);
+  if (kidsOn()) {
+    const badge = h('div', 'kids-badge', head);
+    badge.textContent = 'Kids';
+  }
   const focusInfo = h('div', 'lib-focus', el);
   const hint = h('div', 'lib-hint', el);
   hint.textContent = '▲ Sort & filter   ·   CH ▲▼ Jump';
@@ -138,18 +143,28 @@ export function LibraryScreen(section) {
     try {
       const res = await session.server.items(section.key, p * PAGE, PAGE, { sort: SORTS[sortIndex].id, type, unwatched });
       if (gen !== generation) return;
-      res.items.forEach((it, i) => { items[p * PAGE + i] = it; });
+      let page = res.items;
+      let total = res.total;
+      if (kidsOn()) {
+        page.forEach(it => { if (!it.librarySectionID) it.librarySectionID = section.key; });
+        const kept = filterItems(page, section.key);
+        const dropped = page.length - kept.length;
+        page = kept;
+        // shortcut: dropped titles shrink this page, a short gap before the next page if the server ignores the rating filter.
+        if (dropped) total = Math.max(kept.length, total - dropped);
+      }
+      page.forEach((it, i) => { items[p * PAGE + i] = it; });
       pages.set(p, true);
       failures = 0;
       if (p === 0) hidePlaceholders();
-      if (p === 0 && !res.items.length) status(unwatched ? 'Nothing unwatched in ' + section.title : section.title + ' is empty');
-      if (grid.total !== res.total) {
-        grid.setTotal(res.total);
-        setText(count, res.total + (unwatched ? ' unwatched' : '') + (section.type === 'show' ? ' show' : ' movie') + (res.total === 1 ? '' : 's'));
+      if (p === 0 && !page.length) status(unwatched ? 'Nothing unwatched in ' + section.title : section.title + ' is empty');
+      if (grid.total !== total) {
+        grid.setTotal(total);
+        setText(count, total + (unwatched ? ' unwatched' : '') + (section.type === 'show' ? ' show' : ' movie') + (total === 1 ? '' : 's'));
       } else {
         grid.refresh();
       }
-      if (p === 0 && res.items[0]) grid.onFocus(grid.current());
+      if (p === 0 && page[0]) grid.onFocus(grid.current());
     } catch (e) {
       pages.delete(p);
       error('library page failed', section.title, p, e);
@@ -180,6 +195,8 @@ export function LibraryScreen(section) {
     try {
       const params = { type };
       if (unwatched) params[type === 2 ? 'unwatchedLeaves' : 'unwatched'] = 1;
+      const extra = listingFilter(isJellyfin() ? 'jellyfin' : 'plex');
+      if (extra) Object.assign(params, extra);
       const mc = await session.server.get('/library/sections/' + section.key + '/firstCharacter', params);
       const next = lettersIfCurrent(gen, generation, mc && mc.Directory);
       if (next) letters = next;

@@ -7,13 +7,22 @@ import { LibraryScreen } from './screens/library.js';
 import { PlayerScreen } from './screens/player.js';
 import { session } from './session.js';
 import { notice } from './ui/notice.js';
+import { playbackBlocked } from './util/kids.js';
+
+function aboveRating(item) {
+  if (!playbackBlocked(item)) return false;
+  notice('Kids mode is on. This is above the rating.');
+  return true;
+}
 
 export function openItem(item) {
   if (item.type === 'clip') { playItem(item); return; }
+  if (aboveRating(item)) return;
   router.push(DetailScreen(item));
 }
 
 export function playItem(item, opts) {
+  if (aboveRating(item)) return;
   if (item.type === 'show' || item.type === 'season') {
     // Play on a show means "the next episode"; the detail screen resolves it.
     router.push(DetailScreen(item, { autoplay: true }));

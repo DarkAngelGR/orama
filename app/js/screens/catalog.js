@@ -14,6 +14,7 @@ import * as requests from '../plex/requests.js';
 import { warn, log, error } from '../util/log.js';
 import * as router from '../router.js';
 import { openItem } from '../nav.js';
+import { enabled as kidsOn } from '../util/kids.js';
 
 export function CatalogScreen(initial) {
   const el = h('div', 'screen detail catalog');
@@ -80,10 +81,11 @@ export function CatalogScreen(initial) {
     const record = arr && requests.tracked(item);
     const playable = playableItem(record);
     const active = downloads.find(item);
+    const locked = kidsOn();
     if (busy) add(icons.uncheck, 'One moment…', () => {});
     else if (arr) {
       if (playable) add(icons.play, 'Ready to play', () => openItem(playable));
-      if (checked && checked.source) {
+      if (!locked && checked && checked.source) {
         if (!playable && item.arrStatus === 'none' && (!item.tasteReason || checked.availability.status === 'missing')) {
           add(icons.download, 'Request', () => requestIt(false));
         }
@@ -92,12 +94,12 @@ export function CatalogScreen(initial) {
         }
         if (!buttons.length) add(icons.check, item.arrStatus === 'have' ? 'Waiting for library'
           : item.arrStatus === 'none' ? 'Check again' : 'Requested', load);
-      } else if (!playable) {
+      } else if (!locked && !playable) {
         add(icons.uncheck, checked ? 'Check again' : 'Checking availability…', load);
       }
     }
-    else if (listed) add(icons.check, 'On your Watchlist  ·  Remove', remove);
-    else add(icons.download, 'Add to Watchlist', addIt);
+    else if (!locked && listed) add(icons.check, 'On your Watchlist  ·  Remove', remove);
+    else if (!locked) add(icons.download, 'Add to Watchlist', addIt);
     add(icons.info, 'More info', openInfo);
     buttonIndex = Math.min(buttonIndex, buttons.length - 1);
     buttons.forEach((b, i) => toggleClass(b.el, 'focus', i === buttonIndex));

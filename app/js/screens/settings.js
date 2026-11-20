@@ -23,6 +23,8 @@ import * as store from '../util/store.js';
 import { activeTasteKey, aiTasteEnabled, autoFetchEnabled, setAiTaste, setAutoFetch } from '../plex/recommendations.js';
 import { resetTaste } from '../util/taste.js';
 import { ConfirmScreen } from './confirm.js';
+import { KidsScreen, confirmPin } from './kids.js';
+import { enabled as kidsOn, read as kidsState, setOn as setKids, levelById } from '../util/kids.js';
 
 const ROW = 110;     // .setting height + margin
 const VISIBLE = 6;   // rows that fit above the footer
@@ -50,7 +52,20 @@ export function SettingsScreen() {
   function build() {
     list.innerHTML = '';
     const tasteKey = activeTasteKey();
-    items = [].concat(isJellyfin() ? [
+    const kidsRow = {
+      label: 'Kids mode',
+      value: kidsOn() ? 'On · ' + levelById(kidsState().level).label : 'Off',
+      run: () => router.push(KidsScreen()),
+    };
+    if (kidsOn()) {
+      items = [
+        kidsRow,
+        isJellyfin()
+          ? { label: 'User', value: session.user ? session.user.title : '—', run: () => router.push(UsersScreen()), action: 'Switch' }
+          : { label: 'Profile', value: session.user ? session.user.title : '—', run: () => router.push(UsersScreen()), action: 'Switch' },
+        { label: 'Sign out', value: isJellyfin() ? 'To switch server' : '', run: doSignOut },
+      ];
+    } else items = [kidsRow].concat(isJellyfin() ? [
       { label: 'Server', value: session.server.name + ' (Jellyfin)', run: () => {} },
       { label: 'User', value: session.user ? session.user.title : '—', run: () => router.push(UsersScreen()), action: 'Switch' },
       { label: 'Who\'s watching at start', value: store.get('askProfile') ? 'Ask' : 'Last user', run: () => { store.set('askProfile', store.get('askProfile') ? undefined : true); build(); } },
@@ -92,6 +107,7 @@ export function SettingsScreen() {
       { label: 'Animations', value: motion.enabled() ? 'On' : 'Off · everything appears at once', run: () => { motion.setEnabled(!motion.enabled()); build(); } },
       { label: 'Demo: original slow renderer', value: legacyGradients() ? 'On' : 'Off', run: () => { setLegacyGradients(!legacyGradients()); build(); } },
     ]);
+    if (index >= items.length) index = Math.max(0, items.length - 1);
     items.forEach(it => {
       it.el = h('div', 'setting', list);
       h('span', 'setting-label', it.el).textContent = it.label;
@@ -124,7 +140,11 @@ export function SettingsScreen() {
     }
   }
 
-  function doSignOut() {
+  async function doSignOut() {
+    if (kidsOn()) {
+      if (!await confirmPin()) return;
+      setKids(false);
+    }
     signOut();
     restart();
   }

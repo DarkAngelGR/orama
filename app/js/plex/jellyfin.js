@@ -11,6 +11,7 @@ import { VERSION } from '../config.js';
 import * as store from '../util/store.js';
 import { hasPlayableMedia, matchMedia, mediaKey, playbackState } from './availability.js';
 import { asList, asObj } from '../util/shape.js';
+import { listingFilter } from '../util/kids.js';
 
 const TICKS = 10000; // Jellyfin counts time in 100 ns ticks; Plex in ms
 
@@ -328,9 +329,11 @@ export class JellyfinServer {
     if (m) return { Directory: await this.letters(m[1], params) };
     m = /^\/library\/sections\/([^/]+)\/all$/.exec(path);
     if (m && params.person) {
+      const kid = listingFilter('jellyfin');
       const r = await this.req(this.u('/Items'), { params: {
         ParentId: m[1], PersonIds: params.person, Recursive: true, IncludeItemTypes: 'Movie,Series',
         SortBy: 'ProductionYear,SortName', SortOrder: 'Descending', Fields: LIST_FIELDS,
+        MaxOfficialRating: kid ? kid.MaxOfficialRating : undefined,
       } });
       return { Metadata: plexList(r && r.Items) };
     }
@@ -357,10 +360,16 @@ export class JellyfinServer {
       { hubIdentifier: 'home.continue', title: 'Continue Watching', type: 'mixed', Metadata: plexList(resume && resume.Items) },
       { hubIdentifier: 'home.ondeck', title: 'Next Up', type: 'episode', Metadata: plexList(next && next.Items) },
     ];
-    views.forEach((v, i) => hubs.push({
-      hubIdentifier: (v.type === 'movie' ? 'movie' : 'tv') + '.recentlyadded.' + v.key,
-      title: 'Recently Added ' + v.title, type: v.type, Metadata: plexList(latest[i]),
-    }));
+    const kid = listingFilter('jellyfin');
+    views.forEach((v, i) => {
+      const items = plexList(latest[i]);
+      // Unrated titles in a marked kids library stay visible. Other hubs have no one library.
+      if (kid) items.forEach(it => { if (!it.librarySectionID) it.librarySectionID = v.key; });
+      hubs.push({
+        hubIdentifier: (v.type === 'movie' ? 'movie' : 'tv') + '.recentlyadded.' + v.key,
+        title: 'Recently Added ' + v.title, type: v.type, Metadata: items,
+      });
+    });
     return hubs.map(hb => Object.assign(hb, { size: hb.Metadata.length })).filter(hb => hb.size);
   }
 
@@ -368,9 +377,12 @@ export class JellyfinServer {
 
   async items(sectionId, start, size, { sort = 'titleSort', type, unwatched = false } = {}) {
     const [by, order] = SORTS[sort] || SORTS.titleSort;
+    const kid = listingFilter('jellyfin');
     const r = await this.req(this.u('/Items'), { timeout: 40000, params: {
       ParentId: sectionId, Recursive: true, IncludeItemTypes: type === 2 ? 'Series' : 'Movie',
-      StartIndex: start, Limit: size, SortBy: by, SortOrder: order, Fields: 'ProviderIds,ChildCount,RecursiveItemCount,PremiereDate,CommunityRating',
+      StartIndex: start, Limit: size, SortBy: by, SortOrder: order,
+      Fields: 'ProviderIds,ChildCount,RecursiveItemCount,PremiereDate,CommunityRating' + (kid ? ',OfficialRating' : ''),
+      MaxOfficialRating: kid ? kid.MaxOfficialRating : undefined,
       Filters: unwatched ? 'IsUnplayed' : undefined, EnableTotalRecordCount: true,
     } });
     return { total: r.TotalRecordCount || 0, items: plexList(r && r.Items) };
@@ -378,11 +390,12 @@ export class JellyfinServer {
 
   // Plex's "first character" index for the letter jump: titles in A–Z order,
   // grouped by first letter ('#' for anything else), in the order they appear.
-  async letters(sectionId, { type, unwatched, unwatchedLeaves } = {}) {
+  async letters(sectionId, { type, unwatched, unwatchedLeaves, MaxOfficialRating } = {}) {
     const r = await this.req(this.u('/Items'), { timeout: 40000, params: {
       ParentId: sectionId, Recursive: true, IncludeItemTypes: String(type) === '2' ? 'Series' : 'Movie',
       SortBy: 'SortName', SortOrder: 'Ascending', Fields: 'SortName', EnableImages: false, EnableUserData: false,
       Filters: unwatched || unwatchedLeaves ? 'IsUnplayed' : undefined,
+      MaxOfficialRating,
     } });
     const dirs = [];
     (r.Items || []).forEach(it => {
@@ -424,16 +437,21 @@ export class JellyfinServer {
   }
 
   async children(id) {
+    const kid = listingFilter('jellyfin');
     const r = await this.req(this.u('/Items'), { params: {
       ParentId: id, SortBy: 'ParentIndexNumber,IndexNumber,SortName', SortOrder: 'Ascending',
-      Fields: 'Overview,ProviderIds,ChildCount,RecursiveItemCount,PremiereDate',
+      Fields: 'Overview,ProviderIds,ChildCount,RecursiveItemCount,PremiereDate' + (kid ? ',OfficialRating' : ''),
+      MaxOfficialRating: kid ? kid.MaxOfficialRating : undefined,
     } });
     return plexList(r && r.Items);
   }
 
   async search(q) {
+    const kid = listingFilter('jellyfin');
     const r = await this.req(this.u('/Items'), { params: {
-      searchTerm: q, Recursive: true, IncludeItemTypes: 'Movie,Series,Episode', Limit: 60, Fields: 'ProviderIds,PremiereDate',
+      searchTerm: q, Recursive: true, IncludeItemTypes: 'Movie,Series,Episode', Limit: 60,
+      Fields: 'ProviderIds,PremiereDate' + (kid ? ',OfficialRating' : ''),
+      MaxOfficialRating: kid ? kid.MaxOfficialRating : undefined,
     } });
     const all = plexList(r && r.Items);
     return [['movie', 'Movies'], ['show', 'Shows'], ['episode', 'Episodes']]
@@ -474,6 +492,7 @@ export class JellyfinServer {
       PersonIds: person && person.id ? person.id : undefined,
       PersonTypes: person && person.id && f.personRole === 'director' ? 'Director' : undefined,
       SortBy: by, SortOrder: order, Limit: f.limit || 300, Fields: LIST_FIELDS + ',Genres',
+      MaxOfficialRating: (listingFilter('jellyfin') || {}).MaxOfficialRating,
     } });
     return plexList(r && r.Items);
   }

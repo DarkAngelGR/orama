@@ -24,6 +24,7 @@ import { pickTracks, rememberShowTracks, showKeyOf, langsOf, rememberShowGenres,
 import { ownsServer } from '../session.js';
 import { removeFromWatchlist } from '../plex/discover.js';
 import { notice, hideNotice } from '../ui/notice.js';
+import { enabled as kidsOn, allows as ratingAllows, read as kidsState } from '../util/kids.js';
 import { subLang } from '../player/subprefs.js';
 import * as lang from '../util/lang.js';
 
@@ -265,7 +266,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     if (trailer) add(icons.film, 'Trailer', () => playItem(trailer, { offset: 0 }));
     if (t && (together.available() || (session.server && session.server.kind === 'jellyfin'))) add(icons.together, 'Watch together', () => watchTogether(t));
     add(icons.info, 'More info', openInfo);
-    if ((item.type === 'movie' || item.type === 'show') && session.server && session.server.owned !== false) {
+    if (!kidsOn() && (item.type === 'movie' || item.type === 'show') && session.server && session.server.owned !== false) {
       add(icons.trash, 'Delete', askDelete);
     }
     buttonIndex = Math.min(buttonIndex, buttons.length - 1);
@@ -656,7 +657,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     }
     const others = c.movies.filter(p => p.tmdb !== tmdb);
     if (!others.length) return;
-    const items = await Promise.all(others.map(async p => {
+    let items = await Promise.all(others.map(async p => {
       if (p.hasFile) {
         const m = await libraryMatch(p);
         if (m) return m;
@@ -665,6 +666,11 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
         note: partNote(p), lookup: { title: p.title, year: p.year, kind: 'movie', id: p.tmdb } };
     }));
     if (!alive || collFor !== mine) return;
+    if (kidsOn()) items = items.filter(it => {
+      if (!it.lookup && item.librarySectionID && !it.librarySectionID) it.librarySectionID = item.librarySectionID;
+      return ratingAllows(it, kidsState());
+    });
+    if (!items.length) return;
     if (collWrap.parentNode !== body) body.insertBefore(collWrap, castWrap.parentNode === body ? castWrap : seasonsEl);
     const onSelect = it => {
       if (!it.lookup) { openItem(it); return; }
@@ -757,22 +763,26 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
   // in the next season.
   async function loadEpisodes(season, focus) {
     const gen = ++epGen;
-    const kids = await session.server.children(season.ratingKey);
+    let eps = await session.server.children(season.ratingKey);
     if (!alive || gen !== epGen) return;
+    if (kidsOn()) {
+      if (item.librarySectionID) eps.forEach(ep => { if (!ep.librarySectionID) ep.librarySectionID = item.librarySectionID; });
+      eps = eps.filter(ep => ratingAllows(ep, kidsState()));
+    }
     if (!episodes) {
       const row = new Row({
-        kind: 'episode', caption: true, items: kids,
+        kind: 'episode', caption: true, items: eps,
         onFocus: ep => showEpisode(ep),
         onSelect: ep => play(ep, ep.viewOffset || 0),
       });
       episodesWrap.appendChild(row.el);
-      episodes = { row, items: kids };
+      episodes = { row, items: eps };
     } else {
-      episodes.items = kids;
-      episodes.row.setItems(kids);
+      episodes.items = eps;
+      episodes.row.setItems(eps);
     }
-    const at = focus && focus.key ? kids.findIndex(k => k.ratingKey === focus.key) : -1;
-    if (at >= 0 && focus.next && at === kids.length - 1) {
+    const at = focus && focus.key ? eps.findIndex(k => k.ratingKey === focus.key) : -1;
+    if (at >= 0 && focus.next && at === eps.length - 1) {
       episodes.row.focusIndex(at);
       renderFocus();
       return 'past-end';
@@ -781,7 +791,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
       episodes.row.focusIndex(focus.next ? at + 1 : at);
     } else {
       // Land on the first unwatched episode.
-      const next = kids.findIndex(k => !k.viewCount || k.viewOffset);
+      const next = eps.findIndex(k => !k.viewCount || k.viewOffset);
       episodes.row.focusIndex(next >= 0 ? next : 0);
     }
     renderFocus();
@@ -810,7 +820,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
   const EXTRA_BY_NUMBER = { 1: 'trailer', 2: 'deletedScene', 3: 'interview', 5: 'behindTheScenes', 6: 'sceneOrSample', 10: 'featurette', 11: 'short' };   // Plex's extraType numbers
 
   function renderExtras(extras) {
-    const list = (extras || []).filter(x => x && x.ratingKey).map(x => {
+    const list = (extras || []).filter(x => x && x.ratingKey && (!kidsOn() || ratingAllows(x, kidsState(), item.librarySectionID))).map(x => {
       const kind = x.subtype || EXTRA_BY_NUMBER[x.extraType] || 'clip';
       return Object.assign({}, x, { extraLabel: EXTRA_LABELS[kind] || 'Extra' });
     });

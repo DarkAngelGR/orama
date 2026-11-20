@@ -162,6 +162,10 @@ html.playing .ambience { display: none; }
 .nav-icon svg { width: 28px; height: 28px; display: block; }
 .nav-sep { width: 2px; height: 28px; margin: 0 14px 0 8px; border-radius: 1px; background: rgba(244, 243, 255, 0.18); }
 .topbar-who { margin-left: auto; flex-shrink: 0; font: 500 22px var(--body); color: var(--dim); white-space: nowrap; }
+.kids-badge {
+  margin-left: 18px; height: 36px; padding: 0 14px; border-radius: 18px; align-self: center;
+  background: var(--accent); color: var(--bg); font: 700 18px/36px var(--body); flex-shrink: 0;
+}
 
 /* ---------- home ---------- */
 
