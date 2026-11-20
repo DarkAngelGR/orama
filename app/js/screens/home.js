@@ -129,6 +129,7 @@ export function HomeScreen() {
   let dlItems = [];        // downloads in progress, as tiles
   let upItems = [];        // episodes airing soon (Sonarr's calendar), as tiles
   let upLoadedAt = 0;
+  let upcomingGen = 0;
   let togetherItems = [];  // Watch Together sessions you're invited to, at the top
   let togetherTimer = 0;
   let discoverHubs = [];   // titles you don't have yet (watchlist-sync), at the bottom
@@ -396,12 +397,18 @@ export function HomeScreen() {
   // Once at start and every 30 minutes; quietly nothing without watchlist-sync.
   async function loadUpcoming() {
     if (Date.now() - upLoadedAt < 30 * 60000 || !watchlist.baseUrl()) return;
+    const gen = ++upcomingGen;
     upLoadedAt = Date.now();
     try {
       const r = await watchlist.upcoming(7);
+      if (gen !== upcomingGen) return;
       upItems = r && r.items ? r.items.map(upcomingTile) : [];
       setHubs(composed());
-    } catch (e) { /* watchlist-sync not there */ }
+    } catch (e) {
+      // The stamp was taken before the request. Leaving it set hides the row
+      // for half an hour after a blip, including the next time Home is shown.
+      if (gen === upcomingGen) upLoadedAt = 0;
+    }
   }
 
   function selectItem(item) {
@@ -627,6 +634,7 @@ export function HomeScreen() {
     destroy() {
       tasteRequest++;
       loadGen++;
+      upcomingGen++;
       worthSignature = '';
       clearTimeout(artTimer);
       clearTimeout(heroTimer);
