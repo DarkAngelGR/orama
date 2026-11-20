@@ -475,6 +475,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     started = false;
     toggleClass(spinner, 'on', true);
     let url;
+    try {
     if (mode === 'direct') {
       base = 0;
       url = server.url(part.key);
@@ -519,12 +520,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     log('play', mode, quality.id, item.title, media.container + '/' + media.videoCodec + '/' + (audioStream && audioStream.codec), 'at', clock(atMs));
     const uhdOut = !quality.kbps || quality.height >= 2160;
     player.open(url, { uhd: uhdOut && media.videoResolution === '4k' && supports4K() });
-    try {
-      await player.prepare();
-    } catch (e) {
-      if (openIsStale(alive, gen, openGen)) return;
-      throw e;
-    }
+    await player.prepare();
     if (openIsStale(alive, gen, openGen)) return;
     if (mode === 'direct') {
       applyTracks();
@@ -551,6 +547,12 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     report('playing');
     startTimeline();
     loadThumbs();
+    } catch (e) {
+      // A newer open (quality, seek, fallback) owns the screen now. Surfacing
+      // this failure would paint "Playback failed" on top of the one that worked.
+      if (openIsStale(alive, gen, openGen)) return;
+      throw e;
+    }
   }
 
   // Map Plex's chosen streams onto AVPlay's track list (same file order).
@@ -697,6 +699,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       renderProgress(position);
       showOsd();
       await open(offset);
+      if (!alive) return;
       if (together) startTogether();
       else if (item.type === 'movie') preparePostplay();
       else loadNeighbors();
