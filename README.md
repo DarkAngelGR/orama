@@ -168,8 +168,9 @@ The Apps screen shows **Develop mode** at the top when it's on.
   service, which Plex keeps for its web app; based on the protocol notes in
   [plex-for-kodi](https://github.com/pannal/plex-for-kodi/pull/300).
   On Jellyfin the same button uses SyncPlay: start a group or join one, and open groups
-  show on Home. Play, pause and seek stay together. The TV does not nudge playback to hide
-  a small drift, and it does not follow the group into the next episode.
+  show on Home. Play, pause and seek stay together. A small drift is eased with playback
+  speed when the TV allows it, otherwise with a short jump, and the group moves on to the
+  next episode together. Sleep stops by leaving the group.
 - Updates from GitHub Releases, installed from the TV itself with the optional
   [Orama installer](installer/).
 

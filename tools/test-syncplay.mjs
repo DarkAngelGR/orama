@@ -9,7 +9,10 @@ if (!globalThis.localStorage || !localStorage.getItem) {
   localStorage.removeItem = key => localStorage.delete(key);
 }
 
-const { syncMessage, playbackOf, commandDelay, isEcho, groupTile, msOf } = await import('../app/js/plex/syncplay.js');
+const {
+  syncMessage, playbackOf, commandDelay, isEcho, groupTile, msOf,
+  clockOffset, clockSample, pingOffset, expectedAt, driftAction, queueFollow, advancePlan,
+} = await import('../app/js/plex/syncplay.js');
 
 test('SyncPlay commands become pause, seek and stop', () => {
   const pause = syncMessage({
@@ -63,6 +66,59 @@ test('our own command is ignored once, and a due command waits at most five seco
   assert.equal(commandDelay('2020-01-01T00:00:00.000Z', Date.parse('2020-01-01T00:00:02.000Z')), 0);
   assert.equal(commandDelay('2020-01-01T00:00:09.000Z', Date.parse('2020-01-01T00:00:00.000Z')), 0);
   assert.equal(commandDelay('', 0), 0);
+});
+
+test('clock offset prefers a ping and otherwise the median of command timestamps', () => {
+  assert.equal(pingOffset({ sent: 1000, requestReceived: 1500, responseSent: 1600, receivedAt: 1700 }), 200);
+  assert.equal(pingOffset({ sent: 1000, receivedAt: 1700 }), null);
+  const received = Date.parse('2020-01-01T00:00:02.000Z');
+  assert.equal(clockSample({ emittedAt: '2020-01-01T00:00:02.200Z', when: '2020-01-01T00:00:09.000Z' }, received), 200);
+  assert.equal(clockSample({ when: '2020-01-01T00:00:02.500Z' }, received), 500);
+  assert.equal(clockSample({}, received), null);
+  assert.equal(clockOffset([10, 40, 20, 80]), 30);
+  assert.equal(clockOffset([]), null);
+  const ping = syncMessage({ MessageType: 'SyncPlayCommand', Data: { Command: 'Ping', EmittedAt: '2020-01-01T00:00:02.200Z' } });
+  assert.equal(ping.type, 'ping');
+  assert.equal(playbackOf(ping), null);
+});
+
+test('drift is ignored while busy or just after a command, nudged when possible, otherwise sought', () => {
+  assert.equal(driftAction({ driftMs: 100, canRate: true, sinceCommandMs: 9000 }), null);
+  assert.equal(driftAction({ driftMs: 800, canRate: true, busy: true, sinceCommandMs: 9000 }), null);
+  assert.equal(driftAction({ driftMs: 800, canRate: true, sinceCommandMs: 1000 }), null);
+  const nudge = driftAction({ driftMs: -500, canRate: true, sinceCommandMs: 9000 });
+  assert.equal(nudge.type, 'rate');
+  assert.ok(nudge.rate > 1);
+  assert.equal(driftAction({ driftMs: 500, canRate: false, sinceCommandMs: 9000 }), null);
+  assert.equal(driftAction({ driftMs: 1500, canRate: false, sinceCommandMs: 9000 }).type, 'seek');
+  assert.equal(driftAction({ driftMs: 4000, canRate: true, sinceCommandMs: 9000 }).type, 'seek');
+
+  const now = Date.parse('2020-01-01T00:00:10.000Z');
+  const anchor = { positionMs: 5000, when: '2020-01-01T00:00:05.000Z', paused: false };
+  assert.equal(expectedAt(anchor, now, 0), 10000);
+  assert.equal(expectedAt({ positionMs: 5000, paused: true }, now, 0), 5000);
+});
+
+test('a new queue item is followed, and the episode ending asks the group to move on', () => {
+  const queue = syncMessage({
+    MessageType: 'SyncPlayGroupUpdate',
+    Data: {
+      Type: 'PlayQueue',
+      Data: {
+        Playlist: [{ ItemId: 'ep1', PlaylistItemId: 'a' }, { ItemId: 'ep2', PlaylistItemId: 'b' }],
+        PlayingItemIndex: 1,
+        StartPositionTicks: 0,
+      },
+    },
+  });
+  assert.equal(queue.index, 1);
+  assert.deepEqual(queueFollow('ep1', queue), { itemId: 'ep2', startMs: 0, playlistItemId: 'b' });
+  assert.equal(queueFollow('ep2', queue), null);
+  assert.deepEqual(advancePlan(queue, null), { kind: 'stop' });
+  assert.deepEqual(advancePlan(queue, 'ep3'), { kind: 'queue-next', itemId: 'ep3' });
+  assert.deepEqual(advancePlan({ items: queue.items, index: 0 }, 'ep3'), { kind: 'set', playlistItemId: 'b' });
+  assert.deepEqual(advancePlan({ items: [{ itemId: 'ep1', playlistItemId: 'a' }], index: 0 }, 'ep2'), { kind: 'queue-next', itemId: 'ep2' });
+  assert.deepEqual(advancePlan({ items: [{ itemId: 'ep1', playlistItemId: 'a' }], index: 0 }, null), { kind: 'stop' });
 });
 
 test('a group becomes a home tile named for the group, not a poster', () => {

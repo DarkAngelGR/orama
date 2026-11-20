@@ -77,6 +77,12 @@ function avplayBackend(container, listener) {
         return true;
       } catch (e) { return false; }
     },
+    // setSpeed only takes trick-play steps, not a small catch-up nudge.
+    canRate() { return typeof av.setPlaybackRate === 'function'; },
+    setRate(rate) {
+      if (!api.canRate()) return false;
+      try { av.setPlaybackRate(rate); return true; } catch (e) { return false; }
+    },
     suspend() { try { av.suspend(); } catch (e) {} },
     restore() { try { av.restore(); } catch (e) {} },
     close() {
@@ -120,6 +126,8 @@ function videoBackend(container, listener) {
     textTracks() { return []; },
     selectAudio() { return false; },
     selectText() { return false; },
+    canRate() { return true; },
+    setRate(rate) { v.playbackRate = rate; return true; },
     suspend() {},
     restore() {},
     close() { v.removeAttribute('src'); v.load(); },

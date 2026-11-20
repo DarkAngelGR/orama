@@ -174,8 +174,11 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   let link = null;
   let syncBusy = false;     // a jump to a friend's position is under way
   let pendingRemote = null; // a friend's state that arrived before we were playing
-  let lobby = !!together;   // waiting for everyone before playing
+  let lobby = !!together && !(together && together.follow);   // waiting for everyone before playing
   let roster = [];
+  let handoff = false;      // replacing this screen to follow the group, so don't leave it
+  let following = false;
+  let followTimer = 0;
 
   const player = createPlayer(stage, {
     onTime(ms) {
@@ -760,6 +763,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
 
   function togglePause(fromRemote) {
     if (!started) return;
+    player.setRate(1);
     if (lobby && paused && fromRemote !== true) endLobby();
     if (paused) {
       player.play();
@@ -778,6 +782,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   // ◀ ▶ step 10 s, ⏪ ⏩ 30 s; held or pressed quickly, the steps grow.
   function seekBy(dir, big) {
     if (!started) return;
+    player.setRate(1);
     const now = Date.now();
     seekCount = nextSeekCount(seekCount, lastSeekAt, now);
     lastSeekAt = now;
@@ -825,7 +830,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   // jumps moves everyone, and small drifts are corrected by a quiet jump.
 
   function startTogether() {
-    if (!paused) { player.pause(); paused = true; markPaused(true); }
+    if (!together.follow && !paused) { player.pause(); paused = true; markPaused(true); }
     renderLobby();
     if (together.syncplay) {
       together.itemId = item.ratingKey;
@@ -833,10 +838,17 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       import('../plex/syncplay.js').then(m => {
         if (!alive) return;
         link = new m.SyncPlayLink(together, {
-          state: () => ({ positionMs: seekTarget == null ? position : seekTarget, paused, ready: started && !buffering && !syncBusy }),
+          state: () => ({
+            positionMs: seekTarget == null ? position : seekTarget, paused,
+            ready: started && !ended && !buffering && !syncBusy && seekTarget == null,
+            busy: ended || buffering || syncBusy || seekTarget != null || !started,
+          }),
           apply: applyRemote,
           roster: list => { roster = list; renderTogether(); },
           notice: text => toast(text),
+          canRate: () => player.canRate(),
+          rate: n => player.setRate(n),
+          follow: followGroup,
         });
         link.connect().catch(e => { warn('syncplay failed', e.message); toast('Couldn\'t join Watch Together (' + e.message + ')'); });
       }, e => toast('Couldn\'t join Watch Together (' + e.message + ')'));
@@ -889,15 +901,17 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
 
   async function applyRemote(r) {
     if (r.stop) { toast('Watch together stopped'); exit(); return; }
-    if (!started || syncBusy || seekTarget != null) { pendingRemote = r; return; }
+    if (!started || ended || syncBusy || seekTarget != null) { pendingRemote = r; return; }
     pendingRemote = null;
     if (r.paused != null && r.paused !== paused) {
       if (lobby) endLobby();
       togglePause(true);
       toast(r.by + (r.paused ? ' paused' : ' pressed play'));
     }
-    if (!togetherNeedsSeek(position, r)) return;
-    if (r.seek) toast(r.by + ' jumped to ' + clock(r.positionMs));
+    if (r.quiet) {
+      if (Math.abs(position - r.positionMs) < 400) return;
+    } else if (!togetherNeedsSeek(position, r)) return;
+    if (r.seek && !r.quiet) toast(r.by + ' jumped to ' + clock(r.positionMs));
     syncBusy = true;
     try {
       position = Math.max(0, r.positionMs);
@@ -1171,6 +1185,31 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     });
   }
 
+  async function followGroup(jump) {
+    if (!alive || !jump || !jump.itemId || following) return;
+    following = true;
+    clearTimeout(followTimer);
+    try {
+      const ep = await session.server.metadata(jump.itemId);
+      if (!alive || !ep) { following = false; return; }
+      const langs = {
+        audio: langOf(audioStream),
+        sub: subStream ? langOf(subStream) : null,
+        subForced: !!(subStream && subStream.forced),
+      };
+      const next = Object.assign({}, together, {
+        host: false, follow: true, itemId: jump.itemId,
+        playlistItemId: jump.playlistItemId || '', startMs: jump.startMs || 0,
+      });
+      handoff = true;
+      router.replace(PlayerScreen(ep, { offset: jump.startMs || 0, quality: requestedQuality, langs, together: next }));
+    } catch (e) {
+      following = false;
+      warn('syncplay follow failed', e.message);
+      toast('Couldn\'t follow the group');
+    }
+  }
+
   async function finished() {
     if (!alive || ended) return;
     ended = true;
@@ -1181,6 +1220,21 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     clearInterval(timelineTimer);
     hideOsd();
     player.close();
+    if (link && together && together.syncplay) {
+      // A local up-next or "Still watching?" would leave the group behind.
+      // Sleep stops this TV by leaving the group instead.
+      if (sleepAtEnd() || sleepDue(Date.now())) { stopForSleep(); return; }
+      let nextId = null;
+      try {
+        const ep = neighbors.next || await neighborEpisode(1);
+        nextId = ep && ep.ratingKey;
+      } catch (e) { /* the group may still have a queue */ }
+      const plan = link.advance(nextId);
+      if (!plan || plan.kind === 'stop') { exit(); return; }
+      toast('Next episode');
+      followTimer = setTimeout(() => { if (alive && ended && !handoff) exit(); }, 8000);
+      return;
+    }
     if (link) { exit(); return; }
     if (sleepAtEnd() || sleepDue(Date.now())) { showGuard('sleep'); return; }
     await offerNext();
@@ -1346,8 +1400,10 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     clearInterval(sleepClock);
     clearInterval(cueTimer);
     clearInterval(clockTimer);
+    clearTimeout(followTimer);
+    player.setRate(1);
     player.destroy();
-    if (link) link.close();
+    if (link) link.close({ leave: !handoff });
     if (hlsStarted) session.server.stopTranscode(playSession);
     document.documentElement.classList.remove('playing');
     setScreenSaver(true);
@@ -1379,7 +1435,10 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       clearInterval(sleepClock);
       sleepClock = setInterval(() => {
         if (!alive || guard || ended) return;
-        if (sleepDue(Date.now())) showGuard('sleep');
+        if (sleepDue(Date.now())) {
+          if (together && together.syncplay) stopForSleep();
+          else showGuard('sleep');
+        }
       }, 1000);
     },
     onKey(action) {
@@ -1413,7 +1472,14 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
         case 'rw': seekBy(-1, true); return true;
         case 'ff': seekBy(1, true); return true;
         case 'prev': if (link) toast('Not while watching together'); else if (neighbors.prev) playEpisode(neighbors.prev); else toast('This is the first episode'); return true;
-        case 'next': if (link) toast('Not while watching together'); else if (neighbors.next) playEpisode(neighbors.next); else toast('This is the last episode'); return true;
+        case 'next':
+          if (link && together && together.syncplay) {
+            if (neighbors.next) link.advance(neighbors.next.ratingKey);
+            else toast('This is the last episode');
+          } else if (link) toast('Not while watching together');
+          else if (neighbors.next) playEpisode(neighbors.next);
+          else toast('This is the last episode');
+          return true;
         case 'up': case 'info': showOsd(); return true;
         case 'down': if (part) openPanel(); return true;
         // Green on remotes that have colour keys; CH ▲/▼ on the ones that don't.
