@@ -85,13 +85,16 @@ export function UsersScreen({ onDone } = {}) {
     setText(note, 'Switching to ' + u.title + '…');
     try {
       const switched = await switchHomeUser(session.accountToken, u.uuid, pin);
+      if (!alive) return;
       if (!switched || !switched.authToken) throw new Error('Plex didn\'t switch');
       // Same server, but with this profile's own access token.
       const servers = await getServers(switched.authToken);
+      if (!alive) return;
       const current = session.server && servers.find(s => s.clientIdentifier === session.server.id);
       const resource = current || servers[0];
       if (!resource) throw new Error(u.title + ' has no access to a Plex server');
       const uri = await connect(resource);
+      if (!alive) return;
       useProfile(switched.authToken, Object.assign({}, u, switched, { title: u.title, thumb: u.thumb }));
       useServer(resource, uri);
       log('switched profile', u.title);
@@ -99,7 +102,7 @@ export function UsersScreen({ onDone } = {}) {
       else { session.skipProfileOnce = true; window.dispatchEvent(new Event('flexplex:restart')); }
     } catch (e) {
       error('profile switch failed', e);
-      setText(note, e.status === 401 ? 'Wrong PIN for ' + u.title : 'Couldn\'t switch to ' + u.title + ' (' + e.message + ')');
+      if (alive) setText(note, e.status === 401 ? 'Wrong PIN for ' + u.title : 'Couldn\'t switch to ' + u.title + ' (' + e.message + ')');
     } finally {
       busy = false;
     }

@@ -134,6 +134,8 @@ export function ServerPicker({ servers, onDone }) {
     return b;
   });
   let index = 0;
+  let alive = true;
+  let busy = false;
   const render = () => buttons.forEach((b, i) => b.classList.toggle('focus', i === index));
   render();
 
@@ -142,6 +144,7 @@ export function ServerPicker({ servers, onDone }) {
     name: 'picker',
     onShow() { ambience.restore(); },
     onKey(action) {
+      if (busy && action !== 'back') return true;
       if (action === 'up' || action === 'down') {
         index = Math.max(0, Math.min(servers.length - 1, index + (action === 'down' ? 1 : -1)));
         render();
@@ -149,11 +152,20 @@ export function ServerPicker({ servers, onDone }) {
       }
       if (action === 'enter') {
         const s = servers[index];
+        busy = true;
         setText(status, 'Connecting to ' + s.name + '…');
-        connect(s).then(uri => { useServer(s, uri); onDone(); }, e => setText(status, e.message));
+        connect(s).then(uri => {
+          if (!alive) return;
+          useServer(s, uri);
+          onDone();
+        }, e => {
+          busy = false;
+          if (alive) setText(status, e.message);
+        });
         return true;
       }
       return false;
     },
+    destroy() { alive = false; },
   };
 }

@@ -45,6 +45,7 @@ export function SettingsScreen() {
 
   let index = 0;
   let items = [];
+  let alive = true;
 
   function build() {
     list.innerHTML = '';
@@ -108,12 +109,15 @@ export function SettingsScreen() {
   async function switchServer() {
     try {
       const servers = await getServers(session.token);
+      if (!alive) return;
       if (servers.length === 1) {
         const uri = await connect(servers[0]);
+        if (!alive) return;
         useServer(servers[0], uri);
         restart();
         return;
       }
+      if (!alive) return;
       router.push(ServerPicker({ servers, onDone: restart }));
     } catch (e) {
       error('server list failed', e);
@@ -136,6 +140,7 @@ export function SettingsScreen() {
     el,
     name: 'settings',
     onShow() { ambience.restore(); build(); }, // Downloads may have changed
+    destroy() { alive = false; },
     onKey(action) {
       if (action === 'up') { index = Math.max(0, index - 1); render(); return true; }
       if (action === 'down') { index = Math.min(items.length - 1, index + 1); render(); return true; }
