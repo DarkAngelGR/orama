@@ -30,46 +30,59 @@ export function LoginScreen({ onDone }) {
   let timer = 0;
   let alive = true;
   let onOther = false;
+  let pinGen = 0;
+
+  function pinCurrent(gen) {
+    return alive && gen === pinGen;
+  }
 
   async function start() {
+    const gen = ++pinGen;
     clearTimeout(timer);
     try {
       setText(status, '');
       const pin = await createPin();
-      if (!alive) return;
+      if (!pinCurrent(gen)) return;
       setText(code, pin.code);
       const qrcode = (await import('../vendor/qrcode.js')).default;   // only needed here
-      if (!alive) return;
+      if (!pinCurrent(gen)) return;
       const qr = qrcode(0, 'M');
       qr.addData(authAppUrl(pin.code));
       qr.make();
       qrBox.innerHTML = qr.createSvgTag({ cellSize: 6, margin: 0, scalable: true });
       const expires = Date.now() + (pin.expiresIn || 900) * 1000 - 5000;
       const poll = async () => {
-        if (!alive) return;
+        if (!pinCurrent(gen)) return;
         if (Date.now() > expires) { start(); return; }
         try {
           const token = await checkPin(pin.id);
-          if (token) { await finish(token); return; }
+          if (!pinCurrent(gen)) return;
+          if (token) { await finish(token, gen); return; }
         } catch (e) {
           error('pin poll failed', e);
         }
+        // OK asks for a fresh code while this poll is still in flight. Writing
+        // `timer` here would orphan that poll and let the old code sign in.
+        if (!pinCurrent(gen)) return;
         timer = setTimeout(poll, 2000);
       };
       timer = setTimeout(poll, 2000);
     } catch (e) {
       error('createPin failed', e);
+      if (!pinCurrent(gen)) return;
       setText(status, 'Can\'t reach plex.tv. Retrying…');
       timer = setTimeout(start, 4000);
     }
   }
 
-  async function finish(token) {
+  async function finish(token, gen) {
     setText(status, 'Signed in. Finding your servers…');
     const user = await getUser(token);
+    if (!pinCurrent(gen)) return;
     signIn(token, user);
     log('signed in as', session.user.title);
     const servers = await getServers(token);
+    if (!pinCurrent(gen)) return;
     if (!servers.length) {
       setText(status, 'No Plex Media Servers on this account.');
       return;
@@ -77,6 +90,7 @@ export function LoginScreen({ onDone }) {
     if (servers.length === 1) {
       setText(status, 'Connecting to ' + servers[0].name + '…');
       const uri = await connect(servers[0]);
+      if (!pinCurrent(gen)) return;
       useServer(servers[0], uri);
       onDone();
       return;
@@ -101,6 +115,7 @@ export function LoginScreen({ onDone }) {
     },
     destroy() {
       alive = false;
+      pinGen++;
       clearTimeout(timer);
     },
   };

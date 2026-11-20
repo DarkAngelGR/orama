@@ -31,6 +31,7 @@ export function JellyfinLoginScreen({ onDone }) {
   let base = '';
   let info = null;
   let mode = 'address';   // address | code | password | busy
+  let round = 0;          // a new address or code retires the poll that was running
 
   function askAddress(message) {
     mode = 'address';
@@ -47,6 +48,7 @@ export function JellyfinLoginScreen({ onDone }) {
   }
 
   async function connect(input) {
+    const gen = ++round;
     clearTimeout(timer);
     mode = 'busy';
     base = normalizeAddress(input);
@@ -56,13 +58,15 @@ export function JellyfinLoginScreen({ onDone }) {
       store.set('jfAddress', base.replace(/^http:\/\//, ''));
     } catch (e) {
       error('jellyfin connect failed', e);
-      if (alive) { mode = 'address'; setText(status, 'No Jellyfin server answered at ' + base.replace(/^https?:\/\//, '') + '. Press OK to try another address.'); setText(hint, ''); }
+      if (alive && gen === round) { mode = 'address'; setText(status, 'No Jellyfin server answered at ' + base.replace(/^https?:\/\//, '') + '. Press OK to try another address.'); setText(hint, ''); }
       return;
     }
-    if (!alive) return;
+    if (!alive || gen !== round) return;
     setText(title, 'Sign in to ' + (info.ServerName || 'Jellyfin'));
-    if (await quickConnectEnabled(base)) startCode();
-    else {
+    if (await quickConnectEnabled(base)) {
+      if (!alive || gen !== round) return;
+      startCode();
+    } else if (alive && gen === round) {
       mode = 'password';
       steps.innerHTML = '';
       setText(code, '');
@@ -72,9 +76,11 @@ export function JellyfinLoginScreen({ onDone }) {
   }
 
   async function startCode() {
+    const gen = ++round;
+    clearTimeout(timer);
     try {
       const qc = await quickConnectStart(base);
-      if (!alive) return;
+      if (!alive || gen !== round) return;
       mode = 'code';
       steps.innerHTML = '';
       h('li', '', steps).innerHTML = 'On your phone or computer, open <b>Jellyfin</b> and go to your profile › <b>Quick Connect</b>';
@@ -84,21 +90,24 @@ export function JellyfinLoginScreen({ onDone }) {
       setText(hint, 'Press OK to use a user name and password instead');
       const expires = Date.now() + 9 * 60 * 1000;
       const poll = async () => {
-        if (!alive || mode !== 'code') return;
+        if (!alive || gen !== round || mode !== 'code') return;
         if (Date.now() > expires) { startCode(); return; }
         try {
           if (await quickConnectDone(base, qc.Secret)) {
+            if (!alive || gen !== round || mode !== 'code') return;
             finish(await signInWithQuickConnect(base, qc.Secret));
             return;
           }
         } catch (e) {
           error('quick connect poll failed', e);
         }
+        if (!alive || gen !== round || mode !== 'code') return;
         timer = setTimeout(poll, 2000);
       };
       timer = setTimeout(poll, 2000);
     } catch (e) {
       error('quick connect failed', e);
+      if (!alive || gen !== round) return;
       mode = 'password';
       setText(status, 'Quick Connect didn\'t start (' + e.message + ').');
       setText(hint, 'Press OK to sign in with your user name and password');
@@ -134,6 +143,7 @@ export function JellyfinLoginScreen({ onDone }) {
 
   function finish(auth) {
     if (!alive) return;
+    round++;
     clearTimeout(timer);
     useJellyfin(base, info, auth);
     log('signed in to jellyfin as', auth.User && auth.User.Name);
@@ -152,6 +162,6 @@ export function JellyfinLoginScreen({ onDone }) {
       else if (mode === 'code' || mode === 'password') askPassword();
       return true;
     },
-    destroy() { alive = false; clearTimeout(timer); },
+    destroy() { alive = false; round++; clearTimeout(timer); },
   };
 }
