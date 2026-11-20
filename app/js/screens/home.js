@@ -132,6 +132,7 @@ export function HomeScreen() {
   let upcomingGen = 0;
   let togetherItems = [];  // Watch Together sessions you're invited to, at the top
   let togetherTimer = 0;
+  let togetherGen = 0;
   let discoverHubs = [];   // titles you don't have yet (watchlist-sync), at the bottom
   let discoverLoadedAt = 0;
   let tasteItems = [];
@@ -329,11 +330,14 @@ export function HomeScreen() {
   const togetherSeen = new Set();
   async function loadTogether() {
     clearTimeout(togetherTimer);
+    togetherTimer = 0;
     if (!together.available()) return;
-    togetherTimer = setTimeout(loadTogether, 60000);
+    const gen = ++togetherGen;
     try {
       const rooms = await together.rooms();
+      if (gen !== togetherGen) return;
       const acct = await together.myAccount().catch(() => null);
+      if (gen !== togetherGen) return;
       const items = [];
       for (const room of rooms) {
         const rk = together.ratingKeyOf(room.sourceUri);
@@ -341,6 +345,7 @@ export function HomeScreen() {
         let meta = togetherMeta.get(rk);
         if (!meta) {
           meta = await session.server.metadata(rk).catch(() => null);
+          if (gen !== togetherGen) return;
           if (!meta) continue;
           togetherMeta.set(rk, meta);
         }
@@ -351,6 +356,7 @@ export function HomeScreen() {
           note: mine ? 'Your session' : 'From ' + ((host && (host.title || host.username)) || 'a friend'),
         }));
       }
+      if (gen !== togetherGen) return;
       // A new invitation: say so (it's in the Watch Together row at the top).
       const fresh = items.find(i => !togetherSeen.has(i.ratingKey) && !/^Your/.test(i.note));
       items.forEach(i => togetherSeen.add(i.ratingKey));
@@ -359,6 +365,9 @@ export function HomeScreen() {
       togetherItems = items;
       if (changed) setHubs(composed());
     } catch (e) { /* plex.tv unreachable: try again next minute */ }
+    // Hide clears the timer started at the top, so a quick trip off Home
+    // used to stop the minute poll until the next full reload.
+    if (gen === togetherGen && visible) togetherTimer = setTimeout(loadTogether, 60000);
   }
 
   // Trending and recommended titles you don't have, from Radarr/Sonarr via
@@ -624,17 +633,20 @@ export function HomeScreen() {
       if (!profile.length && (tasteItems.length || worthItems.length)) loadTaste();
       // Coming back from playback: progress and Continue Watching changed.
       if (stale || Date.now() - loadedAt > 5000 || (returning && profile.length)) { stale = false; load(); }
+      else if (returning) loadTogether();
     },
     onHide() {
       visible = false;
       if (unsubDownloads) { unsubDownloads(); unsubDownloads = null; } // no polling behind other screens
       if (unsubRequests) { unsubRequests(); unsubRequests = null; }
       clearTimeout(togetherTimer);
+      togetherTimer = 0;
     },
     destroy() {
       tasteRequest++;
       loadGen++;
       upcomingGen++;
+      togetherGen++;
       worthSignature = '';
       clearTimeout(artTimer);
       clearTimeout(heroTimer);
