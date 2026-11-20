@@ -12,7 +12,7 @@ globalThis.screen = { width: 1920, height: 1080 };
 const { actionFor, isWebOS, isTizen, deviceInfo, supports4K } = await import('../app/js/platform/tizen.js');
 const { playbackMode } = await import('../app/js/player/decide.js');
 const {
-  SAMSUNG_PROFILE_EXTRA, plexProfileExtra, jellyfinTranscodeCodecs, lgVideoCodecs, webosDirect,
+  SAMSUNG_PROFILE_EXTRA, plexProfileExtra, jellyfinTranscodeCodecs, lgVideoCodecs, webosDirect, resetCodecProbe,
 } = await import('../app/js/player/caps.js');
 
 function asBrowser() {
@@ -125,6 +125,7 @@ test('Samsung codec lists stay byte-identical and webOS uses its own', () => {
   asWebOS();
   delete globalThis.MediaSource;
   document.createElement = () => ({});
+  resetCodecProbe();
   const assumed = lgVideoCodecs();
   assert.equal(assumed.h264, 1);
   assert.equal(assumed.hevc, 1);
@@ -155,6 +156,7 @@ test('Samsung codec lists stay byte-identical and webOS uses its own', () => {
     },
   });
   globalThis.MediaSource = { isTypeSupported() { return false; } };
+  resetCodecProbe();
   const probed = lgVideoCodecs();
   assert.equal(probed.h264, 1);
   assert.equal(probed.hevc, 1);
@@ -173,4 +175,23 @@ test('Samsung codec lists stay byte-identical and webOS uses its own', () => {
 
   asBrowser();
   assert.equal(plexProfileExtra(), samsungExtra);
+});
+
+test('LG converts embedded subtitles, and a second audio track when it cannot switch', () => {
+  asWebOS();
+  resetCodecProbe();
+  const en = { streamType: 2, codec: 'aac', index: 1 };
+  const fr = { streamType: 2, codec: 'aac', index: 2 };
+  const two = { container: 'mkv', videoCodec: 'h264', Part: [{ Stream: [{ streamType: 1, codec: 'h264' }, en, fr] }] };
+  globalThis.HTMLMediaElement = function () {};
+  assert.equal(mode({ media: two, audio: en }), 'direct');
+  assert.equal(mode({ media: two, audio: fr }), 'hls');
+  HTMLMediaElement.prototype.audioTracks = null;
+  assert.equal(mode({ media: two, audio: fr }), 'direct');
+  delete globalThis.HTMLMediaElement;
+  const srt = { streamType: 3, codec: 'srt', index: 3 };
+  assert.equal(mode({ media: two, audio: en, sub: srt }), 'hls');
+  assert.equal(mode({ media: two, audio: en, sub: { codec: 'srt', key: '/library/streams/9' } }), 'direct');
+  asBrowser();
+  assert.equal(mode({ media: two, audio: en, sub: srt }), 'direct');
 });

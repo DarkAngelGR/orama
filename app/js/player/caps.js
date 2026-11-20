@@ -52,8 +52,15 @@ export function probeCodec(mimes) {
   return unknown ? null : false;
 }
 
+// The answer doesn't change while the app runs; probing makes a <video> each time.
+let lgVideo = null;
+
+// For tests: probe again on the next call.
+export function resetCodecProbe() { lgVideo = null; }
+
 export function lgVideoCodecs() {
-  const video = { h264: 1 };
+  if (lgVideo) return lgVideo;
+  const video = lgVideo = { h264: 1 };
   const names = ['hevc', 'vp9', 'av1'];
   for (let i = 0; i < names.length; i++) {
     const name = names[i];
@@ -61,6 +68,15 @@ export function lgVideoCodecs() {
     if (probeCodec(MIME[name]) !== false) video[name] = 1;
   }
   return video;
+}
+
+// Chromium only lists a file's other audio tracks behind a flag, and never
+// exposes subtitles inside an mkv/mp4. Without audioTracks, picking anything but
+// the first audio track has to go through the server.
+export function webosAudioSwitch() {
+  try {
+    return typeof HTMLMediaElement !== 'undefined' && 'audioTracks' in HTMLMediaElement.prototype;
+  } catch (e) { return false; }
 }
 
 export function webosDirect() {

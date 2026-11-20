@@ -105,7 +105,11 @@ You need an LG TV on webOS 5 or newer (2020 models onward) and the same Plex or 
 2. Turn on **Developer Mode** from the LG Content Store (Dev Mode Status **On**), then reboot the TV.
 3. Install the `.ipk` with [webOS Dev Manager](https://github.com/webosbrew/dev-manager) or the [Homebrew Channel](https://github.com/webosbrew/webos-homebrew-channel).
 
-Homebrew Channel installs later versions from the release manifest (`com.darkangelgr.orama.manifest.json`). On LG, Orama does not install updates itself.
+To update, install the new `.ipk` the same way. **Settings › Updates** tells you when one is out.
+Each release also carries a Homebrew Channel manifest; its permanent address is
+`https://github.com/DarkAngelGR/orama/releases/latest/download/com.darkangelgr.orama.manifest.json`.
+Without a rooted TV, Developer Mode switches itself off after 50 hours unless you extend it in
+the Developer Mode app (Dev Manager can do this), and sideloaded apps stop opening until you do.
 
 From source, with `WEBOS_DEVICE` in `.env` set to the name you gave the TV in the webOS CLI:
 

@@ -1,9 +1,9 @@
 // Pure playback decisions shared by the player screen. No DOM, no network.
 import * as lang from '../util/lang.js';
-import { TEXT_SUBS, dvWithoutFallback } from './options.js';
+import { TEXT_SUBS, dvWithoutFallback, streamsOf } from './options.js';
 import { NATIVE_AUDIO, audioPlayable } from './tracks.js';
 import { isWebOS } from '../platform/tizen.js';
-import { webosDirect } from './caps.js';
+import { webosDirect, webosAudioSwitch } from './caps.js';
 
 // What a 2022 Samsung (Tizen 6.5) decodes natively. No DTS on 2018+ models.
 export const DIRECT = {
@@ -34,9 +34,15 @@ export function playbackMode({ quality, media, audio, sub, forced, refused }) {
   if (dvWithoutFallback(media)) return 'hls';
   if (forced) return 'direct';
   if (refused) return 'hls';
-  const caps = isWebOS() ? webosDirect() : DIRECT;
-  const directOk = caps.container[media.container] && caps.video[media.videoCodec] && audioDirectOk(audio);
-  const subsOk = !sub || isEmbeddedText(sub) || isSidecarText(sub);
+  const webos = isWebOS();
+  const caps = webos ? webosDirect() : DIRECT;
+  let directOk = caps.container[media.container] && caps.video[media.videoCodec] && audioDirectOk(audio);
+  // webOS <video> can't show subtitles inside the file, and may not switch audio.
+  if (webos && audio && !webosAudioSwitch()) {
+    const all = streamsOf(media && media.Part && media.Part[0], 2);
+    if (all.length > 1 && all[0] !== audio) directOk = false;
+  }
+  const subsOk = !sub || isSidecarText(sub) || (!webos && isEmbeddedText(sub));
   return directOk && subsOk ? 'direct' : 'hls';
 }
 
