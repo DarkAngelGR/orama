@@ -25,6 +25,7 @@ export function UpdatesScreen() {
 
   async function check(ask) {
     const gen = ++generation;
+    clearInterval(poll);
     status = 'Checking…';
     build();
     installer = null;
@@ -51,9 +52,12 @@ export function UpdatesScreen() {
   // installs the new version, so this mostly covers download and signing).
   function watch() {
     clearInterval(poll);
+    const gen = generation;
     poll = setInterval(async () => {
       try {
         const s = await updates.installerStatus();
+        // A newer check, or leaving the screen, owns the status line.
+        if (gen !== generation || !s) return;
         installer = s;
         const lastLine = (s.log || [])[s.log.length - 1] || '';
         status = s.busy ? 'Installing…  ' + lastLine.replace(/^\S+ \S+ /, '') : (s.last ? s.last.message : 'Done');
