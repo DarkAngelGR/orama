@@ -167,6 +167,9 @@ The Apps screen shows **Develop mode** at the top when it's on.
   everyone. Invitations show up as a row at the top of Home. Uses Plex's own Watch Together
   service, which Plex keeps for its web app; based on the protocol notes in
   [plex-for-kodi](https://github.com/pannal/plex-for-kodi/pull/300).
+  On Jellyfin the same button uses SyncPlay: start a group or join one, and open groups
+  show on Home. Play, pause and seek stay together. The TV does not nudge playback to hide
+  a small drift, and it does not follow the group into the next episode.
 - Updates from GitHub Releases, installed from the TV itself with the optional
   [Orama installer](installer/).
 
@@ -218,7 +221,7 @@ To switch back to Plex, use **Settings › Sign out**.
 | watchlist-sync extras (downloads, collections, Bazarr subtitles) | ✓ | ✓ |
 | Search outside your library and get it | ✓ Watchlist | ✓ Request ³ |
 | Smart search, Discover rows | ✓ | ✓ |
-| Watch Together | ✓ | – |
+| Watch Together | ✓ | ✓ SyncPlay |
 | Switch user without signing out | ✓ PINs | ✓ |
 | Preview pictures while seeking | ✓ | ✓ ⁴ |
 

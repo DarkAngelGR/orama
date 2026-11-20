@@ -186,7 +186,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
         updateSkip(position);
       }
     },
-    onBuffering(on) { buffering = on; toggleClass(spinner, 'on', on); },
+    onBuffering(on) { buffering = on; toggleClass(spinner, 'on', on); if (link && link.report) link.report(); },
     onEnd() { finished(); },
     onError(msg) { failed(msg); },
     onSubtitle(text, ms) {
@@ -827,6 +827,21 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   function startTogether() {
     if (!paused) { player.pause(); paused = true; markPaused(true); }
     renderLobby();
+    if (together.syncplay) {
+      together.itemId = item.ratingKey;
+      together.startMs = position;
+      import('../plex/syncplay.js').then(m => {
+        if (!alive) return;
+        link = new m.SyncPlayLink(together, {
+          state: () => ({ positionMs: seekTarget == null ? position : seekTarget, paused, ready: started && !buffering && !syncBusy }),
+          apply: applyRemote,
+          roster: list => { roster = list; renderTogether(); },
+          notice: text => toast(text),
+        });
+        link.connect().catch(e => { warn('syncplay failed', e.message); toast('Couldn\'t join Watch Together (' + e.message + ')'); });
+      }, e => toast('Couldn\'t join Watch Together (' + e.message + ')'));
+      return;
+    }
     link = new TogetherLink(together.room, together.uri, {
       state: () => ({ positionMs: seekTarget == null ? position : seekTarget, paused, ready: started && !buffering && !syncBusy }),
       apply: applyRemote,
@@ -846,13 +861,14 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     if (!lobby) return;
     const others = roster.filter(u => !u.self);
     lobbyEl.innerHTML = '';
+    const room = together.room || {};
     h('div', 'together-lobby-title', lobbyEl).textContent = together.host
       ? (others.length ? 'Everyone\'s here' : 'Waiting for your friends to join…')
-      : 'Joined ' + (together.room.title || 'Watch Together');
-    const hostUser = (together.room.users || []).find(u => u.id === together.room.createdBy);
+      : 'Joined ' + (room.title || 'Watch Together');
+    const hostUser = (room.users || []).find(u => u.id === room.createdBy);
     h('div', 'together-lobby-people', lobbyEl).textContent = others.length
       ? others.map(u => u.name + (u.ready ? ' ✓' : ' · getting ready')).join('   ·   ')
-      : together.host ? 'They\'ll see an invite in Plex' : 'Waiting for ' + ((hostUser && (hostUser.title || hostUser.username)) || 'your friend') + ' to start';
+      : together.host ? (together.syncplay ? 'Playback starts when the group is ready' : 'They\'ll see an invite in Plex') : 'Waiting for ' + ((hostUser && (hostUser.title || hostUser.username)) || 'your friend') + ' to start';
     h('div', 'together-lobby-hint', lobbyEl).textContent = 'Press OK to start for everyone';
     toggleClass(lobbyEl, 'hidden', false);
     toggleClass(el, 'in-lobby', true);
@@ -863,17 +879,19 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     setText(togetherEl, 'Watching together' + (others.length ? ' with ' + others.map(u => u.name).join(', ') : ' · waiting'));
     toggleClass(togetherEl, 'hidden', !link);
     renderLobby();
-    // The host starts by itself once everyone invited is in and ready.
-    if (lobby && together.host && others.length && others.every(u => u.ready) && paused && started) {
+    // The Plex host starts by itself once everyone invited is in and ready.
+    // SyncPlay sends Unpause when the group is ready, so it must not.
+    if (!together.syncplay && lobby && together.host && others.length && others.every(u => u.ready) && paused && started) {
       toast('Everyone\'s ready');
       togglePause();
     }
   }
 
   async function applyRemote(r) {
+    if (r.stop) { toast('Watch together stopped'); exit(); return; }
     if (!started || syncBusy || seekTarget != null) { pendingRemote = r; return; }
     pendingRemote = null;
-    if (r.paused !== paused) {
+    if (r.paused != null && r.paused !== paused) {
       if (lobby) endLobby();
       togglePause(true);
       toast(r.by + (r.paused ? ' paused' : ' pressed play'));

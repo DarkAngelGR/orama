@@ -140,9 +140,75 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     if (t) playItem(t, playOpts(t, offset));
   }
 
+  function syncOpts(groupId, extra) {
+    return {
+      syncplay: true, joined: true, groupId,
+      room: { title: (extra && extra.title) || 'Watch together', users: [] },
+      host: !!(extra && extra.host),
+      itemId: extra && extra.itemId,
+      playlistItemId: extra && extra.playlistItemId,
+      startMs: extra && extra.startMs || 0,
+    };
+  }
+
+  // Jellyfin SyncPlay: a new group plays this title, or join one already playing.
+  async function watchSync(t) {
+    let sync;
+    let groups = [];
+    try {
+      notice('Looking up Watch Together…', 3000);
+      sync = await import('../plex/syncplay.js');
+      groups = await sync.listGroups();
+    } catch (e) {
+      notice('Couldn\'t reach SyncPlay (' + e.message + ')', 5000);
+      return;
+    }
+    hideNotice();
+    if (!alive) return;
+    const opts = [{ label: 'Start a new group', value: 'new' }].concat(groups.map(g => ({
+      label: 'Join ' + (g.GroupName || 'group'), value: g.GroupId,
+    })));
+    picker.open('Watch together', opts, async id => {
+      const title = t.type === 'episode'
+        ? (t.grandparentTitle || '') + ' – S' + (t.parentIndex || 0) + ' • E' + (t.index || 0) + ' – ' + t.title : t.title;
+      try {
+        if (id === 'new') {
+          notice('Starting Watch Together…', 4000);
+          const group = await sync.createGroup(title);
+          hideNotice();
+          if (!alive) return;
+          playItem(t, Object.assign(playOpts(t, t.viewOffset || 0), {
+            together: syncOpts(group.GroupId, { host: true, title, itemId: t.ratingKey, startMs: t.viewOffset || 0 }),
+          }));
+          return;
+        }
+        notice('Joining…', 4000);
+        const play = await sync.waitForQueue(id);
+        hideNotice();
+        if (!alive) return;
+        if (play && play.itemId) {
+          const meta = play.itemId === t.ratingKey ? t : await session.server.metadata(play.itemId);
+          if (!alive) return;
+          playItem(meta, {
+            offset: play.startMs || 0,
+            together: syncOpts(id, { title, itemId: play.itemId, playlistItemId: play.playlistItemId, startMs: play.startMs || 0 }),
+          });
+          return;
+        }
+        // Nobody is playing yet: this title becomes the group's queue.
+        playItem(t, Object.assign(playOpts(t, t.viewOffset || 0), {
+          together: syncOpts(id, { host: true, title, itemId: t.ratingKey, startMs: t.viewOffset || 0 }),
+        }));
+      } catch (e) {
+        notice('Couldn\'t start Watch Together (' + e.message + ')', 6000);
+      }
+    });
+  }
+
   // Plex Watch Together: pick a friend, start a session, and play paused until
   // they join (they get an invite in Plex, e.g. Plex Web on a PC).
   async function watchTogether(t) {
+    if (session.server && session.server.kind === 'jellyfin') { watchSync(t); return; }
     let people;
     try {
       notice('Looking up your Plex friends…', 3000);
@@ -197,7 +263,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
       add(icons.tv, 'Go to show', () => router.push(DetailScreen({ ratingKey: item.grandparentRatingKey, type: 'show', title: item.grandparentTitle })));
     }
     if (trailer) add(icons.film, 'Trailer', () => playItem(trailer, { offset: 0 }));
-    if (t && together.available()) add(icons.together, 'Watch together', () => watchTogether(t));
+    if (t && (together.available() || (session.server && session.server.kind === 'jellyfin'))) add(icons.together, 'Watch together', () => watchTogether(t));
     add(icons.info, 'More info', openInfo);
     if ((item.type === 'movie' || item.type === 'show') && session.server && session.server.owned !== false) {
       add(icons.trash, 'Delete', askDelete);

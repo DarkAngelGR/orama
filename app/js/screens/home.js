@@ -3,7 +3,7 @@
 import { h, setText, setTransform, toggleClass } from '../util/dom.js';
 import { Row } from '../ui/row.js';
 import { useAmbience, HeroArt } from '../ui/backdrop.js';
-import { session } from '../session.js';
+import { session, isJellyfin } from '../session.js';
 import { metaLine } from '../util/format.js';
 import { isFast } from '../input.js';
 import * as store from '../util/store.js';
@@ -138,6 +138,9 @@ export function HomeScreen() {
   let togetherItems = [];  // Watch Together sessions you're invited to, at the top
   let togetherTimer = 0;
   let togetherGen = 0;
+  let syncItems = [];      // Jellyfin SyncPlay groups, same row
+  let syncTimer = 0;
+  let syncGen = 0;
   let discoverHubs = [];   // titles you don't have yet (watchlist-sync), at the bottom
   let discoverLoadedAt = 0;
   let tasteItems = [];
@@ -259,6 +262,9 @@ export function HomeScreen() {
     if (togetherItems.length) {
       hubs = [{ hubIdentifier: 'flexplex.together', title: 'Watch Together', type: 'movie', size: togetherItems.length, Metadata: togetherItems }].concat(hubs);
     }
+    if (syncItems.length) {
+      hubs = [{ hubIdentifier: 'orama.syncplay', title: 'Watch Together', type: 'movie', size: syncItems.length, Metadata: syncItems }].concat(hubs);
+    }
     const downloads = dlItems.filter(item => !tracked(item.download));
     if (downloads.length) {
       const at = hubs.findIndex(hb => !/continue|ondeck/i.test(hb.hubIdentifier));
@@ -375,6 +381,46 @@ export function HomeScreen() {
     if (gen === togetherGen && visible) togetherTimer = setTimeout(loadTogether, 60000);
   }
 
+  // Jellyfin SyncPlay groups, same minute cadence as Plex Watch Together.
+  async function loadSync() {
+    clearTimeout(syncTimer);
+    syncTimer = 0;
+    if (!isJellyfin()) return;
+    const gen = ++syncGen;
+    try {
+      const sync = await import('../plex/syncplay.js');
+      const groups = await sync.listGroups();
+      if (gen !== syncGen) return;
+      const items = groups.map(sync.groupTile);
+      const changed = items.map(i => i.ratingKey).join() !== syncItems.map(i => i.ratingKey).join();
+      syncItems = items;
+      if (changed) setHubs(composed());
+    } catch (e) { /* this Jellyfin has no SyncPlay, or it is unreachable */ }
+    if (gen === syncGen && visible) syncTimer = setTimeout(loadSync, 60000);
+  }
+
+  async function joinSyncGroup(group) {
+    notice('Joining ' + (group.name || 'Watch together') + '…', 8000);
+    try {
+      const sync = await import('../plex/syncplay.js');
+      const play = await sync.waitForQueue(group.groupId);
+      if (!visible) return;
+      if (!play || !play.itemId) { notice('That group isn\'t playing anything yet', 5000); return; }
+      const meta = await session.server.metadata(play.itemId);
+      if (!visible) return;
+      playItem(meta, {
+        offset: play.startMs || 0,
+        together: {
+          syncplay: true, host: false, joined: true, groupId: group.groupId,
+          itemId: play.itemId, playlistItemId: play.playlistItemId, startMs: play.startMs || 0,
+          room: { title: group.name || 'Watch together', users: [] },
+        },
+      });
+    } catch (e) {
+      if (visible) notice('Couldn\'t join (' + e.message + ')', 6000);
+    }
+  }
+
   // Trending and recommended titles you don't have, from Radarr/Sonarr via
   // watchlist-sync; OK opens their page with Request. Every 3 hours at most.
   async function loadDiscover() {
@@ -433,6 +479,7 @@ export function HomeScreen() {
     }
     if (item.upcoming) { openCatalogLookup({ title: item.title, year: item.year, kind: 'show', id: item.upcoming.tvdb }).catch(e => error('show lookup failed', e)); return; }
     if (item.arr) { openCatalog(item); return; }
+    if (item.syncplay) { joinSyncGroup(item.syncplay); return; }
     if (item.together) {
       const room = item.together;
       playItem(item.togetherItem, { offset: 0, together: { room, uri: room.sourceUri, host: false } });
@@ -512,6 +559,7 @@ export function HomeScreen() {
       loadUpcoming();
       loadDiscover();
       loadTogether();
+      loadSync();
     } catch (e) {
       error('home load failed', e);
       if (gen === loadGen && !rows.length) setText(empty, 'Couldn\'t load from ' + (server.name || 'the server') + '. Press OK to retry.');
@@ -676,7 +724,7 @@ export function HomeScreen() {
       if (!profile.length && (tasteItems.length || worthItems.length)) loadTaste();
       // Coming back from playback: progress and Continue Watching changed.
       if (stale || Date.now() - loadedAt > 5000 || (returning && profile.length)) { stale = false; load(); }
-      else if (returning) loadTogether();
+      else if (returning) { loadTogether(); loadSync(); }
     },
     onHide() {
       visible = false;
@@ -684,16 +732,20 @@ export function HomeScreen() {
       if (unsubRequests) { unsubRequests(); unsubRequests = null; }
       clearTimeout(togetherTimer);
       togetherTimer = 0;
+      clearTimeout(syncTimer);
+      syncTimer = 0;
     },
     destroy() {
       tasteRequest++;
       loadGen++;
       upcomingGen++;
       togetherGen++;
+      syncGen++;
       worthSignature = '';
       clearTimeout(artTimer);
       clearTimeout(heroTimer);
       clearTimeout(togetherTimer);
+      clearTimeout(syncTimer);
       unsubscribe();
       if (unsubDownloads) unsubDownloads();
       if (unsubRequests) unsubRequests();
