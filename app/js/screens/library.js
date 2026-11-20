@@ -12,6 +12,7 @@ import { session } from '../session.js';
 import { openItem, playItem } from '../nav.js';
 import { error } from '../util/log.js';
 import { metaLine } from '../util/format.js';
+import { lettersIfCurrent } from '../util/shape.js';
 
 const PAGE = 140;
 // Same geometry as the Grid below (.grid left 80 + .grid-track left/top 16/12).
@@ -171,18 +172,17 @@ export function LibraryScreen(section) {
   }
 
   async function loadLetters() {
+    const gen = generation;
+    // Drop the previous index immediately. A reply for the old sort can still
+    // be in flight, and applying it would jump by the wrong titles.
     letters = [];
     if (SORTS[sortIndex].id !== 'titleSort') return;
     try {
       const params = { type };
       if (unwatched) params[type === 2 ? 'unwatchedLeaves' : 'unwatched'] = 1;
       const mc = await session.server.get('/library/sections/' + section.key + '/firstCharacter', params);
-      let start = 0;
-      letters = (mc.Directory || []).map(d => {
-        const l = { title: d.title, start };
-        start += d.size;
-        return l;
-      });
+      const next = lettersIfCurrent(gen, generation, mc && mc.Directory);
+      if (next) letters = next;
     } catch (e) { /* letter jump just won't work */ }
   }
 
