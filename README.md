@@ -318,6 +318,13 @@ on first run and built into `--dev` builds.
 
 The UI also runs in desktop Chrome: `./scripts/deploy.sh --build-only`, then serve `build/app/`
 with any static server (it uses a `<video>` element instead of AVPlay there).
+
+`node tools/screenshots.mjs` opens Home, the library and a title page against a mock
+Jellyfin server and compares them with `tools/screens-baseline`. Those pictures are
+produced on Ubuntu (the CI workflow's "update baselines" checkbox, or
+`node tools/screenshots.mjs --update` on Linux). A Windows run will not match, because
+the font and the WebGL backdrop differ. Playwright is not a dependency of this repo:
+install it elsewhere and set `PLAYWRIGHT_MODULE` to its `index.js`.
 </details>
 
 <details>

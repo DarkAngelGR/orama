@@ -5,6 +5,12 @@ name: CI
 on:
   pull_request:
   push:
+  workflow_dispatch:
+    inputs:
+      update_baselines:
+        description: Replace tools/screens-baseline with this Ubuntu run
+        type: boolean
+        default: false
 
 jobs:
   test:
@@ -24,3 +30,59 @@ jobs:
           printf '' > .env
           ./scripts/deploy.sh --build-only
           test ! -e build/app/js/screens/player.js
+
+  # Pictures of Home, the library and a title page. Baselines are committed from
+  # this job (update baselines), not from a developer's machine: font and WebGL
+  # output differ. Until that has been run once, this job fails on purpose.
+  screenshots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fonts
+        run: sudo apt-get update && sudo apt-get install -y fonts-liberation
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Playwright
+        run: |
+          mkdir -p "$RUNNER_TEMP/shot"
+          cd "$RUNNER_TEMP/shot"
+          npm init -y
+          npm install --no-save playwright@1.49.1
+          npx playwright install --with-deps chromium
+
+      - name: Screenshots
+        env:
+          PLAYWRIGHT_MODULE: ${{ runner.temp }}/shot/node_modules/playwright/index.js
+          LANG: C.UTF-8
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.update_baselines }}" = "true" ]; then
+            node tools/screenshots.mjs --update
+          else
+            node tools/screenshots.mjs
+          fi
+
+      - name: Diffs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshot-diffs
+          path: tools/screens-diff/
+          if-no-files-found: ignore
+
+      - name: Commit baselines
+        if: success() && github.event_name == 'workflow_dispatch' && inputs.update_baselines
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$GITHUB_REF_NAME"
+          git add tools/screens-baseline
+          git diff --cached --quiet && echo "no baseline changes" && exit 0
+          git commit -m "Update screenshot baselines"
+          git push origin "HEAD:$GITHUB_REF_NAME"
