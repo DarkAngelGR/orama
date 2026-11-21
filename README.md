@@ -22,6 +22,7 @@
 
 <p align="center">
   <a href="#install">Install</a> ·
+  <a href="#installing-on-an-lg-tv">LG</a> ·
   <a href="#features">Features</a> ·
   <a href="#using-the-remote">Remote</a> ·
   <a href="#plex-or-jellyfin">Plex or Jellyfin</a> ·
@@ -47,7 +48,7 @@ work, so your server barely notices you're watching.
 ## Install
 
 You need a Samsung smart TV running Tizen 6.5 or newer (2022 models onward) and a Plex Media Server or
-a Jellyfin server (10.8 or newer).
+a Jellyfin server (10.8 or newer). Have an LG TV? See [Installing on an LG TV](#installing-on-an-lg-tv).
 
 ### Easiest: a release and Apps2Samsung
 
@@ -97,26 +98,80 @@ The Apps screen shows **Develop mode** at the top when it's on.
 | The sign-in code expired | Press **OK** on the sign-in screen for a new one. |
 </details>
 
-## LG webOS
+## Installing on an LG TV
 
-You need an LG TV on webOS 5 or newer (2020 models onward) and the same Plex or Jellyfin server.
+You need an LG smart TV running webOS 5 or newer (2020 models onward), a computer on the same
+network (Windows, macOS or Linux), and a Plex Media Server or a Jellyfin server (10.8 or newer).
+LG only lets you add apps of your own in Developer Mode, which needs a free LG developer account.
+
+### Easiest: a release and webOS Dev Manager
 
 1. Download `Orama-x.y.z.ipk` from the **[latest release](https://github.com/DarkAngelGR/orama/releases/latest)**.
-2. Turn on **Developer Mode** from the LG Content Store (Dev Mode Status **On**), then reboot the TV.
-3. Install the `.ipk` with [webOS Dev Manager](https://github.com/webosbrew/dev-manager) or the [Homebrew Channel](https://github.com/webosbrew/webos-homebrew-channel).
+2. Turn on [Developer Mode](#lg-developer-mode) on the TV.
+3. Install [webOS Dev Manager](https://github.com/webosbrew/dev-manager-desktop/releases/latest)
+   on your computer and add the TV:
+   - **Address:** the TV's IP address (**Settings › Network** on the TV shows it).
+   - **Port:** `9922`. **User:** `prisoner`.
+   - **Passphrase:** the 6 characters at the bottom left of the Developer Mode app on the TV
+     (turn **Key Server** on first). Capitals matter.
+4. Open the **Apps** tab in Dev Manager, choose to install a package, and pick the `.ipk`.
+5. Open **Orama** from the TV's app list, go to **[plex.tv/link](https://plex.tv/link)** on your
+   phone and enter the code, or scan the QR code. Using Jellyfin? See
+   [Signing in with Jellyfin](#signing-in-with-jellyfin).
 
-To update, install the new `.ipk` the same way. **Settings › Updates** tells you when one is out.
-Each release also carries a Homebrew Channel manifest; its permanent address is
-`https://github.com/DarkAngelGR/orama/releases/latest/download/com.darkangelgr.orama.manifest.json`.
-Without a rooted TV, Developer Mode switches itself off after 50 hours unless you extend it in
-the Developer Mode app (Dev Manager can do this), and sideloaded apps stop opening until you do.
+<a id="lg-developer-mode"></a>
+<details>
+<summary><b>Turning on Developer Mode (LG)</b></summary>
 
-From source, with `WEBOS_DEVICE` in `.env` set to the name you gave the TV in the webOS CLI:
+1. On your computer, create a free account at
+   **[webostv.developer.lge.com](https://webostv.developer.lge.com)**.
+2. On the TV, open the **LG Content Store**, search for **Developer Mode** and install it.
+3. Open **Developer Mode**, sign in with that account, and switch **Dev Mode Status** to **On**.
+   The TV restarts.
+4. Open **Developer Mode** again and switch **Key Server** on while you add the TV to Dev Manager.
+   You can turn it off afterwards.
+
+Giving the TV a fixed IP address in your router saves re-adding it later.
+</details>
+
+### Keeping it installed and up to date
+
+- **Developer Mode runs out.** The **Developer Mode** app shows the time left (**Remain Session**,
+  1000 hours when you start). Open it and choose **Extend** now and then. If the time runs out,
+  the TV removes Orama and you have to install it again. Dev Manager can also make a script that
+  extends it for you on a schedule.
+- **One TV per account.** Signing in to Developer Mode on a second TV switches it off on the first.
+- **Updates.** **Settings › Updates** in Orama tells you when a new version is out. Install the new
+  `.ipk` the same way; your sign-in and settings stay. Each release also carries a Homebrew Channel
+  manifest, always at
+  `https://github.com/DarkAngelGR/orama/releases/latest/download/com.darkangelgr.orama.manifest.json`.
+
+<details>
+<summary><b>With LG's command-line tools instead</b></summary>
 
 ```sh
-./scripts/deploy.sh --webos --build-only   # writes build/Orama-<version>.ipk
-./scripts/deploy.sh --webos                 # also installs and opens it on that TV
+npm install -g @webos-tools/cli
+ares-setup-device                         # add: a name (e.g. tv), the TV's IP, port 9922, user prisoner
+ares-novacom --device tv --getkey         # with Key Server on; enter the passphrase from the TV
+ares-install --device tv Orama-x.y.z.ipk
+ares-launch --device tv com.darkangelgr.orama
 ```
+
+From a clone of this repository, set `WEBOS_DEVICE=tv` in `.env` and run
+`./scripts/deploy.sh --webos` to build, install and open it (`--build-only` just writes
+`build/Orama-<version>.ipk`).
+</details>
+
+<details>
+<summary><b>Troubleshooting (LG)</b></summary>
+
+| Problem | Fix |
+| --- | --- |
+| Dev Manager can't connect | Check the IP, port `9922` and user `prisoner`. Turn **Key Server** on and enter the passphrase again. |
+| Orama disappeared | The Developer Mode time ran out, or you signed in on another TV. Turn it on again and reinstall. |
+| Developer Mode isn't in the Content Store | Search for "Developer". Your TV needs webOS 5 or newer to run Orama anyway. |
+| The sign-in code expired | Press **OK** on the sign-in screen for a new one. |
+</details>
 
 ## Features
 
