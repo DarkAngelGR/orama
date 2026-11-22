@@ -265,10 +265,17 @@ async function pushJellyfin(local) {
   await server.req('/Users/' + encodeURIComponent(server.userId) + '/Configuration', { method: 'POST', body: next });
 }
 
+// Settings cycles through values one press at a time: send only where it
+// stops, so the account isn't rewritten per press or left on a value that
+// arrived out of order.
+let publishTimer = 0;
 export function publishAccountLanguages() {
-  const local = { audio: audioLangId(), sub: subLangId() };
-  const job = isJellyfin() ? pushJellyfin(local) : pushPlex(local);
-  Promise.resolve(job).catch(() => {});
+  clearTimeout(publishTimer);
+  publishTimer = setTimeout(() => {
+    const local = { audio: audioLangId(), sub: subLangId() };
+    const job = isJellyfin() ? pushJellyfin(local) : pushPlex(local);
+    Promise.resolve(job).catch(() => {});
+  }, 2000);
 }
 
 // "Signs & Songs" tracks (common in anime) only translate on-screen text and
