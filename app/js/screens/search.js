@@ -11,6 +11,9 @@ import { error, warn } from '../util/log.js';
 import * as icons from '../ui/icons.js';
 import { useAmbience } from '../ui/backdrop.js';
 import { enabled as kidsOn, filterHubs, filterItems } from '../util/kids.js';
+import { Picker } from '../ui/picker.js';
+import { libraryItem, openTitleMenu } from '../ui/tilemenu.js';
+import { notice } from '../ui/notice.js';
 
 const CATALOG_MAX = 20;
 const IME_DONE = 65376;
@@ -28,6 +31,7 @@ export function SearchScreen() {
   input.setAttribute('autocomplete', 'off');
   const status = h('div', 'search-status', el);
   const clip = h('div', 'search-rows', el);
+  const picker = new Picker(el);
   const track = h('div', 'rows-track', clip);
 
   let rows = [];
@@ -188,6 +192,20 @@ export function SearchScreen() {
     setTransform(track, 'translateY(' + (-y) + 'px)');
   }
 
+  function openResultMenu() {
+    const row = rows[rowIndex];
+    const it = row && row.current();
+    if (!libraryItem(it)) return;
+    openTitleMenu(picker, it, { continueRow: !!it.viewOffset, kids: kidsOn() }, {
+      open: openItem,
+      play: playItem,
+      server: session.server,
+      notice,
+      refresh: () => row.setItems(row.items),
+      onError: e => error('tile action failed', e),
+    });
+  }
+
   function focusInput() {
     clearTimeout(focusTimer);
     rowIndex = -1;
@@ -222,7 +240,12 @@ export function SearchScreen() {
       if (rowIndex < 0) focusTimer = setTimeout(focusInput, 50);
     },
     onHide() { clearTimeout(focusTimer); input.blur(); },
+    wantsHold() {
+      return rowIndex >= 0 && !picker.isOpen && libraryItem(rows[rowIndex] && rows[rowIndex].current());
+    },
     onKey(action) {
+      if (picker.isOpen) return picker.onKey(action);
+      if (action === 'hold') { openResultMenu(); return true; }
       if (rowIndex < 0) {
         if (action === 'down' && rows.length) { clearTimeout(focusTimer); input.blur(); rowIndex = 0; render(); return true; }
         if (action === 'enter') { input.focus(); return true; }

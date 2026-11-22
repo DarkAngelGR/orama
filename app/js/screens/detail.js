@@ -26,6 +26,7 @@ import { removeFromWatchlist } from '../plex/discover.js';
 import { notice, hideNotice } from '../ui/notice.js';
 import { enabled as kidsOn, allows as ratingAllows, read as kidsState } from '../util/kids.js';
 import { subLang } from '../player/subprefs.js';
+import { libraryItem, openTitleMenu } from '../ui/tilemenu.js';
 import * as lang from '../util/lang.js';
 
 const SHIFT = 400;    // how far the body slides up to reveal seasons/episodes
@@ -239,6 +240,42 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     });
   }
 
+  async function markSeason(watched) {
+    const season = seasons[seasonIndex];
+    if (!season || !season.ratingKey) return;
+    try {
+      if (watched) await session.server.scrobble(season.ratingKey);
+      else await session.server.unscrobble(season.ratingKey);
+      session.server.invalidate();
+      await load();
+    } catch (e) {
+      error('season watched failed', e);
+      notice('The server didn\'t accept that (' + e.message + ')', 5000);
+    }
+  }
+
+  function openEpisodeMenu() {
+    const ep = episodes && episodes.row.current();
+    if (!libraryItem(ep)) return;
+    openTitleMenu(picker, ep, { kids: kidsOn() }, {
+      open: openItem,
+      play: (it, opts) => play(it, opts && opts.offset != null ? opts.offset : 0),
+      server: session.server,
+      notice,
+      refresh: () => load(),
+      onError: e => error('tile action failed', e),
+    });
+  }
+
+  function openSeasonMenu() {
+    const season = seasons[seasonIndex];
+    if (!season) return;
+    const done = season.leafCount > 0 && season.viewedLeafCount >= season.leafCount;
+    picker.open(season.title || 'Season', [
+      { label: done ? 'Mark season unwatched' : 'Mark season watched', value: done ? 'unwatched' : 'watched' },
+    ], v => { markSeason(v === 'watched'); });
+  }
+
   function renderButtons() {
     buttonsEl.innerHTML = '';
     buttons = [];
@@ -260,6 +297,11 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     }
     const watched = isShowLike() ? item.viewedLeafCount >= item.leafCount : !!item.viewCount;
     add(watched ? icons.check : icons.uncheck, watched ? 'Watched' : 'Mark watched', toggleWatched);
+    const season = isShowLike() ? seasons[seasonIndex] : null;
+    if (season && season.ratingKey) {
+      const done = season.leafCount > 0 && season.viewedLeafCount >= season.leafCount;
+      add(done ? icons.check : icons.uncheck, done ? 'Season watched' : 'Mark season watched', () => markSeason(!done));
+    }
     if (item.type === 'episode' && item.grandparentRatingKey) {
       add(icons.tv, 'Go to show', () => router.push(DetailScreen({ ratingKey: item.grandparentRatingKey, type: 'show', title: item.grandparentTitle })));
     }
@@ -947,6 +989,12 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
   return {
     el,
     name: 'detail',
+    wantsHold() {
+      if (picker.isOpen) return false;
+      if (zone === 'episodes' && episodes && libraryItem(episodes.row.current())) return true;
+      if (zone === 'seasons' && seasons[seasonIndex]) return true;
+      return false;
+    },
     onShow() {
       shownNow = true;
       playTheme();
@@ -960,6 +1008,11 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     },
     onKey(action) {
       if (picker.isOpen) return picker.onKey(action);
+      if (action === 'hold') {
+        if (zone === 'seasons') openSeasonMenu();
+        else openEpisodeMenu();
+        return true;
+      }
       if (action === 'up') { moveZone(-1); return true; }
       if (action === 'down') { moveZone(1); return true; }
       if ((action === 'play' || action === 'playpause') && zone === 'extras') { extrasRow.row.select(); return true; }
@@ -987,7 +1040,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
           const next = seasonIndex + (action === 'right' ? 1 : -1);
           if (next >= 0 && next < seasons.length) {
             seasonIndex = next;
-            renderFocus();
+            renderButtons();
             loadEpisodes(seasons[seasonIndex]).catch(e => error('episodes failed', e));
           }
           return true;

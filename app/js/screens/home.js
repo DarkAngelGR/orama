@@ -25,6 +25,7 @@ import { readTaste, setFeedback } from '../util/taste.js';
 import { currentRequests, describeRequest, subscribeRequests, tracked } from '../plex/requests.js';
 import { arm, homeEnter, homeReady } from '../util/perf.js';
 import { enabled as kidsOn, filterHubs, playbackBlocked } from '../util/kids.js';
+import { libraryItem, openTitleMenu } from '../ui/tilemenu.js';
 
 // Once per app start, a few seconds after home appears: is there a newer
 // Orama? Mentioned once per version.
@@ -45,10 +46,7 @@ const ROWS_TOP = 600;
 const NAV_PAD = 80; // wider than the 64px edge fade in app.css
 const TASTE_ROW = 'orama.for-you';
 
-export function libraryItem(it) {
-  return !!(it && it.ratingKey && !it.download && !it.catalog &&
-    (it.jellyfin === true || /^\d+$/.test(String(it.ratingKey))));
-}
+export { libraryItem };
 
 function slimHub(hub) {
   // Keep the cache small: only fields the home screen renders.
@@ -673,51 +671,35 @@ export function HomeScreen() {
 
   function updateHint() {
     const row = rows[rowIndex];
-    toggleClass(holdHint, 'on', zone === 'rows' && !picker.isOpen &&
-      (isContinueRow(row) || (row && row.hubId === TASTE_ROW)) && libraryItem(row.current()));
+    toggleClass(holdHint, 'on', zone === 'rows' && !picker.isOpen && libraryItem(row && row.current()));
   }
 
   function openTileMenu() {
     const row = rows[rowIndex];
     const it = row && row.current();
     if (!libraryItem(it)) return;
-    const server = session.server;
-    const watched = it.type === 'show' ? it.viewedLeafCount >= it.leafCount : !!it.viewCount;
-    const opts = [];
     const tasteKey = row.hubId === TASTE_ROW ? activeTasteKey() : '';
-    if (tasteKey) opts.push({ label: 'More like this', value: 'more' }, { label: 'Not for me', value: 'less' });
-    if (isContinueRow(row) || it.viewOffset) opts.push({ label: 'Remove from Continue Watching', value: 'remove' });
-    if (!watched || it.viewOffset) opts.push({ label: 'Mark as watched', value: 'watched' });
-    if (watched) opts.push({ label: 'Mark as unwatched', value: 'unwatched' });
-    else if (it.viewOffset) opts.push({ label: 'Clear progress', value: 'unwatched' });
-    if (it.type === 'episode' && it.grandparentRatingKey) opts.push({ label: 'Go to show', value: 'show' });
-    opts.push({ label: 'Open', value: 'open' });
+    const extra = tasteKey ? [{ label: 'More like this', value: 'more' }, { label: 'Not for me', value: 'less' }] : [];
     toggleClass(holdHint, 'on', false);
-    picker.open(it.grandparentTitle || it.title, opts, async v => {
-      updateHint();
-      try {
-        if (v === 'open') return selectItem(it);
-        if (v === 'more' || v === 'less') {
-          setFeedback(tasteKey, it, v);
-          if (v === 'less') {
-            tasteItems = tasteItems.filter(item => item.ratingKey !== it.ratingKey);
-            setHubs(composed());
-          }
-          loadTaste();
-          return;
+    openTitleMenu(picker, it, { continueRow: isContinueRow(row), kids: kidsOn(), extra }, {
+      select: selectItem,
+      open: openItem,
+      play: playItem,
+      server: session.server,
+      notice,
+      refresh: () => load(),
+      onError: e => error('tile action failed', e),
+      onExtra: v => {
+        if (v !== 'more' && v !== 'less') return false;
+        setFeedback(tasteKey, it, v);
+        if (v === 'less') {
+          tasteItems = tasteItems.filter(item => item.ratingKey !== it.ratingKey);
+          setHubs(composed());
         }
-        if (v === 'show') return openItem({ ratingKey: it.grandparentRatingKey, type: 'show', title: it.grandparentTitle });
-        if (v === 'remove') await server.removeFromContinueWatching(it.ratingKey);
-        if (v === 'watched') await server.scrobble(it.ratingKey);
-        if (v === 'unwatched') await server.unscrobble(it.ratingKey);
-        notice(v === 'remove' ? 'Removed from Continue Watching' : v === 'watched' ? 'Marked as watched'
-          : watched ? 'Marked as unwatched' : 'Progress cleared', 3000);
-        server.invalidate();
-        load();
-      } catch (e) {
-        error('tile action failed', e);
-        notice('The server didn\'t accept that (' + e.message + ')', 5000);
-      }
+        loadTaste();
+        updateHint();
+        return true;
+      },
     });
   }
 
