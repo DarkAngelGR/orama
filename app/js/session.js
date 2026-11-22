@@ -6,6 +6,12 @@ import { JellyfinServer, rememberJellyfinUser } from './plex/jellyfin.js';
 import { getServers, connect } from './plex/auth.js';
 import { log } from './util/log.js';
 
+// signIn / useProfile / useJellyfin tell whoever registered (app.js adopts
+// account languages). Set before those run; the default does nothing.
+let onIdentityChange = () => {};
+export function onIdentity(fn) { onIdentityChange = fn || (() => {}); }
+function identityChanged() { try { onIdentityChange(); } catch (e) { /* keep signing in */ } }
+
 export const session = {
   token: store.get('token'),
   user: store.get('user'),
@@ -46,6 +52,7 @@ export function useJellyfin(uri, info, auth) {
   store.set('server', rec);
   store.set('homeCache', undefined);
   rememberJellyfinUser(rec.id, auth);
+  identityChanged();
 }
 
 export function signIn(token, user) {
@@ -55,6 +62,7 @@ export function signIn(token, user) {
   store.set('token', token);
   store.set('accountToken', token);
   store.set('user', session.user);
+  identityChanged();
 }
 
 // A Home profile took over: its own token and server access, the account
@@ -66,6 +74,7 @@ export function useProfile(token, user) {
   store.set('token', token);
   store.set('user', session.user);
   store.set('homeCache', undefined); // Continue Watching etc. are per profile
+  identityChanged();
 }
 
 export function useServer(resource, uri) {

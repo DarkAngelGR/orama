@@ -1,7 +1,15 @@
 // How subtitles look (size, colour, background box) and per-file timing offsets.
 // Style is a class on <html>, set once, so playback does no extra work.
+// Default audio and subtitle languages are per profile. A profile with none
+// yet takes them from the Plex or Jellyfin account; changing them here writes
+// them back. Per-show picks stay in tracks.js.
 import * as store from '../util/store.js';
 import * as lang from '../util/lang.js';
+import { session, isJellyfin } from '../session.js';
+import { request } from '../plex/client.js';
+import {
+  readPlexLang, localFromPlex, plexProfileUrl, readJellyfinLang, localFromJellyfin, jellyfinConfigWithLang,
+} from '../plex/accountlang.js';
 
 export const SUB_SIZES = [
   { id: 's', label: 'Small' },
@@ -92,15 +100,175 @@ export const SUB_LANGS = [
   { id: 'off', label: 'Off' },
 ];
 
+const NAMES = {
+  el: 'Greek', en: 'English', es: 'Spanish', fr: 'French', de: 'German', it: 'Italian',
+  pt: 'Portuguese', nl: 'Dutch', ru: 'Russian', ja: 'Japanese', ko: 'Korean', zh: 'Chinese',
+  sv: 'Swedish', no: 'Norwegian', da: 'Danish', fi: 'Finnish', pl: 'Polish', tr: 'Turkish',
+  ar: 'Arabic', he: 'Hebrew',
+};
+
+export function languageLabel(code) {
+  if (!code || code === 'auto') return 'Auto';
+  if (code === 'off') return 'Off';
+  const k = lang.key(code);
+  return NAMES[k] || k.toUpperCase();
+}
+
+function profileId() {
+  const u = session.user;
+  return (u && (u.uuid || u.id)) || '';
+}
+
+function langRows() {
+  return store.get('langByProfile', {}) || {};
+}
+
+export function subLangId() {
+  const all = langRows();
+  const row = profileId() && all[profileId()];
+  if (row && row.sub) return row.sub;
+  if (!Object.keys(all).length) return store.get('subLang', 'auto');
+  return 'auto';
+}
+
+export function audioLangId() {
+  const row = profileId() && langRows()[profileId()];
+  return (row && row.audio) || 'auto';
+}
+
+// null when this profile is not overriding the file's audio.
+export function audioPref() {
+  const row = profileId() && langRows()[profileId()];
+  if (!row || !row.audio || row.audio === 'auto') return null;
+  return { code: lang.key(row.audio), explicit: !!row.explicit };
+}
+
+function withCurrent(list, id) {
+  if (id && !list.some(x => x.id === id)) return list.concat([{ id, label: languageLabel(id) }]);
+  return list;
+}
+
+export function subChoices() {
+  return withCurrent(SUB_LANGS, subLangId());
+}
+
+export function audioChoices() {
+  return withCurrent([
+    { id: 'auto', label: 'Auto' },
+    { id: 'el', label: 'Greek' },
+    { id: 'en', label: 'English' },
+  ], audioLangId());
+}
+
+function asOption(id, list) {
+  return list.find(l => l.id === id) || { id: id || 'auto', label: languageLabel(id) };
+}
+
 export function subLang() {
-  const id = store.get('subLang', 'auto');
-  return SUB_LANGS.find(l => l.id === id) || SUB_LANGS[0];
+  return asOption(subLangId(), subChoices());
+}
+
+export function audioLang() {
+  return asOption(audioLangId(), audioChoices());
+}
+
+function writeLang(partial) {
+  const id = profileId() || 'local';
+  const all = langRows();
+  const prev = all[id] || { audio: audioLangId(), sub: subLangId() };
+  const next = { audio: prev.audio || 'auto', sub: prev.sub || 'auto', explicit: true };
+  if (partial.audio) next.audio = partial.audio;
+  if (partial.sub) next.sub = partial.sub;
+  all[id] = next;
+  store.set('langByProfile', all);
+  if (partial.sub) store.set('subLang', next.sub === 'auto' ? undefined : next.sub);
 }
 
 export function cycleSubLang() {
-  const i = SUB_LANGS.indexOf(subLang());
-  const next = SUB_LANGS[(i + 1) % SUB_LANGS.length].id;
-  store.set('subLang', next === 'auto' ? undefined : next);
+  const list = subChoices();
+  const i = Math.max(0, list.findIndex(l => l.id === subLangId()));
+  writeLang({ sub: list[(i + 1) % list.length].id });
+  publishAccountLanguages();
+}
+
+export function cycleAudioLang() {
+  const list = audioChoices();
+  const i = Math.max(0, list.findIndex(l => l.id === audioLangId()));
+  writeLang({ audio: list[(i + 1) % list.length].id });
+  publishAccountLanguages();
+}
+
+// A subtitle language chosen before prefs were per profile belongs to the
+// profile signed in now, and counts as an explicit choice.
+function migrateLegacy(id) {
+  const all = langRows();
+  if (all[id] || Object.keys(all).length) return;
+  const legacy = store.get('subLang');
+  if (!legacy) return;
+  all[id] = { audio: 'auto', sub: legacy, explicit: true };
+  store.set('langByProfile', all);
+}
+
+async function fetchPlex(token) {
+  let user;
+  try {
+    user = await request('https://clients.plex.tv/api/v2/user', { token });
+  } catch (e) {
+    user = await request('https://plex.tv/api/v2/user', { token });
+  }
+  return localFromPlex(readPlexLang(user));
+}
+
+async function fetchJellyfin() {
+  const server = session.server;
+  if (!server || !server.userId || !server.req) return null;
+  const user = await server.req('/Users/' + encodeURIComponent(server.userId));
+  return localFromJellyfin(readJellyfinLang(user));
+}
+
+// Fire-and-forget. A profile that already has prefs (set here, or adopted
+// once) is left alone, including per-show picks, which are a different store.
+export function adoptAccountLanguages() {
+  const id = profileId();
+  if (!id) return;
+  migrateLegacy(id);
+  if (langRows()[id]) return;
+  const token = session.token;
+  if (!token || token === 'lan-dev') return;
+  const job = isJellyfin() ? fetchJellyfin() : fetchPlex(token);
+  Promise.resolve(job).then(local => {
+    if (!local) return;
+    const all = langRows();
+    if (all[id]) return;
+    all[id] = { audio: local.audio || 'auto', sub: local.sub || 'auto', explicit: false };
+    store.set('langByProfile', all);
+  }).catch(() => {});
+}
+
+async function pushPlex(local) {
+  const token = session.token;
+  if (!token || token === 'lan-dev') return;
+  const q = plexProfileUrl(local).split('?')[1];
+  try {
+    await request('https://clients.plex.tv/api/v2/user/profile?' + q, { method: 'PUT', token });
+  } catch (e) {
+    await request('https://plex.tv/api/v2/user/profile?' + q, { method: 'PUT', token });
+  }
+}
+
+async function pushJellyfin(local) {
+  const server = session.server;
+  if (!server || !server.userId || !server.req) return;
+  const user = await server.req('/Users/' + encodeURIComponent(server.userId));
+  const next = jellyfinConfigWithLang(user && user.Configuration, local);
+  if (!next) return;
+  await server.req('/Users/' + encodeURIComponent(server.userId) + '/Configuration', { method: 'POST', body: next });
+}
+
+export function publishAccountLanguages() {
+  const local = { audio: audioLangId(), sub: subLangId() };
+  const job = isJellyfin() ? pushJellyfin(local) : pushPlex(local);
+  Promise.resolve(job).catch(() => {});
 }
 
 // "Signs & Songs" tracks (common in anime) only translate on-screen text and

@@ -12,7 +12,7 @@ import * as motion from '../ui/motion.js';
 import {
   QUALITIES, qualityById, defaultQuality, setDefaultQuality, forceDirect, setForceDirect, audioExtras, cycleAudioExtras, cwOpens, cycleCwOpens,
 } from '../player/options.js';
-import { subSize, subBackground, cycleSubSize, toggleSubBackground, subLang, cycleSubLang, subColor, cycleSubColor } from '../player/subprefs.js';
+import { subSize, subBackground, cycleSubSize, toggleSubBackground, subLang, cycleSubLang, audioLang, cycleAudioLang, subColor, cycleSubColor } from '../player/subprefs.js';
 import * as watchlist from '../plex/watchlist.js';
 import { DownloadsScreen } from './downloads.js';
 import { UpdatesScreen } from './updates.js';
@@ -80,6 +80,7 @@ export function SettingsScreen() {
       { label: 'Audio formats', value: audioExtras().label, run: () => { cycleAudioExtras(); build(); } },
       { label: 'Force direct play', value: forceDirect() ? 'On · never convert' : 'Off · convert only when needed', run: () => { setForceDirect(!forceDirect()); build(); } },
       { label: 'Theme music', value: themeMusic.enabled() ? 'On' : 'Off', run: () => { themeMusic.setEnabled(!themeMusic.enabled()); build(); } },
+      { label: 'Audio language', value: audioLang().label, run: () => { cycleAudioLang(); build(); } },
       { label: 'Subtitle language', value: subLang().label, run: () => { cycleSubLang(); build(); } },
       { label: 'Subtitle size', value: subSize().label, run: () => { cycleSubSize(); build(); } },
       { label: 'Subtitle colour', value: subColor().label, run: () => { cycleSubColor(); build(); } },

@@ -11,7 +11,7 @@
 import * as store from '../util/store.js';
 import * as lang from '../util/lang.js';
 import { streamsOf, forceDirect, audioExtras } from './options.js';
-import { preferredSub, animeSub, isSigns } from './subprefs.js';
+import { preferredSub, animeSub, isSigns, audioPref } from './subprefs.js';
 import { isWebOS } from '../platform/tizen.js';
 import { LG_AUDIO } from './caps.js';
 
@@ -126,7 +126,13 @@ export function pickTracks(item, part, { audioStreamID, subtitleStreamID, langs 
   if (!audio) {
     audio = audios.find(s => s.selected) || audios[0] || null;
     if (remembered && remembered.audio) audio = audios.find(s => lang.ofStream(s) === remembered.audio) || audio;
-    else if (anime) audio = audios.find(s => lang.ofStream(s) === 'ja' && !isCommentary(s)) || audio;
+    else {
+      const pref = audioPref();
+      // Settings wins even for anime. A language only adopted from the account
+      // does not: anime keeps Japanese until this show has its own pick.
+      if (pref && (pref.explicit || !anime)) audio = audios.find(s => lang.ofStream(s) === pref.code && !isCommentary(s)) || audio;
+      else if (anime) audio = audios.find(s => lang.ofStream(s) === 'ja' && !isCommentary(s)) || audio;
+    }
   }
   if (sub === undefined) {
     sub = (anime && lang.ofStream(audio) === 'ja' && animeSub(texts)) ||

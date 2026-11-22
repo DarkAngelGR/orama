@@ -2,7 +2,7 @@
 import { DEV, DEV_HOST, DEV_PLEX_URL, VERSION } from './config.js';
 import * as router from './router.js';
 import { isTizen, isWebOS, registerKeys } from './platform/tizen.js';
-import { session, reconnect, signOut, isJellyfin } from './session.js';
+import { session, reconnect, signOut, isJellyfin, onIdentity } from './session.js';
 import { HomeScreen } from './screens/home.js';
 import { LoginScreen } from './screens/login.js';
 import { initHud } from './ui/hud.js';
@@ -11,7 +11,7 @@ import { setReportWhere } from './util/report.js';
 import { arm } from './util/perf.js';
 import * as nav from './nav.js';
 import * as store from './util/store.js';
-import { applySubtitleStyle } from './player/subprefs.js';
+import { applySubtitleStyle, adoptAccountLanguages } from './player/subprefs.js';
 import * as motion from './ui/motion.js';
 
 function goHome() {
@@ -78,6 +78,7 @@ function start() {
     return;
   }
   if (session.token && session.server) {
+    adoptAccountLanguages();
     goHomeOrProfiles();
     verify();
   } else {
@@ -97,6 +98,7 @@ export function boot() {
     window.addEventListener('resize', fitWindow);
   }
   motion.apply();
+  onIdentity(adoptAccountLanguages);
   router.init(document.getElementById('app'));
   initHud(() => (router.top() && router.top().name) || '');
   window.addEventListener('flexplex:restart', start);
