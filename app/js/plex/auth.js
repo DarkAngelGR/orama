@@ -46,24 +46,46 @@ export async function getServers(token) {
   return resources.filter(r => (r.provides || '').indexOf('server') !== -1);
 }
 
-function probe(uri, token, timeout) {
+// /identity answers without checking the token, so a reply only counts when it
+// comes from the server we asked for: another machine on this network can sit
+// at the same private address as a friend's server.
+export function identityMatches(reply, resource) {
+  const want = resource && resource.clientIdentifier;
+  const got = reply && reply.MediaContainer && reply.MediaContainer.machineIdentifier;
+  return !want || !got || String(got) === String(want);
+}
+
+function probe(uri, resource, timeout) {
   const started = Date.now();
-  return request(uri + '/identity', { token, timeout }).then(() => ({ uri, ms: Date.now() - started }));
+  return request(uri + '/identity', { token: resource.accessToken, timeout }).then(reply => {
+    if (!identityMatches(reply, resource)) throw new Error('a different server answered at ' + uri);
+    return { uri, ms: Date.now() - started };
+  });
+}
+
+function flag(v) {
+  return v === true || v === 1 || v === '1' || v === 'true';
 }
 
 // Plain HTTP on the LAN is the fastest path on a TV CPU (no TLS), so try that
 // first, then the plex.direct HTTPS URLs, then remote, then relay.
+// Plex marks private addresses "local" even when they're on the owner's
+// network, not ours. For a shared server that isn't on our network
+// (publicAddressMatches), those would only time out, so they go after remote.
 export function candidateUris(resource) {
   const conns = resource.connections || [];
-  const local = conns.filter(c => c.local && !c.relay);
-  const remote = conns.filter(c => !c.local && !c.relay);
-  const relay = conns.filter(c => c.relay);
-  const tiers = [];
-  if (resource.httpsRequired !== true) {
-    tiers.push(local.map(c => 'http://' + c.address + ':' + c.port));
+  const local = conns.filter(c => flag(c.local) && !flag(c.relay));
+  const remote = conns.filter(c => !flag(c.local) && !flag(c.relay));
+  const relay = conns.filter(c => flag(c.relay));
+  const nearby = flag(resource.owned) || flag(resource.publicAddressMatches);
+  const localTiers = [];
+  if (resource.httpsRequired !== true && !flag(resource.httpsRequired)) {
+    localTiers.push(local.map(c => 'http://' + c.address + ':' + c.port));
   }
-  tiers.push(local.map(c => c.uri));
-  tiers.push(remote.map(c => c.uri));
+  localTiers.push(local.map(c => c.uri));
+  const tiers = nearby
+    ? localTiers.concat([remote.map(c => c.uri)])
+    : [remote.map(c => c.uri)].concat(localTiers);
   tiers.push(relay.map(c => c.uri));
   return tiers.filter(t => t.length);
 }
@@ -77,10 +99,9 @@ function firstSuccess(promises) {
 }
 
 export async function connect(resource) {
-  const token = resource.accessToken;
   for (const tier of candidateUris(resource)) {
     try {
-      const hit = await firstSuccess(tier.map(uri => probe(uri, token, 4000)));
+      const hit = await firstSuccess(tier.map(uri => probe(uri, resource, 4000)));
       log('connected to', resource.name, 'via', hit.uri, hit.ms + 'ms');
       return hit.uri;
     } catch (e) {
