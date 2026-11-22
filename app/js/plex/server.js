@@ -4,6 +4,7 @@ import { plexProfileExtra } from '../player/caps.js';
 import { hasPlayableMedia, matchMedia, mediaIds, playbackState } from './availability.js';
 import { asObj } from '../util/shape.js';
 import { listingFilter } from '../util/kids.js';
+import { plexListingParams } from './filters.js';
 
 const SUPPORTED_HUB_TYPES = { movie: 1, show: 1, episode: 1, season: 1, mixed: 1, clip: 1 };
 
@@ -49,6 +50,24 @@ export class Server {
     return withQuery(this.uri + path, Object.assign({ 'X-Plex-Token': this.token }, params));
   }
 
+  // Genre, year, decade, resolution and content rating, as this library lists them.
+  // A missing endpoint is an empty list, not a failed screen.
+  async sectionFilters(sectionId) {
+    const names = ['genre', 'year', 'decade', 'resolution', 'contentRating'];
+    const out = {};
+    await Promise.all(names.map(async name => {
+      try {
+        const mc = await this.get('/library/sections/' + sectionId + '/' + name, null, { maxAge: 600000 });
+        out[name] = (mc.Directory || []).filter(d => d && d.key != null && d.key !== '').map(d => ({
+          key: String(d.key), title: d.title || String(d.key),
+        }));
+      } catch (e) {
+        out[name] = [];
+      }
+    }));
+    return out;
+  }
+
   async sections() {
     const mc = await this.get('/library/sections', null, { maxAge: 300000 });
     return (mc.Directory || []).filter(d => d.type === 'movie' || d.type === 'show');
@@ -65,16 +84,12 @@ export class Server {
   }
 
   // unwatched: only titles not watched yet (shows: with unwatched episodes).
-  async items(sectionId, start, size, { sort = 'titleSort', type, unwatched = false } = {}) {
-    const params = {
-      sort, type,
-      'X-Plex-Container-Start': start,
-      'X-Plex-Container-Size': size,
-      excludeFields: 'summary,tagline',
-    };
-    if (unwatched) params[type === 2 ? 'unwatchedLeaves' : 'unwatched'] = 1;
-    const kid = listingFilter('plex', sectionId);
-    if (kid) Object.assign(params, kid);
+  // filters: { genre, year, decade, resolution, contentRating } from the section lists.
+  async items(sectionId, start, size, { sort = 'titleSort', type, unwatched = false, filters } = {}) {
+    const params = plexListingParams({
+      sort, type, unwatched, filters, start, size, kids: listingFilter('plex', sectionId),
+    });
+    params.excludeFields = 'summary,tagline';
     const mc = await this.get('/library/sections/' + sectionId + '/all', params, { timeout: 40000 }); // a big library on a busy server can be slow
     return { total: mc.totalSize != null ? mc.totalSize : mc.size, items: mc.Metadata || [] };
   }
@@ -144,7 +159,8 @@ export class Server {
   async metadata(ratingKey, { checkFiles = false } = {}) {
     // includeMarkers: intro/credits ranges, for the player's skip button.
     const mc = await this.get('/library/metadata/' + ratingKey, {
-      includeOnDeck: 1, includeExtras: 0, includeMarkers: 1, includeGuids: 1, checkFiles: checkFiles ? 1 : undefined,
+      includeOnDeck: 1, includeExtras: 0, includeMarkers: 1, includeGuids: 1, includeChapters: 1,
+      checkFiles: checkFiles ? 1 : undefined,
     }, checkFiles ? { timeout: 6000 } : undefined);
     const item = (mc.Metadata || [])[0];
     if (item && mc.OnDeck && mc.OnDeck.Metadata) item.onDeck = mc.OnDeck.Metadata[0];

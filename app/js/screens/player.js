@@ -22,6 +22,7 @@ import {
   directRefused, rememberDirectRefused, versionTitle, versionRows, rememberedVersion, rememberVersion, dvWithoutFallback,
 } from '../player/options.js';
 import { parseBif, bifIndex, bifPicture } from '../player/bif.js';
+import { chaptersFrom, chapterMarks, chapterIndex } from '../player/chapters.js';
 import { subOffset, setSubOffset, offsetLabel } from '../player/subprefs.js';
 import * as lang from '../util/lang.js';
 import { pickTracks, rememberShowTracks, showKeyOf, learnShowGenres } from '../player/tracks.js';
@@ -94,6 +95,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   const osdBottom = h('div', 'osd-bottom', osd);
   const bar = h('div', 'osd-bar', osdBottom);
   const barFill = h('div', 'osd-fill', bar);
+  const chapLayer = h('div', 'osd-chapters', bar);
   const knob = h('div', 'osd-knob', bar);
   const seekLabel = h('div', 'osd-seek', knob);
   const thumbEl = h('div', 'osd-thumb', osdBottom);
@@ -161,6 +163,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   let subOff = 0;           // timing offset for the current external subtitle file
   let lastSub = null;       // what the green button turns back on
   let markers = [];         // intro / credits ranges from Plex
+  let chapters = [];        // seek-bar ticks and the Chapters column
   let activeMarker = null;
   let toastTimer = 0;
   let failMsg = '';         // why direct play failed, remembered once the fallback plays
@@ -229,6 +232,14 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       setText(tLeft, '−' + clock(duration - ms));
       setText(tInfo, 'Ends at ' + timeOfDay(new Date(now + (duration - ms))));
     }
+  }
+
+  // Ticks only. A chapter at the start sits under the bar's rounded cap.
+  function renderChapterMarks() {
+    chapLayer.innerHTML = '';
+    chapterMarks(chapters, duration).forEach(m => {
+      setTransform(h('div', 'osd-chap', chapLayer), 'translateX(' + Math.round(m.at * 1728) + 'px)');
+    });
   }
 
   // Paused: dim the picture's controls in, and show the time of day (kept current).
@@ -690,6 +701,8 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
         return;
       }
       duration = item.duration || duration;
+      chapters = chaptersFrom(item);
+      renderChapterMarks();
       const medias = item.Media || [];
       // The version picked on the detail page, else the one played last time.
       const chosen = chosenMedia(medias, mediaIndex, rememberedVersion(item));
@@ -948,6 +961,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     { name: 'Episode', icon: icons.tv },
     { name: 'Sleep', icon: icons.sleep },
   ];
+  const CHAPTER_COL = { name: 'Chapters', icon: icons.film };
   let panelCols = PANEL_COLS.slice(0, 3); // Episode only for episodes with neighbours
   let panelCol = 0;
   let panelIndex = [0, 0, 0];
@@ -973,13 +987,19 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     if (neighbors.prev) eps.push({ label: 'Previous  ·  ' + episodeLabel(neighbors.prev) + '  ' + neighbors.prev.title, episode: neighbors.prev });
     if (neighbors.next) eps.push({ label: 'Next  ·  ' + episodeLabel(neighbors.next) + '  ' + neighbors.next.title, episode: neighbors.next });
     panelCols = PANEL_COLS.slice(0, 3);
+    if (chapters.length) {
+      const cur = chapterIndex(chapters, seekTarget != null ? seekTarget : position);
+      panelLists.push(chapters.map((c, i) => ({ label: c.title, chapter: c.start, on: i === cur })));
+      panelCols.push(CHAPTER_COL);
+    }
     if (eps.length) { panelLists.push(eps); panelCols.push(PANEL_COLS[3]); }
     const curSleep = sleepMode();
     panelLists.push(sleepChoices(item.type === 'movie').map(c => ({ label: c.label, sleep: c.id, on: c.id === curSleep })));
     panelCols.push(PANEL_COLS[4]);
     if (panelLists[2].some(o => o.version != null)) panelCols[2] = { name: 'Version', icon: icons.versions };
     toggleClass(panel, 'tracks-4', panelCols.length === 4);
-    toggleClass(panel, 'tracks-5', panelCols.length >= 5);
+    toggleClass(panel, 'tracks-5', panelCols.length === 5);
+    toggleClass(panel, 'tracks-6', panelCols.length >= 6);
     // External subtitle files are drawn by us, so their timing can be nudged.
     if (isSidecarText(subStream)) panelLists[1].push({ offset: true, label: timingLabel() });
     panelIndex = panelLists.map(l => Math.max(0, l.findIndex(x => x.on)));
@@ -1045,6 +1065,17 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       return;
     }
     if (opt.episode) { playEpisode(opt.episode); return; }
+    // Chapter starts are milliseconds. 0 is a real chapter, so this is != null.
+    // CH and prev/next already toggle subtitles and change episode.
+    if (opt.chapter != null) {
+      panel.classList.add('hidden');
+      if (!started) return;
+      seekTarget = opt.chapter;
+      toast(opt.label);
+      showOsd();
+      commitSeek();
+      return;
+    }
     if (col === 2 && opt.version != null) {
       panel.classList.add('hidden');
       if (opt.version !== mediaIdx) switchVersion(opt.version);

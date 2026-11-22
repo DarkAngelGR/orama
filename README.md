@@ -204,9 +204,11 @@ From a clone of this repository, set `WEBOS_DEVICE=tv` in `.env` and run
   rather than "Signs & Songs", and translated signs at the top of the screen.
 - **Rich pages:** IMDb, Rotten Tomatoes and TMDB ratings, cast with photos, trailers and an *Extras* row (behind the scenes, deleted scenes, featurettes), the rest of
   a collection, episode descriptions, theme music and a full *More info* page.
-- **Continue Watching that tells you things:** "S3 · E4 · 18m left". Hold OK to remove a tile,
-  mark it watched or clear its progress.
-- Each library remembers its sort and its all / unwatched filter, per profile.
+- **Continue Watching that tells you things:** "S3 · E4 · 18m left". Hold OK on a poster or
+  episode (Home, a library, search, or the episode list) to play from the start, open the
+  show or season, mark it watched or unwatched, or remove it from Continue Watching.
+- Each library remembers its sort, its all / unwatched filter, and any genre, year, resolution
+  or content-rating filter, per profile.
 
 ### 🗄️ Made for your server
 - **Smart search:** type what you're in the mood for, like *80s horror*, *unwatched comedies
@@ -262,19 +264,19 @@ From a clone of this repository, set `WEBOS_DEVICE=tv` in `.env` and run
 | Remote | What it does |
 | --- | --- |
 | Arrows / OK | Move around / select |
-| Hold OK on a home tile | Remove from Continue Watching, mark watched / unwatched |
+| Hold OK on a poster or episode | Play from the start, go to the show or season, mark watched / unwatched, remove from Continue Watching |
 | Play/Pause | Play whatever is focused; pause and resume |
 | Back | Go back (while watching, the first press hides the controls) |
 | ▲ while watching | Info bar: title, version, progress and how it's playing |
-| ▼ while watching | Audio, subtitles, version and quality, previous / next episode |
+| ▼ while watching | Audio, subtitles, version, quality, chapters, previous / next episode |
 | ◀ ▶ while watching | Seek 10 s; hold to go faster |
 | ⏪ ⏩ while watching | Jump 30 s; hold to go faster |
 | ⏮ ⏭ while watching | Previous / next episode (on remotes that have them) |
 | CH ▲ / CH ▼ while watching | Subtitles on or off |
-| ▲ from a library's first row | Sort (A–Z, recently added, release date, rating) and show all / unwatched |
+| ▲ from a library's first row | Sort, show all / unwatched, and filter by genre, year, resolution or rating |
 | CH ▲ / CH ▼ in a library | Jump by letter |
 
-Everything else lives in **Settings**: profiles, default quality, subtitle language and style,
+Everything else lives in **Settings**: profiles, default quality, audio and subtitle language and style,
 audio formats your TV can play, force direct play, theme music, downloads and updates.
 
 ## Plex or Jellyfin

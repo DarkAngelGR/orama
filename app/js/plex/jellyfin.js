@@ -14,6 +14,7 @@ import * as store from '../util/store.js';
 import { hasPlayableMedia, matchMedia, mediaKey, playbackState } from './availability.js';
 import { asList, asObj } from '../util/shape.js';
 import { listingFilter } from '../util/kids.js';
+import { jellyfinListingParams } from './filters.js';
 
 const TICKS = 10000; // Jellyfin counts time in 100 ns ticks; Plex in ms
 
@@ -260,6 +261,12 @@ export function toPlex(it) {
     o.viewedLeafCount = ud.Played ? leaf : Math.max(0, leaf - (ud.UnplayedItemCount || 0));
   }
   if (type === 'clip' && it.Type === 'Trailer') { o.extraType = 1; o.subtype = 'trailer'; }
+  if (Array.isArray(it.Chapters) && it.Chapters.length) {
+    o.Chapter = it.Chapters.filter(c => c && c.StartPositionTicks != null).map((c, i) => ({
+      tag: c.Name || ('Chapter ' + (i + 1)),
+      startTimeOffset: Math.round(Number(c.StartPositionTicks) / 10000),
+    }));
+  }
   if (it.MediaSources) o.Media = mediaOf(it);
   return o;
 }
@@ -343,6 +350,25 @@ export class JellyfinServer {
     throw new Error('Not available on Jellyfin: ' + path);
   }
 
+  async sectionFilters(sectionId) {
+    const base = { UserId: this.userId, ParentId: sectionId, Recursive: true, EnableImages: false };
+    const [genres, years] = await Promise.all([
+      this.req('/Genres', { params: Object.assign({ SortBy: 'SortName' }, base) }).catch(() => ({})),
+      this.req('/Years', { params: Object.assign({ SortBy: 'SortName', SortOrder: 'Descending' }, base) }).catch(() => ({})),
+    ]);
+    const yearOf = y => y && (y.Name || y.ProductionYear);
+    return {
+      genre: (genres.Items || []).map(g => (g && g.Name ? { key: g.Name, title: g.Name } : null)).filter(Boolean),
+      year: (years.Items || []).map(y => (yearOf(y) ? { key: String(yearOf(y)), title: String(yearOf(y)) } : null)).filter(Boolean),
+      decade: [],
+      resolution: [
+        { key: '4k', title: '4K' }, { key: '1080', title: '1080p' },
+        { key: '720', title: '720p' }, { key: 'sd', title: 'SD' },
+      ],
+      contentRating: [],
+    };
+  }
+
   async sections() {
     return this.cached('views', 300000, async () => {
       const r = await this.req(this.u('/Views'));
@@ -378,28 +404,31 @@ export class JellyfinServer {
 
   async sectionHubs() { return []; }
 
-  async items(sectionId, start, size, { sort = 'titleSort', type, unwatched = false } = {}) {
+  async items(sectionId, start, size, { sort = 'titleSort', type, unwatched = false, filters } = {}) {
     const [by, order] = SORTS[sort] || SORTS.titleSort;
     const kidsOn = !!listingFilter('jellyfin');
     const kid = listingFilter('jellyfin', sectionId);   // none for a kids library: keep its unrated titles
-    const r = await this.req(this.u('/Items'), { timeout: 40000, params: {
+    const extra = jellyfinListingParams({ filters, unwatched, kids: kid });
+    const r = await this.req(this.u('/Items'), { timeout: 40000, params: Object.assign({
       ParentId: sectionId, Recursive: true, IncludeItemTypes: type === 2 ? 'Series' : 'Movie',
       StartIndex: start, Limit: size, SortBy: by, SortOrder: order,
       Fields: 'ProviderIds,ChildCount,RecursiveItemCount,PremiereDate,CommunityRating' + (kidsOn ? ',OfficialRating' : ''),
-      MaxOfficialRating: kid ? kid.MaxOfficialRating : undefined,
-      Filters: unwatched ? 'IsUnplayed' : undefined, EnableTotalRecordCount: true,
-    } });
+      EnableTotalRecordCount: true,
+    }, extra) });
     return { total: r.TotalRecordCount || 0, items: plexList(r && r.Items) };
   }
 
   // Plex's "first character" index for the letter jump: titles in A–Z order,
   // grouped by first letter ('#' for anything else), in the order they appear.
-  async letters(sectionId, { type, unwatched, unwatchedLeaves, MaxOfficialRating } = {}) {
+  async letters(sectionId, params = {}) {
+    const { type, unwatched, unwatchedLeaves } = params;
     const r = await this.req(this.u('/Items'), { timeout: 40000, params: {
       ParentId: sectionId, Recursive: true, IncludeItemTypes: String(type) === '2' ? 'Series' : 'Movie',
       SortBy: 'SortName', SortOrder: 'Ascending', Fields: 'SortName', EnableImages: false, EnableUserData: false,
-      Filters: unwatched || unwatchedLeaves ? 'IsUnplayed' : undefined,
-      MaxOfficialRating,
+      Filters: params.Filters || (unwatched || unwatchedLeaves ? 'IsUnplayed' : undefined),
+      MaxOfficialRating: params.MaxOfficialRating,
+      Genres: params.Genres, Years: params.Years, Is4K: params.Is4K, IsHD: params.IsHD,
+      MinHeight: params.MinHeight, MaxHeight: params.MaxHeight,
     } });
     const dirs = [];
     (r.Items || []).forEach(it => {

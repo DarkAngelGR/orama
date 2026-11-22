@@ -285,7 +285,8 @@ html.fast .row-clip, html.no-motion .row-clip { transition: none; }
   background: var(--faint); font: 600 24px/52px var(--body); color: var(--cream);
 }
 .lib-sort.focus { background: var(--cream); color: var(--bg); }
-.lib-sort.lib-filter { margin-left: 16px; }
+.lib-sort.lib-filter, .lib-sort.lib-more { margin-left: 16px; }
+.lib-sort.lib-more { max-width: 560px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lib-focus {
   position: absolute; top: 146px; left: 96px; width: 1160px;
   font: 500 26px var(--body); color: var(--cream);
@@ -405,6 +406,8 @@ html.fast .row-clip, html.no-motion .row-clip { transition: none; }
   background: linear-gradient(0deg, rgba(0, 0, 0, 0.85), transparent);
 }
 .osd-bar { position: absolute; left: 96px; width: 1728px; bottom: 150px; height: 16px; border-radius: 8px; background: rgba(244, 243, 255, 0.3); }
+.osd-chapters { position: absolute; left: 0; top: 0; width: 1728px; height: 16px; }
+.osd-chap { position: absolute; left: 0; top: 0; width: 3px; height: 16px; background: var(--cream); opacity: 0.9; }
 .osd-fill {
   position: absolute; top: 0; left: 0; width: 100%; height: 100%;
   border-radius: 8px; background: var(--accent); transform-origin: 0 0; will-change: transform;
@@ -511,6 +514,9 @@ html.subs-bg .subs-text {
 .tracks.tracks-4 { width: 1640px; }
 .tracks.tracks-5 { width: 1860px; padding-left: 36px; padding-right: 24px; }
 .tracks.tracks-5 .tracks-col { margin-right: 16px; }
+.tracks.tracks-6 { width: 1920px; padding-left: 24px; padding-right: 16px; }
+.tracks.tracks-6 .tracks-col { margin-right: 10px; }
+.tracks.tracks-6 .tracks-opt { padding-left: 12px; padding-right: 12px; font-size: 22px; }
 .tracks-col { flex: 1; margin-right: 32px; overflow: hidden; }
 .tracks-head { display: flex; align-items: center; margin-bottom: 24px; font: 600 24px var(--body); color: var(--dim); letter-spacing: 0.08em; text-transform: uppercase; }
 .tracks-head svg { width: 30px; height: 30px; margin-right: 12px; }
@@ -755,7 +761,7 @@ html.subs-bg .subs-text {
 .btn.press-b { animation: press-b 170ms var(--ease); }
 
 html.fast .screen, html.fast .hero-info, html.fast .choice-picker, html.fast .tracks { animation: none; }
-html.fast .btn, html.fast .opt, html.fast .nav-item, html.fast .tracks-opt, html.fast .setting { transition: none; }
+html.fast .btn, html.fast .opt, html.fast .nav-item, html.fast .lib-sort, html.fast .tracks-opt, html.fast .setting { transition: none; }
 html.no-motion .screen, html.no-motion .hero-info, html.no-motion .choice-picker, html.no-motion .tracks,
 html.no-motion .btn { animation: none !important; }
 html.no-motion .btn, html.no-motion .opt, html.no-motion .nav-item, html.no-motion .lib-sort,
