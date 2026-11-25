@@ -267,6 +267,9 @@ export function toPlex(it) {
       startTimeOffset: Math.round(Number(c.StartPositionTicks) / 10000),
     }));
   }
+  // An episode or season shows its series' logo, as on Plex.
+  const logo = img(it.Id, 'Logo', tags.Logo) || img(it.ParentLogoItemId, 'Logo', it.ParentLogoImageTag);
+  if (logo) o.Image = [{ type: 'clearLogo', url: logo }];
   if (it.MediaSources) o.Media = mediaOf(it);
   return o;
 }
@@ -379,7 +382,7 @@ export class JellyfinServer {
 
   async hubs() {
     const views = await this.sections();
-    const fields = { Fields: LIST_FIELDS, EnableImageTypes: 'Primary,Backdrop,Thumb' };
+    const fields = { Fields: LIST_FIELDS, EnableImageTypes: 'Primary,Backdrop,Thumb,Logo' };
     const [resume, next, ...latest] = await Promise.all([
       this.req(this.u('/Items/Resume'), { params: Object.assign({ Limit: 24, MediaTypes: 'Video' }, fields) }).catch(() => ({})),
       this.req('/Shows/NextUp', { params: Object.assign({ UserId: this.userId, Limit: 24 }, fields) }).catch(() => ({})),

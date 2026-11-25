@@ -15,6 +15,7 @@ import * as notifications from '../plex/notifications.js';
 import * as downloads from '../plex/downloads.js';
 import { leftQueue, findReady, placeReady, queueId } from '../plex/ready.js';
 import { notice } from '../ui/notice.js';
+import { showLogo } from '../ui/logo.js';
 import { Picker } from '../ui/picker.js';
 import * as watchlist from '../plex/watchlist.js';
 import * as together from '../plex/together.js';
@@ -68,11 +69,6 @@ function slimHub(hub) {
 export function heroArtPath(item) {
   if (item.type === 'episode' || item.type === 'season') return item.grandparentArt || item.art;
   return item.art;
-}
-
-export function clearLogo(item) {
-  const img = (item.Image || []).find(i => i.type === 'clearLogo');
-  return img ? img.url : '';
 }
 
 export function HomeScreen() {
@@ -209,17 +205,9 @@ export function HomeScreen() {
     if (!item) return;
     if (item !== heroItem) motion.replay(info, 'hero-swap');
     heroItem = item;
-    const logoPath = clearLogo(item);
     const server = session.server;
-    if (logoPath && item.type !== 'episode') {
-      heroLogo.src = server.image(logoPath, 640, 200, { format: 'png' });
-      heroLogo.style.display = '';
-      heroTitle.style.display = 'none';
-    } else {
-      heroLogo.style.display = 'none';
-      heroTitle.style.display = '';
-      setText(heroTitle, item.type === 'episode' ? item.grandparentTitle : item.title);
-    }
+    setText(heroTitle, item.type === 'episode' ? item.grandparentTitle : item.title);
+    showLogo(heroLogo, heroTitle, item, p => server.image(p, 640, 200, { format: 'png' }));
     if (item.request) {
       setText(heroMeta, describeRequest(item.request));
       setText(heroSummary, '');

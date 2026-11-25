@@ -6,7 +6,7 @@ import { Picker } from '../ui/picker.js';
 import { session } from '../session.js';
 import { metaLine, clock, episodeLabel, duration } from '../util/format.js';
 import { longDate } from './info.js';
-import { clearLogo } from './home.js';
+import { showLogo } from '../ui/logo.js';
 import * as icons from '../ui/icons.js';
 import * as router from '../router.js';
 import { playItem, openPerson, openItem, openCatalogLookup } from '../nav.js';
@@ -93,17 +93,8 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
 
   function renderHeader() {
     const server = session.server;
-    const logoPath = clearLogo(item);
-    const showTitle = item.type === 'episode' ? item.grandparentTitle : item.title;
-    if (logoPath) {
-      logo.src = server.image(logoPath, 720, 240, { format: 'png' });
-      logo.style.display = '';
-      title.style.display = 'none';
-    } else {
-      logo.style.display = 'none';
-      title.style.display = '';
-      setText(title, showTitle);
-    }
+    setText(title, item.type === 'episode' ? item.grandparentTitle : item.title);
+    showLogo(logo, title, item, p => server.image(p, 720, 240, { format: 'png' }));
     setText(sub, item.type === 'episode' ? episodeLabel(item) + '   ' + item.title : (item.tagline || ''));
     setText(meta, metaLine(item));
     const genres = (item.Genre || []).slice(0, 3).map(g => g.tag);
