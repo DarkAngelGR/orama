@@ -206,7 +206,7 @@ html.playing .ambience { display: none; }
 }
 .hero-logo { display: block; max-width: 640px; max-height: 170px; margin-top: 14px; object-fit: contain; object-position: left bottom; }
 .hero-title {
-  margin-top: 10px; max-height: 184px; font: 800 92px/0.95 var(--display); letter-spacing: -0.04em;
+  margin-top: 10px; max-height: 200px; padding-bottom: 8px; font: 800 92px/0.95 var(--display); letter-spacing: -0.04em;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 .hero-meta {
@@ -375,7 +375,7 @@ html.fast .row-clip, html.no-motion .row-clip { transition: none; }
 
 .grid { position: absolute; left: 160px; width: 1720px; overflow: hidden; }   /* posters start at 176, clear of the rail */
 .grid-track {
-  position: absolute; top: 12px; left: 16px;
+  position: absolute; top: 28px; left: 16px;
   will-change: transform; transition: transform 260ms var(--ease);
 }
 .grid-row { position: absolute; top: 0; left: 0; will-change: transform; }
@@ -426,11 +426,6 @@ html.fast .row-clip, html.no-motion .row-clip { transition: none; }
 .detail-progress-bar { height: 5px; border-radius: 3px; background: rgba(255, 255, 255, 0.2); overflow: hidden; }
 .detail-progress-bar i { display: block; height: 100%; width: 100%; background: var(--accent); transform-origin: 0 0; }
 .detail-progress-text { margin-top: 10px; font: 600 20px/1 var(--body); color: rgba(255, 255, 255, 0.6); }
-.detail-down {
-  position: absolute; left: 120px; bottom: 36px; z-index: 2;
-  font: 700 28px/1 var(--body); color: rgba(255, 255, 255, 0.55); opacity: 0;
-}
-.detail-down.on { opacity: 1; }
 .detail-buttons { margin-top: 34px; height: 80px; white-space: nowrap; }
 
 /* A catalog title (not on your server) on the detail layout */

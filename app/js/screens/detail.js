@@ -48,7 +48,6 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
   const progWrap = h('div', 'detail-progress', body);
   const progFill = h('i', '', h('div', 'detail-progress-bar', progWrap));
   const progText = h('div', 'detail-progress-text', progWrap);
-  const moreHint = h('div', 'detail-down', el);
   const seasonsEl = h('div', 'detail-seasons', body);
   const seasonsTrack = h('div', 'detail-seasons-track', seasonsEl);
   const episodesWrap = h('div', 'detail-episodes', body);
@@ -806,11 +805,6 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     else if (zone === 'extras') shift = Math.max(0, extrasWrap.offsetTop - 330);
     setTransform(body, shift ? 'translateY(' + (-shift) + 'px)' : 'translateY(0)');
     toggleClass(el, 'shifted', shift > 40);
-    const hint = [];
-    if (cast) hint.push('Cast');
-    if (coll) hint.push('More like this');
-    setText(moreHint, hint.length ? '▾  ' + hint.join(' · ') : '');
-    toggleClass(moreHint, 'on', !isShowLike() && hint.length > 0 && (zone === 'buttons' || zone === 'options'));
   }
 
   // Description of the highlighted episode, under the row. Season listings
