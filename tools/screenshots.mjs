@@ -93,11 +93,11 @@ async function shoot(page) {
     if (!home) return false;
     const imgs = [...home.querySelectorAll('.tile-img')].filter(i => i.getAttribute('src'));
     const hero = home.querySelector('.hero-img.on');
-    const brand = [...home.querySelectorAll('.brand img')];
+    const mark = home.querySelector('.rail-mark svg');
     return home.querySelectorAll('.row').length >= 3
       && imgs.length >= 3 && imgs.every(i => i.complete && i.naturalWidth > 0)
       && hero && hero.complete && hero.naturalWidth > 0
-      && brand.length >= 2 && brand.every(i => i.complete && i.naturalWidth > 0);
+      && !!mark;
   });
   const shots = new Map();
   shots.set('1-home', await png());
@@ -107,9 +107,11 @@ async function shoot(page) {
     return rows[1] && rows[1].classList.contains('active');
   });
   shots.set('2-home-next-row', await png());
+  // Back to the first row, open the rail, and pick the first library (Movies).
   await press(page, 'ArrowUp');
-  await press(page, 'ArrowUp');
-  await press(page, 'ArrowRight');
+  await press(page, 'ArrowLeft');
+  await page.waitForFunction(() => !!document.querySelector('.screen.home:not(.hidden) .rail.open'));
+  await press(page, 'ArrowDown');
   await press(page, 'Enter');
   await page.waitForFunction(() => {
     const lib = document.querySelector('.screen.library:not(.hidden)');
