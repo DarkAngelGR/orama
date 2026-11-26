@@ -30,6 +30,11 @@
   --display: 'Manrope', 'SamsungOneUI', sans-serif;
   --body: 'Manrope', 'SamsungOneUI', sans-serif;
 }
+/* Christmas replaces the gold accent. The focus ring stays white. */
+html.xmas {
+  --accent: #E5484D;
+  --pine: #2F9E6B;
+}
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -128,8 +133,10 @@ html.playing .ambience { display: none; }
   transition: opacity 180ms ease; will-change: opacity; pointer-events: none;
 }
 .rail.open .rail-bg { opacity: 1; }
-.rail-mark { width: 44px; height: 44px; margin: 0 0 30px 6px; }
+.rail-mark { position: relative; width: 44px; height: 44px; margin: 0 0 30px 6px; }
 .rail-mark svg { width: 44px; height: 44px; display: block; }
+.rail-hat { position: absolute; left: 2px; top: -16px; width: 44px; height: 28px; pointer-events: none; }
+.rail-hat svg { width: 44px; height: 28px; }
 .rail-clip { height: 760px; overflow: hidden; }
 .rail-list { will-change: transform; transition: transform 200ms var(--ease); }
 .rail-row {
@@ -913,3 +920,34 @@ html.no-motion .detail-body, html.no-motion .detail-art { transition: none; }
 .together-lobby-people { margin-top: 18px; font: 500 28px var(--body); color: var(--dim); }
 .together-lobby-hint { margin-top: 28px; font: 600 28px/1 var(--body); color: var(--accent); }
 .in-lobby .pause-big { display: none; }
+
+/* ---------- Christmas (only while html.xmas, and the nodes exist) ---------- */
+.snow {
+  position: absolute; left: 0; top: 0; width: 1920px; height: 1080px;
+  pointer-events: none; overflow: hidden;
+}
+.snow i {
+  position: absolute; top: 0; border-radius: 50%; background: #fff;
+  will-change: transform; animation: snow-fall linear infinite;
+}
+@keyframes snow-fall {
+  from { transform: translate3d(0, -20px, 0); }
+  to { transform: translate3d(var(--dx), 1120px, 0); }
+}
+html.playing .snow, html.no-motion .snow { display: none; }
+html.fast .snow i { animation-play-state: paused; }
+.xmas-lights {
+  position: absolute; z-index: 6; left: 0; top: 0; width: 1920px; height: 22px;
+  pointer-events: none;
+}
+.xmas-lights i {
+  position: absolute; top: 6px; width: 10px; height: 10px; border-radius: 5px;
+  will-change: opacity; animation: xmas-twinkle 1.6s ease-in-out infinite;
+}
+@keyframes xmas-twinkle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.28; }
+}
+html.no-motion .xmas-lights i { animation: none; }
+html.playing .xmas-lights { display: none; }
+html.fast .xmas-lights i { animation-play-state: paused; }

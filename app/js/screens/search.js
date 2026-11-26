@@ -2,6 +2,7 @@
 // (Samsung IME or the webOS virtual keyboard); results update as you type.
 import { h, setText, setTransform, toggleClass } from '../util/dom.js';
 import { Rail } from '../ui/rail.js';
+import { dress } from '../ui/season.js';
 import { activateRail } from '../nav.js';
 import { Row } from '../ui/row.js';
 import { session, isJellyfin } from '../session.js';
@@ -247,6 +248,7 @@ export function SearchScreen() {
     onShow() {
       ambience.restore();
       rail.paintWho();
+      dress(el);
       clearTimeout(focusTimer);
       // After this screen is covered, the timer must not pull focus back.
       if (rowIndex < 0) focusTimer = setTimeout(focusInput, 50);

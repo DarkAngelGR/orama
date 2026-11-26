@@ -9,6 +9,7 @@ import { ServerPicker } from './login.js';
 import { error } from '../util/log.js';
 import { useAmbience, setLegacyGradients, legacyGradients } from '../ui/backdrop.js';
 import * as motion from '../ui/motion.js';
+import { pref as seasonPref, label as seasonLabel, cycle as cycleSeason } from '../ui/season.js';
 import {
   QUALITIES, qualityById, defaultQuality, setDefaultQuality, forceDirect, setForceDirect, audioExtras, cycleAudioExtras, cwOpens, cycleCwOpens,
 } from '../player/options.js';
@@ -106,6 +107,7 @@ export function SettingsScreen() {
         })) },
       ] : []),
       { label: 'Animations', value: motion.enabled() ? 'On' : 'Off · everything appears at once', run: () => { motion.setEnabled(!motion.enabled()); build(); } },
+      { label: 'Seasonal theme', value: seasonLabel(seasonPref()), run: () => { cycleSeason(); build(); } },
       { label: 'Demo: original slow renderer', value: legacyGradients() ? 'On' : 'Off', run: () => { setLegacyGradients(!legacyGradients()); build(); } },
     ]);
     if (index >= items.length) index = Math.max(0, items.length - 1);

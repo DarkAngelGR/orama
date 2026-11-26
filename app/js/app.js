@@ -13,6 +13,7 @@ import * as nav from './nav.js';
 import * as store from './util/store.js';
 import { applySubtitleStyle, adoptAccountLanguages } from './player/subprefs.js';
 import * as motion from './ui/motion.js';
+import * as season from './ui/season.js';
 
 function goHome() {
   router.reset(HomeScreen());
@@ -98,6 +99,7 @@ export function boot() {
     window.addEventListener('resize', fitWindow);
   }
   motion.apply();
+  season.apply();
   onIdentity(adoptAccountLanguages);
   router.init(document.getElementById('app'));
   initHud(() => (router.top() && router.top().name) || '');

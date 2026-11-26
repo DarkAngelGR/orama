@@ -5,6 +5,7 @@
 // (title sort) or by page. Hold OK opens the title menu.
 import { h, setText, setTransform, toggleClass } from '../util/dom.js';
 import { Rail, mountClock } from '../ui/rail.js';
+import { dress } from '../ui/season.js';
 import { activateRail } from '../nav.js';
 import * as store from '../util/store.js';
 import { Grid } from '../ui/grid.js';
@@ -407,7 +408,7 @@ export function LibraryScreen(section) {
   return {
     el,
     name: 'library',
-    onShow() { ambience.restore(); rail.paintWho(); },
+    onShow() { ambience.restore(); rail.paintWho(); dress(el); },
     destroy() { generation++; clearTimeout(retryTimer); stopClock(); },
     wantsHold() {
       return !onSort && !picker.isOpen && libraryItem(grid.current());

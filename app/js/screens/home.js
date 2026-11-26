@@ -27,6 +27,7 @@ import { arm, homeEnter, homeReady } from '../util/perf.js';
 import { enabled as kidsOn, filterHubs, playbackBlocked } from '../util/kids.js';
 import { libraryItem, openTitleMenu } from '../ui/tilemenu.js';
 import { Rail, mountClock } from '../ui/rail.js';
+import { dress, seasonOn } from '../ui/season.js';
 
 // Once per app start, a few seconds after home appears: is there a newer
 // Orama? Mentioned once per version.
@@ -188,13 +189,17 @@ export function HomeScreen() {
     actionBtns.forEach((b, i) => toggleClass(b.el, 'focus', zone === 'actions' && i === actionIndex));
   }
 
+  function festiveEye(eye) {
+    return seasonOn() && eye ? 'Merry Christmas · ' + eye : eye;
+  }
+
   function showHero(item) {
     if (!item) return;
     if (item !== heroItem) motion.replay(info, 'hero-swap');
     heroItem = item;
     const server = session.server;
     const row = rows[rowIndex];
-    setText(heroEye, heroEyebrow(row && row.title, item));
+    setText(heroEye, festiveEye(heroEyebrow(row && row.title, item)));
     setText(heroTitle, item.type === 'episode' ? item.grandparentTitle : item.title);
     showLogo(heroLogo, heroTitle, item, p => server.image(p, 720, 220, { format: 'png' }));
     if (item.request) {
@@ -700,6 +705,8 @@ export function HomeScreen() {
       if (kidsOn() !== kidsWas) { kidsWas = kidsOn(); stale = true; }
       checkForUpdate();
       rail.paintWho();
+      dress(el);
+      if (heroItem) setText(heroEye, festiveEye(heroEyebrow(rows[rowIndex] && rows[rowIndex].title, heroItem)));
       const profile = readTaste(activeTasteKey());
       if (!profile.length && (tasteItems.length || worthItems.length)) loadTaste();
       // Coming back from playback: progress and Continue Watching changed.
