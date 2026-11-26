@@ -22,20 +22,59 @@ export function episodeLabel(item) {
 }
 
 // The line under a title: "2019 · PG-13 · 2h 4m" style.
-export function metaLine(item) {
+// 4K / HDR / 5.1 from a listing that already carries Media. Empty when it doesn't.
+export function techChips(item) {
+  const media = item && item.Media && item.Media[0];
+  if (!media) return [];
+  const chips = [];
+  const r = String(media.videoResolution || '').toLowerCase();
+  if (r === '4k') chips.push('4K');
+  else if (r === '1080' || r === '720') chips.push(r + 'p');
+  const streams = (media.Part && media.Part[0] && media.Part[0].Stream) || [];
+  const v = streams.find(s => s && s.streamType === 1) || {};
+  const blob = (v.displayTitle || '') + ' ' + (v.title || '') + ' ' + (v.colorTrc || '');
+  if (v.DOVIPresent || /dolby vision|dovi/i.test(blob)) chips.push('Dolby Vision');
+  else if (/hdr10\+/i.test(blob)) chips.push('HDR10+');
+  else if (/hdr10/i.test(blob)) chips.push('HDR10');
+  else if (/smpte2084|arib-std-b67|\bhdr\b|\bhlg\b/i.test(blob)) chips.push('HDR');
+  const a = streams.find(s => s && s.streamType === 2);
+  if (a && a.channels === 8) chips.push('7.1');
+  else if (a && a.channels === 6) chips.push('5.1');
+  return chips;
+}
+
+// Pieces of the line under a title. `chip` is the outlined kind (rating, 4K).
+export function metaParts(item) {
   const parts = [];
+  const add = (text, chip) => { if (text) parts.push({ text: String(text), chip: !!chip }); };
+  if (!item) return parts;
   if (item.type === 'episode') {
-    parts.push(episodeLabel(item));
-    if (item.originallyAvailableAt) parts.push(item.originallyAvailableAt.slice(0, 4));
-  } else if (item.year) {
-    parts.push(item.year);
+    add(episodeLabel(item));
+    if (item.originallyAvailableAt) add(item.originallyAvailableAt.slice(0, 4));
+  } else if (item.year) add(item.year);
+  if (item.contentRating) add(item.contentRating, true);
+  if (item.type === 'show' && item.childCount) add(item.childCount + (item.childCount === 1 ? ' season' : ' seasons'));
+  else if (item.duration) add(duration(item.duration));
+  techChips(item).forEach(c => add(c, true));
+  const score = scoresText(item);
+  if (score) add(score);
+  return parts;
+}
+
+export function metaLine(item) {
+  return metaParts(item).map(p => p.text).join('  ·  ');
+}
+
+// Gold eyebrow on Home. Continue Watching adds how much is left.
+export function heroEyebrow(rowTitle, item) {
+  const hub = rowTitle || '';
+  if (/continue|on\s*deck/i.test(hub)) {
+    if (item && item.viewOffset && item.duration > item.viewOffset) {
+      return 'Continue watching · ' + duration(Math.max(60000, item.duration - item.viewOffset)) + ' left';
+    }
+    return 'Continue watching';
   }
-  if (item.contentRating) parts.push(item.contentRating);
-  if (item.type === 'show' && item.childCount) parts.push(item.childCount + (item.childCount === 1 ? ' season' : ' seasons'));
-  else if (item.duration) parts.push(duration(item.duration));
-  const score = scoresText(item); // IMDb / Rotten Tomatoes / TMDB when Plex names them
-  if (score) parts.push(score);
-  return parts.join('  ·  ');
+  return hub;
 }
 
 export function progress(item) {

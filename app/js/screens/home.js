@@ -4,10 +4,9 @@ import { h, setText, setTransform, toggleClass } from '../util/dom.js';
 import { Row } from '../ui/row.js';
 import { useAmbience, HeroArt } from '../ui/backdrop.js';
 import { session, isJellyfin } from '../session.js';
-import { metaLine } from '../util/format.js';
+import { metaParts, heroEyebrow } from '../util/format.js';
 import { isFast } from '../input.js';
 import * as store from '../util/store.js';
-import * as icons from '../ui/icons.js';
 import { openItem, playItem, openLibrary, openSearch, openSettings, openCatalogLookup, openCatalog } from '../nav.js';
 import { error, log } from '../util/log.js';
 import * as updates from '../plex/updates.js';
@@ -27,6 +26,7 @@ import { currentRequests, describeRequest, subscribeRequests, tracked } from '..
 import { arm, homeEnter, homeReady } from '../util/perf.js';
 import { enabled as kidsOn, filterHubs, playbackBlocked } from '../util/kids.js';
 import { libraryItem, openTitleMenu } from '../ui/tilemenu.js';
+import { Rail, mountClock } from '../ui/rail.js';
 
 // Once per app start, a few seconds after home appears: is there a newer
 // Orama? Mentioned once per version.
@@ -43,8 +43,9 @@ function checkForUpdate() {
   }, 6000);
 }
 
-const ROWS_TOP = 600;
-const NAV_PAD = 80; // wider than the 64px edge fade in app.css
+const ROWS_TOP = 790;
+// Home rows are clipped at the rail (112). 64 more puts the focused tile at x=176.
+const ROW_INSET = 64;
 const TASTE_ROW = 'orama.for-you';
 
 export { libraryItem };
@@ -77,27 +78,17 @@ export function HomeScreen() {
   const ambience = useAmbience();
   const hero = new HeroArt(el, 'hero-art home-art');
 
-  const top = h('header', 'topbar', el);
-  const brand = h('div', 'brand', top);
-  h('img', 'brand-mark', brand).src = 'img/logo-mark.png';
-  const brandText = h('div', 'brand-text', brand);
-  h('img', 'brand-wordmark', brandText).src = 'img/wordmark.png';
-  h('div', 'brand-by', brandText).textContent = 'by DarkAngelGR';
-  // The nav is a clip with a sliding track, so any number of libraries fits.
-  const navEl = h('nav', 'nav', top);
-  const navTrack = h('div', 'nav-track', navEl);
+  const stopClock = mountClock(el);
   // "Scanning Movies · 42%" while the server works on a library.
-  const libStatus = h('div', 'lib-status', top);
+  const libStatus = h('div', 'lib-status', el);
   h('i', 'lib-status-spin', libStatus);
   const libStatusText = h('span', '', libStatus);
-  const who = h('div', 'topbar-who', top);
-  setText(who, (session.user && session.user.title ? session.user.title + '  ·  ' : '') + (session.server ? session.server.name : ''));
   let kidsBadge = null;
   let kidsWas = kidsOn();
   function paintKids() {
     const on = kidsOn();
     if (on && !kidsBadge) {
-      kidsBadge = h('div', 'kids-badge', top);
+      kidsBadge = h('div', 'kids-badge', el);
       kidsBadge.textContent = 'Kids';
     } else if (!on && kidsBadge) {
       kidsBadge.remove();
@@ -108,10 +99,14 @@ export function HomeScreen() {
 
   const info = h('div', 'hero-info', el);
   let heroItem = null;
+  const heroEye = h('div', 'hero-eyebrow', info);
   const heroLogo = h('img', 'hero-logo', info);
   const heroTitle = h('h1', 'hero-title', info);
   const heroMeta = h('div', 'hero-meta', info);
   const heroSummary = h('p', 'hero-summary', info);
+  const heroActions = h('div', 'hero-actions', info);
+  let actionBtns = [];
+  let actionIndex = 0;
 
   const rowsClip = h('div', 'home-rows', el);
   rowsClip.style.top = ROWS_TOP + 'px';
@@ -125,9 +120,6 @@ export function HomeScreen() {
   let offsets = [];
   let rowIndex = 0;
   let zone = 'rows';
-  let navItems = [];
-  let navIndex = 0;
-  let navScroll = 0;
   let loadedAt = 0;
   let heroTimer = 0;
   let artTimer = 0;
@@ -159,46 +151,47 @@ export function HomeScreen() {
   let loadGen = 0;
   let worthSignature = '';
 
-  function buildNav(sections) {
-    navTrack.innerHTML = '';
-    navItems = [{ label: 'Home', id: 'home' }]
-      .concat(sections.map(s => ({ label: s.title, id: 'section', section: s })))
-      .concat([{ label: 'Search', id: 'search', icon: icons.search }, { label: 'Settings', id: 'settings', icon: icons.gear }]);
-    navIndex = Math.min(navIndex, navItems.length - 1);
-    navItems.forEach((n, i) => {
-      if (n.icon && !navItems[i - 1].icon) h('i', 'nav-sep', navTrack);
-      n.el = h('div', 'nav-item' + (n.icon ? ' nav-icon' : ''), navTrack);
-      if (n.icon) n.el.innerHTML = n.icon;
-      else h('span', '', n.el).textContent = n.label;
-    });
-    renderNav();
+  function activateNav(n) {
+    if (n.id === 'section') openLibrary(n.section);
+    else if (n.id === 'search') openSearch();
+    else if (n.id === 'settings') openSettings();
   }
 
-  // Slide the track just enough to keep the focused item clear of the edge fades.
-  function scrollNav() {
-    const room = navEl.clientWidth;
-    if (!room) return; // hidden screen: nothing to measure
-    const max = Math.max(0, navTrack.offsetWidth - room);
-    const n = navItems[navIndex];
-    if (zone === 'nav' && n) {
-      const left = n.el.offsetLeft;
-      const right = left + n.el.offsetWidth;
-      if (left - NAV_PAD < navScroll) navScroll = left - NAV_PAD;
-      else if (right + NAV_PAD > navScroll + room) navScroll = right + NAV_PAD - room;
-    }
-    navScroll = Math.round(Math.max(0, Math.min(max, navScroll)));
-    setTransform(navTrack, 'translateX(' + (-navScroll) + 'px)');
-    toggleClass(navEl, 'more-left', navScroll > 0);
-    toggleClass(navEl, 'more-right', navScroll < max - 1);
+  const rail = Rail(el, { current: 'home', onActivate: activateNav });
+
+  function paintMeta(parts) {
+    heroMeta.textContent = '';
+    parts.forEach(p => {
+      if (!p || !p.text) return;
+      const s = h('span', p.chip ? 'chip' : 'meta-bit', heroMeta);
+      s.textContent = p.text;
+    });
   }
 
-  function renderNav() {
-    scrollNav(); // measure before the class writes below dirty the style
-    navItems.forEach((n, i) => {
-      toggleClass(n.el, 'focus', zone === 'nav' && i === navIndex);
-      toggleClass(n.el, 'current', n.id === 'home');
-    });
-    toggleClass(el, 'in-nav', zone === 'nav');
+  function paintActions(item) {
+    heroActions.textContent = '';
+    actionBtns = [];
+    const add = (label, primary, run) => {
+      const b = h('div', 'btn' + (primary ? ' primary' : ''), heroActions);
+      b.textContent = (primary ? '▶  ' : '') + label;
+      actionBtns.push({ el: b, run });
+    };
+    if (!item) { renderActions(); return; }
+    const playable = item.type === 'movie' || item.type === 'episode' || item.type === 'show' || item.type === 'season' || item.type === 'clip';
+    const resume = playable && item.viewOffset && item.duration > item.viewOffset && !item.together && !item.syncplay;
+    if (item.together || item.syncplay) add('Join', true, () => selectItem(item));
+    else if (item.request || item.download || item.upcoming || item.arr) add('Open', true, () => selectItem(item));
+    else if (playable) {
+      add(resume ? 'Resume' : 'Play', true, () => playItem(item, resume ? { offset: item.viewOffset } : undefined));
+      if (resume) add('From the start', false, () => playItem(item, { offset: 0 }));
+    } else add('Open', true, () => selectItem(item));
+    if (libraryItem(item)) add('More', false, () => openTileMenu());
+    if (actionIndex >= actionBtns.length) actionIndex = 0;
+    renderActions();
+  }
+
+  function renderActions() {
+    actionBtns.forEach((b, i) => toggleClass(b.el, 'focus', zone === 'actions' && i === actionIndex));
   }
 
   function showHero(item) {
@@ -206,25 +199,33 @@ export function HomeScreen() {
     if (item !== heroItem) motion.replay(info, 'hero-swap');
     heroItem = item;
     const server = session.server;
+    const row = rows[rowIndex];
+    setText(heroEye, heroEyebrow(row && row.title, item));
     setText(heroTitle, item.type === 'episode' ? item.grandparentTitle : item.title);
-    showLogo(heroLogo, heroTitle, item, p => server.image(p, 640, 200, { format: 'png' }));
+    showLogo(heroLogo, heroTitle, item, p => server.image(p, 720, 220, { format: 'png' }));
     if (item.request) {
-      setText(heroMeta, describeRequest(item.request));
+      paintMeta([{ text: describeRequest(item.request) }]);
       setText(heroSummary, '');
     } else if (item.download) {
-      setText(heroMeta, (item.year ? item.year + '  ·  ' : '') + downloads.describe(item.download));
+      paintMeta([{ text: (item.year ? item.year + '  ·  ' : '') + downloads.describe(item.download) }]);
       setText(heroSummary, '');
     } else if (item.upcoming) {
       const u = item.upcoming;
-      setText(heroMeta, item.note + (u.title ? '  ·  ' + u.title : ''));
+      paintMeta([{ text: item.note + (u.title ? '  ·  ' + u.title : '') }]);
       setText(heroSummary, u.overview || '');
+    } else if (item.tasteReason) {
+      paintMeta([{ text: item.tasteReason }].concat(metaParts(item)));
+      setText(heroSummary, item.summary || '');
     } else {
-      setText(heroMeta, item.tasteReason || ((item.type === 'episode' ? item.title + '  ·  ' : '') + metaLine(item)));
+      const parts = metaParts(item);
+      if (item.type === 'episode' && item.title) parts.unshift({ text: item.title });
+      paintMeta(parts);
       setText(heroSummary, item.summary || '');
     }
+    paintActions(item);
     ambience.set(item.UltraBlurColors);
     clearTimeout(artTimer);
-    artTimer = setTimeout(() => hero.set(server.image(heroArtPath(item), 1344, 756)), isFast() ? 350 : 120);
+    artTimer = setTimeout(() => hero.set(server.image(heroArtPath(item), 1920, 1080)), isFast() ? 350 : 120);
   }
 
   function onFocusItem(item) {
@@ -514,9 +515,8 @@ export function HomeScreen() {
     } else {
       track.innerHTML = '';
       rows = hubs.map(hb => {
-        const wide = /continue|ondeck/i.test(hb.hubIdentifier);
         const row = new Row({
-          title: hb.title, kind: wide ? 'wide' : 'poster', items: hb.Metadata,
+          title: hb.title, kind: 'land', inset: ROW_INSET, items: hb.Metadata,
           onFocus: onFocusItem, onSelect: selectItem,
         });
         row.hubId = hb.hubIdentifier;
@@ -555,7 +555,7 @@ export function HomeScreen() {
     try {
       const [sections, hubs] = await Promise.all([server.sections(), server.hubs()]);
       if (gen !== loadGen || session.server !== server || session.user !== user) return;
-      buildNav(sections);
+      rail.setSections(sections);
       plexHubs = hubs;
       absorbReady();
       setHubs(composed());
@@ -642,14 +642,10 @@ export function HomeScreen() {
 
   const cached = store.get('homeCache');
   if (cached && session.server && cached.server === session.server.id) {
-    buildNav(cached.sections || []);
+    rail.setSections(cached.sections || []);
     plexHubs = cached.hubs || [];
     setHubs(composed(), true);
-  } else {
-    buildNav([]);
   }
-  // The web font swaps in after first paint and changes the label widths.
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(renderNav, () => {});
   load();
 
   // --- Hold OK on a tile: remove from Continue Watching, watched / unwatched ---
@@ -691,10 +687,9 @@ export function HomeScreen() {
     });
   }
 
-  function activateNav(n) {
-    if (n.id === 'section') openLibrary(n.section);
-    else if (n.id === 'search') openSearch();
-    else if (n.id === 'settings') openSettings();
+  function openRail() {
+    rail.openRail();
+    toggleClass(el, 'rail-open', true);
   }
 
   return {
@@ -710,7 +705,7 @@ export function HomeScreen() {
       paintKids();
       if (kidsOn() !== kidsWas) { kidsWas = kidsOn(); stale = true; }
       checkForUpdate();
-      renderNav(); // widths can't be measured while the screen was hidden
+      rail.paintWho();
       const profile = readTaste(activeTasteKey());
       if (!profile.length && (tasteItems.length || worthItems.length)) loadTaste();
       // Coming back from playback: progress and Continue Watching changed.
@@ -737,6 +732,7 @@ export function HomeScreen() {
       clearTimeout(heroTimer);
       clearTimeout(togetherTimer);
       clearTimeout(syncTimer);
+      stopClock();
       unsubscribe();
       if (unsubDownloads) unsubDownloads();
       if (unsubRequests) unsubRequests();
@@ -751,25 +747,38 @@ export function HomeScreen() {
         return handled;
       }
       if (action === 'hold') { openTileMenu(); return true; }
-      if (zone === 'nav') {
-        if (action === 'left') { navIndex = Math.max(0, navIndex - 1); renderNav(); return true; }
-        if (action === 'right') { navIndex = Math.min(navItems.length - 1, navIndex + 1); renderNav(); return true; }
-        if (action === 'down' && rows.length) { zone = 'rows'; renderNav(); renderRows(); return true; }
-        if (action === 'enter') { activateNav(navItems[navIndex]); return true; }
-        if (action === 'back') return false;
-        return true;
+      if (rail.isOpen()) {
+        const handled = rail.onKey(action);
+        toggleClass(el, 'rail-open', rail.isOpen());
+        return handled !== false;
+      }
+      if (zone === 'actions') {
+        if (action === 'left' && actionIndex === 0) { openRail(); return true; }
+        if (action === 'left') { actionIndex--; renderActions(); return true; }
+        if (action === 'right') { actionIndex = Math.min(actionBtns.length - 1, actionIndex + 1); renderActions(); return true; }
+        if (action === 'up') { openRail(); return true; }
+        if (action === 'down' && rows.length) { zone = 'rows'; renderActions(); renderRows(); return true; }
+        if (action === 'enter' && actionBtns[actionIndex]) { actionBtns[actionIndex].run(); return true; }
+        if ((action === 'play' || action === 'playpause') && actionBtns[0]) { actionBtns[0].run(); return true; }
+        return action !== 'back';
       }
       const row = rows[rowIndex];
       if (!row) {
-        if (action === 'up') { zone = 'nav'; renderNav(); return true; }
+        if (action === 'up' || action === 'left') { openRail(); return true; }
         if (action === 'enter') { load(); return true; }
         return false;
       }
       switch (action) {
-        case 'left': row.move(-1); return true;
+        case 'left':
+          if (!row.move(-1)) openRail();
+          return true;
         case 'right': row.move(1); return true;
         case 'up':
-          if (rowIndex === 0) { zone = 'nav'; renderNav(); renderRows(); return true; }
+          if (rowIndex === 0) {
+            if (actionBtns.length) { zone = 'actions'; renderActions(); renderRows(); }
+            else openRail();
+            return true;
+          }
           rowIndex--; renderRows(); onFocusItem(rows[rowIndex].current()); return true;
         case 'down':
           if (rowIndex < rows.length - 1) { rowIndex++; renderRows(); onFocusItem(rows[rowIndex].current()); }

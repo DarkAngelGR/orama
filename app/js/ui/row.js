@@ -11,7 +11,7 @@ const BEHIND = 2;   // tiles kept to the left of focus (one is peeking on screen
 const AHEAD = 3;    // posters warmed past the last tile (twice that while a key is held)
 
 export class Row {
-  constructor({ title, kind = 'poster', items = [], caption = false, onFocus, onSelect }) {
+  constructor({ title, kind = 'poster', items = [], caption = false, inset = LEFT, onFocus, onSelect }) {
     this.kind = kind;
     this.size = KINDS[kind];
     this.step = this.size.w + GAP;
@@ -19,21 +19,23 @@ export class Row {
     this.index = 0;
     this.lastIndex = 0;
     this.active = false;
+    this.title = title || '';
     this.onFocus = onFocus;
     this.onSelect = onSelect;
 
     this.el = h('section', 'row');
     this.titleEl = h('h2', 'row-title', this.el);
-    setText(this.titleEl, title || '');
+    setText(this.titleEl, this.title);
+    if (inset !== LEFT) this.titleEl.style.marginLeft = inset + 'px';
     const clip = h('div', 'row-clip', this.el);
     this.track = h('div', 'row-track', clip);
-    this.track.style.left = LEFT + 'px';
+    this.track.style.left = inset + 'px';
     this.ring = h('div', 'ring', clip);
-    // Track is top/left 12/96. A 12px outset (7px border + 5px gap) starts the ring at 0,84.
-    this.ring.style.top = '0px';
-    this.ring.style.left = (LEFT - 12) + 'px';
-    this.ring.style.width = (this.size.w + 24) + 'px';
-    this.ring.style.height = (this.size.h + 24) + 'px';
+    // Track sits 12px down. An 8px outset (4px ring + 4px gap) starts the ring at 4.
+    this.ring.style.top = '4px';
+    this.ring.style.left = (inset - 8) + 'px';
+    this.ring.style.width = (this.size.w + 16) + 'px';
+    this.ring.style.height = (this.size.h + 16) + 'px';
 
     this.captionH = caption ? 70 : 0;
     clip.style.height = (this.size.h + this.captionH + 24) + 'px';
@@ -64,7 +66,8 @@ export class Row {
   }
 
   setTitle(title) {
-    setText(this.titleEl, title);
+    this.title = title || '';
+    setText(this.titleEl, this.title);
   }
 
   current() {
@@ -74,6 +77,11 @@ export class Row {
   setActive(on) {
     this.active = on;
     toggleClass(this.el, 'active', on);
+    this.markHot();
+  }
+
+  markHot() {
+    for (const t of this.pool) toggleClass(t.el, 'hot', this.active && t.index === this.index);
   }
 
   focusIndex(i) {
@@ -117,6 +125,7 @@ export class Row {
       }
     }
     setTransform(this.track, 'translateX(' + (-this.index * this.step) + 'px)');
+    this.markHot();
     // Posters about to scroll in, in the direction you're going.
     const dir = this.index < this.lastIndex ? -1 : 1;
     this.lastIndex = this.index;

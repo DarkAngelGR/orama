@@ -2,7 +2,7 @@
 // Each row is its own compositor layer, so scrolling only re-rasterizes the one
 // row that gets recycled with new posters. The track moves by transform; the
 // focus ring moves horizontally on its own layer.
-import { h, setTransform } from '../util/dom.js';
+import { h, setTransform, toggleClass } from '../util/dom.js';
 import { createTile, fillTile, prefetchTile, KINDS } from './tile.js';
 import { isFast } from '../input.js';
 
@@ -28,8 +28,9 @@ export class Grid {
     this.track = h('div', 'grid-track', this.el);
     this.ring = h('div', 'ring on', this.track);
     this.ring.style.top = '0px';
-    this.ring.style.width = (this.size.w + 24) + 'px';
-    this.ring.style.height = (this.size.h + 24) + 'px';
+    this.ring.style.width = (this.size.w + 16) + 'px';
+    this.ring.style.height = (this.size.h + 16) + 'px';
+    this.ring.style.transformOrigin = 'center center';
 
     this.visibleRows = Math.ceil(height / this.stepY) + 1;
     this.poolRows = this.visibleRows + 2;
@@ -106,7 +107,11 @@ export class Grid {
 
     for (let r = firstRow; r < lastRow; r++) {
       const slot = this.rows[r % this.poolRows];
-      if (slot.row === r) continue;
+      const same = slot.row === r;
+      if (same) {
+        for (let c = 0; c < this.cols; c++) toggleClass(slot.tiles[c].el, 'hot', r * this.cols + c === this.index);
+        continue;
+      }
       slot.row = r;
       slot.el.style.visibility = '';
       setTransform(slot.el, 'translateY(' + r * this.stepY + 'px)');
@@ -116,8 +121,10 @@ export class Grid {
         if (i < this.total) {
           tile.el.style.visibility = '';
           fillTile(tile, this.getItem(i) || null);
+          toggleClass(tile.el, 'hot', i === this.index);
         } else {
           tile.el.style.visibility = 'hidden';
+          toggleClass(tile.el, 'hot', false);
         }
       }
     }
@@ -144,6 +151,6 @@ export class Grid {
 
     setTransform(this.track, 'translateY(' + (-this.scrollRow * this.stepY) + 'px)');
     const col = this.index % this.cols;
-    setTransform(this.ring, 'translate(' + (col * this.stepX - 12) + 'px,' + (focusRow * this.stepY - 12) + 'px)');
+    setTransform(this.ring, 'translate(' + (col * this.stepX - 8) + 'px,' + (focusRow * this.stepY - 8) + 'px) scale(1.07)');
   }
 }

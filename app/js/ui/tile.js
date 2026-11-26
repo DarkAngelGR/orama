@@ -9,6 +9,7 @@ export const KINDS = {
   poster: { w: 220, h: 330 },
   wide: { w: 400, h: 225 },
   grid: { w: 216, h: 324 },
+  land: { w: 360, h: 202 },
   episode: { w: 384, h: 216 },
   person: { w: 176, h: 176 },
 };
