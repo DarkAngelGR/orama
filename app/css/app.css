@@ -315,7 +315,7 @@ html.playing .ambience { display: none; }
 }
 .tile-grid .tile-cap, .tile-grid .tile-sub { opacity: 0; }
 .tile-grid.hot .tile-cap, .tile-grid.hot .tile-sub { opacity: 1; }
-.tile-grid .tile-cap { margin-top: 12px; font: 700 22px/1.2 var(--body); }
+.tile-grid .tile-cap { margin-top: 22px; font: 700 22px/1.2 var(--body); }
 .tile-grid .tile-sub { margin-top: 4px; font: 500 18px/1.2 var(--body); color: rgba(255, 255, 255, 0.55); }
 /* "S3 · E4 · 18m left" on Continue Watching tiles, above the progress bar */
 .tile-note {
