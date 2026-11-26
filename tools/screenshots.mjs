@@ -136,7 +136,7 @@ async function shoot(page) {
     const imgs = [...home.querySelectorAll('.tile-img')].filter(i => i.getAttribute('src'));
     return home.querySelectorAll('.row').length >= 3 && imgs.length >= 3 && imgs.every(i => i.complete && i.naturalWidth > 0);
   });
-  await press(page, 'ArrowDown');
+  // Back lands on the first row's first tile (Night Harbor).
   await press(page, 'Enter');
   await page.waitForFunction(() => {
     const d = document.querySelector('.screen.detail:not(.hidden)');
