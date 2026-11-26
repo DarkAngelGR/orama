@@ -81,7 +81,12 @@ export class Row {
   }
 
   markHot() {
-    for (const t of this.pool) toggleClass(t.el, 'hot', this.active && t.index === this.index);
+    for (const t of this.pool) {
+      toggleClass(t.el, 'hot', this.active && t.index === this.index);
+      // `cur` stays on the focused tile even when the row is not the active zone,
+      // so the episode summary can be written onto it before Down lands there.
+      toggleClass(t.el, 'cur', t.index === this.index && t.index >= 0);
+    }
   }
 
   focusIndex(i) {

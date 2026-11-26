@@ -1,11 +1,11 @@
 // Detail page for a movie, show, season (opens its show) or episode.
-import { h, setText, setTransform, toggleClass } from '../util/dom.js';
+import { h, setText, setTransform, toggleClass, show } from '../util/dom.js';
 import { useAmbience, HeroArt } from '../ui/backdrop.js';
 import { Row } from '../ui/row.js';
 import { Picker } from '../ui/picker.js';
 import { session } from '../session.js';
-import { metaLine, clock, episodeLabel, duration } from '../util/format.js';
-import { longDate } from './info.js';
+import { metaParts, episodeLabel, episodeStatus, detailEyebrow, playLabel, leftLine } from '../util/format.js';
+
 import { showLogo } from '../ui/logo.js';
 import * as icons from '../ui/icons.js';
 import * as router from '../router.js';
@@ -29,28 +29,29 @@ import { subLang } from '../player/subprefs.js';
 import { libraryItem, openTitleMenu } from '../ui/tilemenu.js';
 import * as lang from '../util/lang.js';
 
-const SHIFT = 400;    // how far the body slides up to reveal seasons/episodes
-const OPTIONS_H = 82; // .detail-options height + margin, added to SHIFT when shown
+const PAGE_X = 120; // hero text inset; rows use the same inset inside a full-bleed wrap
 
 export function DetailScreen(initial, { autoplay = false } = {}) {
   const el = h('div', 'screen detail');
   const ambience = useAmbience(initial.UltraBlurColors);
   const art = new HeroArt(el, 'hero-art detail-art');
   const body = h('div', 'detail-body', el);
+  const eyebrow = h('div', 'detail-eyebrow', body);
   const logo = h('img', 'detail-logo', body);
   const title = h('h1', 'detail-title', body);
   const sub = h('div', 'detail-sub', body);
   const meta = h('div', 'detail-meta', body);
-  const tags = h('div', 'detail-tags', body);
   const summary = h('p', 'detail-summary', body);
+  const credits = h('div', 'detail-credits', body);
   const buttonsEl = h('div', 'detail-buttons', body);
   const optionsEl = h('div', 'detail-options', body);
+  const progWrap = h('div', 'detail-progress', body);
+  const progFill = h('i', '', h('div', 'detail-progress-bar', progWrap));
+  const progText = h('div', 'detail-progress-text', progWrap);
+  const moreHint = h('div', 'detail-down', el);
   const seasonsEl = h('div', 'detail-seasons', body);
   const seasonsTrack = h('div', 'detail-seasons-track', seasonsEl);
   const episodesWrap = h('div', 'detail-episodes', body);
-  const epInfo = h('div', 'detail-epinfo', body);
-  const epHead = h('div', 'detail-epinfo-head', epInfo);
-  const epSummary = h('p', 'detail-epinfo-summary', epInfo);
   // Cast with photos; placed under the play options for movies, under the
   // episodes for shows.
   const castWrap = h('div', 'detail-cast');
@@ -93,18 +94,33 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
 
   function renderHeader() {
     const server = session.server;
+    toggleClass(el, 'show-like', isShowLike());
+    setText(eyebrow, detailEyebrow(item));
     setText(title, item.type === 'episode' ? item.grandparentTitle : item.title);
     showLogo(logo, title, item, p => server.image(p, 720, 240, { format: 'png' }));
     setText(sub, item.type === 'episode' ? episodeLabel(item) + '   ' + item.title : (item.tagline || ''));
-    setText(meta, metaLine(item));
-    const genres = (item.Genre || []).slice(0, 3).map(g => g.tag);
+    paintMeta();
     const people = (item.Director || []).slice(0, 1).map(d => 'Directed by ' + d.tag)
       .concat((item.Role || []).length ? ['Starring ' + item.Role.slice(0, 3).map(r => r.tag).join(', ')] : []);
-    setText(tags, genres.concat(people).join('   ·   '));
+    setText(credits, people.join(' · '));
     setText(summary, item.summary || '');
     ambience.set(item.UltraBlurColors);
     const artPath = item.type === 'episode' ? (item.grandparentArt || item.art) : item.art;
     art.set(server.image(artPath, 1920, 1080));
+  }
+
+  function paintMeta() {
+    meta.innerHTML = '';
+    const parts = metaParts(item).filter(p => !(item.type === 'show' && / seasons?$/.test(p.text)));
+    if (item.type === 'show' && item.leafCount) {
+      const at = parts.findIndex(p => p.chip);
+      const bit = { text: item.leafCount + (item.leafCount === 1 ? ' episode' : ' episodes'), chip: false };
+      parts.splice(at < 0 ? parts.length : at, 0, bit);
+    }
+    parts.forEach(p => {
+      const s = h('span', p.chip ? 'chip' : 'meta-bit', meta);
+      s.textContent = p.text;
+    });
   }
 
   function target() {
@@ -271,39 +287,63 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     buttonsEl.innerHTML = '';
     buttons = [];
     const t = target();
-    const add = (icon, label, run) => {
-      const b = h('div', 'btn', buttonsEl);
+    const add = (icon, label, run, cls) => {
+      const b = h('div', 'btn' + (cls || ''), buttonsEl);
       b.innerHTML = icon;
       h('span', '', b).textContent = label;
       buttons.push({ el: b, run });
     };
     if (t) {
-      const prefix = isShowLike() ? episodeLabel(t) + '  ' : '';
-      if (t.viewOffset) {
-        add(icons.play, prefix + 'Resume ' + clock(t.viewOffset), () => play(t, t.viewOffset));
-        add(icons.restart, 'From the start', () => play(t, 0));
-      } else {
-        add(icons.play, isShowLike() ? 'Play ' + prefix : 'Play', () => play(t, 0));
-      }
+      add(icons.play, playLabel(t, isShowLike()), () => play(t, t.viewOffset || 0), ' primary');
+      if (t.viewOffset) add(icons.restart, 'From the start', () => play(t, 0));
     }
+    if (trailer) add(icons.film, 'Trailer', () => playItem(trailer, { offset: 0 }));
+    const more = h('div', 'btn icon', buttonsEl);
+    setText(more, '⋯');
+    buttons.push({ el: more, run: openMore });
+    buttonIndex = Math.min(buttonIndex, Math.max(0, buttons.length - 1));
+    const left = !isShowLike() && leftLine(t);
+    show(progWrap, !!left);
+    if (left) {
+      const p = Math.min(1, t.viewOffset / t.duration);
+      setTransform(progFill, 'scaleX(' + p.toFixed(3) + ')');
+      setText(progText, left);
+    }
+    renderFocus();
+  }
+
+  // Less-used actions stay reachable from ⋯. Hold OK on a season or episode
+  // still opens that item's own menu.
+  function openMore() {
+    const rows = [];
     const watched = isShowLike() ? item.viewedLeafCount >= item.leafCount : !!item.viewCount;
-    add(watched ? icons.check : icons.uncheck, watched ? 'Watched' : 'Mark watched', toggleWatched);
+    rows.push({ label: watched ? 'Mark unwatched' : 'Mark watched', value: 'watched' });
     const season = isShowLike() ? seasons[seasonIndex] : null;
     if (season && season.ratingKey) {
       const done = season.leafCount > 0 && season.viewedLeafCount >= season.leafCount;
-      add(done ? icons.check : icons.uncheck, done ? 'Season watched' : 'Mark season watched', () => markSeason(!done));
+      rows.push({ label: done ? 'Mark season unwatched' : 'Mark season watched', value: 'season' });
     }
-    if (item.type === 'episode' && item.grandparentRatingKey) {
-      add(icons.tv, 'Go to show', () => router.push(DetailScreen({ ratingKey: item.grandparentRatingKey, type: 'show', title: item.grandparentTitle })));
+    if (item.type === 'episode' && item.grandparentRatingKey) rows.push({ label: 'Go to show', value: 'show' });
+    const t = target();
+    if (t && (together.available() || (session.server && session.server.kind === 'jellyfin'))) {
+      rows.push({ label: 'Watch together', value: 'together' });
     }
-    if (trailer) add(icons.film, 'Trailer', () => playItem(trailer, { offset: 0 }));
-    if (t && (together.available() || (session.server && session.server.kind === 'jellyfin'))) add(icons.together, 'Watch together', () => watchTogether(t));
-    add(icons.info, 'More info', openInfo);
+    rows.push({ label: 'More info', value: 'info' });
     if (!kidsOn() && (item.type === 'movie' || item.type === 'show') && session.server && session.server.owned !== false) {
-      add(icons.trash, 'Delete', askDelete);
+      rows.push({ label: 'Delete', value: 'delete' });
     }
-    buttonIndex = Math.min(buttonIndex, buttons.length - 1);
-    renderFocus();
+    picker.open('More', rows, v => {
+      if (v === 'watched') toggleWatched();
+      else if (v === 'season') {
+        const s = seasons[seasonIndex];
+        const done = s && s.leafCount > 0 && s.viewedLeafCount >= s.leafCount;
+        markSeason(!done);
+      } else if (v === 'show') {
+        router.push(DetailScreen({ ratingKey: item.grandparentRatingKey, type: 'show', title: item.grandparentTitle }));
+      } else if (v === 'together') watchTogether(target());
+      else if (v === 'info') openInfo();
+      else if (v === 'delete') askDelete();
+    });
   }
 
   // --- Quality / audio / subtitles, picked before playing ------------------
@@ -710,7 +750,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
       openCatalogLookup(it.lookup).catch(e => error('catalog lookup failed', e));
     };
     if (!coll) {
-      const row = new Row({ title: c.title || 'Collection', kind: 'poster', caption: true, items, onSelect });
+      const row = new Row({ title: c.title || 'Collection', kind: 'poster', caption: true, inset: PAGE_X, items, onSelect });
       collWrap.appendChild(row.el);
       collWrap.style.height = row.height + 'px';
       coll = { row, items };
@@ -735,7 +775,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     const before = isShowLike() ? null : seasonsEl;
     if (castWrap.parentNode !== body || (before && castWrap.nextSibling !== before)) body.insertBefore(castWrap, before);
     if (!cast) {
-      const row = new Row({ title: 'Cast', kind: 'person', caption: true, items: people, onSelect: p => openPerson(p) });
+      const row = new Row({ title: 'Cast', kind: 'person', caption: true, inset: PAGE_X, items: people, onSelect: p => openPerson(p) });
       row.el.classList.add('row-person');
       castWrap.appendChild(row.el);
       castWrap.style.height = row.height + 'px'; // rows are absolutely positioned
@@ -758,14 +798,19 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     if (cast) cast.row.setActive(zone === 'cast');
     if (coll) coll.row.setActive(zone === 'collection');
     if (extrasRow) extrasRow.row.setActive(zone === 'extras');
-    const shifted = zone === 'seasons' || zone === 'episodes' || zone === 'cast' || zone === 'collection' || zone === 'extras';
-    let shift = SHIFT + (options.length ? OPTIONS_H : 0);
-    // Cast / collection rows: slide them up to the middle of the screen (read once per focus change).
-    if (zone === 'cast') shift = Math.max(0, castWrap.offsetTop - 430);
-    if (zone === 'collection') shift = Math.max(0, collWrap.offsetTop - 330);
-    if (zone === 'extras') shift = Math.max(0, extrasWrap.offsetTop - 330);
-    setTransform(body, shifted ? 'translateY(' + (-shift) + 'px)' : 'translateY(0)');
-    toggleClass(el, 'shifted', shifted);
+    // One layout read per focus change, only for the zone that has to move.
+    let shift = 0;
+    if (zone === 'seasons' || zone === 'episodes') shift = Math.max(0, episodesWrap.offsetTop - 620);
+    else if (zone === 'cast') shift = Math.max(0, castWrap.offsetTop - 430);
+    else if (zone === 'collection') shift = Math.max(0, collWrap.offsetTop - 330);
+    else if (zone === 'extras') shift = Math.max(0, extrasWrap.offsetTop - 330);
+    setTransform(body, shift ? 'translateY(' + (-shift) + 'px)' : 'translateY(0)');
+    toggleClass(el, 'shifted', shift > 40);
+    const hint = [];
+    if (cast) hint.push('Cast');
+    if (coll) hint.push('More like this');
+    setText(moreHint, hint.length ? '▾  ' + hint.join(' · ') : '');
+    toggleClass(moreHint, 'on', !isShowLike() && hint.length > 0 && (zone === 'buttons' || zone === 'options'));
   }
 
   // Description of the highlighted episode, under the row. Season listings
@@ -773,20 +818,25 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
   // so holding Right doesn't fire a request per episode).
   const epFull = new Map();
   let epTimer = 0;
+  // One line on the focused still: "34m left · A storm traps the team…".
+  function paintEpisodeLine(ep, summary) {
+    const sub = episodesWrap.querySelector('.tile.cur .tile-sub');
+    if (!sub || !ep) return;
+    const status = episodeStatus(ep);
+    const line = String(summary || '').replace(/\s+/g, ' ').trim();
+    setText(sub, line ? (status ? status + ' · ' + line : line) : status);
+  }
+
   function showEpisode(ep) {
     clearTimeout(epTimer);
-    if (!ep) { setText(epHead, ''); setText(epSummary, ''); return; }
-    const bits = [episodeLabel(ep) + '   ' + (ep.title || '')];
-    if (ep.originallyAvailableAt) bits.push(longDate(ep.originallyAvailableAt));
-    if (ep.duration) bits.push(duration(ep.duration));
-    setText(epHead, bits.join('   ·   '));
-    const text = ep.summary || (epFull.get(ep.ratingKey) || {}).summary;
-    setText(epSummary, text || '');
+    if (!ep) return;
+    const text = ep.summary || (epFull.get(ep.ratingKey) || {}).summary || '';
+    paintEpisodeLine(ep, text);
     if (text || epFull.has(ep.ratingKey)) return;
     epTimer = setTimeout(() => {
       session.server.metadata(ep.ratingKey).then(full => {
         epFull.set(ep.ratingKey, full || {});
-        if (alive && episodes && episodes.row.current() === ep) setText(epSummary, (full && full.summary) || '');
+        if (alive && episodes && episodes.row.current() === ep) paintEpisodeLine(ep, (full && full.summary) || '');
       }, () => epFull.set(ep.ratingKey, {}));
     }, 350);
   }
@@ -804,7 +854,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     }
     if (!episodes) {
       const row = new Row({
-        kind: 'episode', caption: true, items: eps,
+        kind: 'episode', caption: true, inset: PAGE_X, items: eps,
         onFocus: ep => showEpisode(ep),
         onSelect: ep => play(ep, ep.viewOffset || 0),
       });
@@ -864,7 +914,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     }
     if (extrasWrap.parentNode !== body) body.appendChild(extrasWrap);
     if (!extrasRow) {
-      const row = new Row({ title: 'Extras', kind: 'episode', caption: true, items: list, onSelect: x => playItem(x) });
+      const row = new Row({ title: 'Extras', kind: 'episode', caption: true, inset: PAGE_X, items: list, onSelect: x => playItem(x) });
       extrasWrap.appendChild(row.el);
       extrasWrap.style.height = row.height + 'px';
       extrasRow = { row, items: list };

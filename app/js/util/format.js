@@ -21,6 +21,44 @@ export function episodeLabel(item) {
   return 'S' + (item.parentIndex || 0) + ' · E' + (item.index || 0);
 }
 
+// Under an episode still: "34m left", "Watched · 52m", or just "55m".
+export function episodeStatus(item) {
+  if (!item) return '';
+  const mins = item.duration ? Math.round(item.duration / 60000) + 'm' : '';
+  if (item.viewOffset && item.duration > item.viewOffset) return duration(Math.max(60000, item.duration - item.viewOffset)) + ' left';
+  if (item.viewCount) return mins ? 'Watched · ' + mins : 'Watched';
+  return mins;
+}
+
+// "Film · Thriller" on a movie, "Series · 2 seasons" on a show.
+export function detailEyebrow(item) {
+  if (!item) return '';
+  const kind = { movie: 'Film', show: 'Series', episode: 'Episode', season: 'Season' }[item.type] || '';
+  const bits = [];
+  if (kind) bits.push(kind);
+  if (item.type === 'show' && item.childCount) bits.push(item.childCount + (item.childCount === 1 ? ' season' : ' seasons'));
+  if (item.type !== 'show') (item.Genre || []).slice(0, 3).forEach(g => { if (g && g.tag) bits.push(g.tag); });
+  return bits.join(' · ');
+}
+
+// What the white Play button says. Shows name the episode.
+export function playLabel(item, showLike) {
+  if (!item) return '';
+  if (showLike) return (item.viewOffset ? 'Resume ' : 'Play ') + episodeLabel(item);
+  if (item.viewOffset) return 'Resume ' + clock(item.viewOffset);
+  return 'Play';
+}
+
+// "1h 8m left · ends at 22:55" for a partly watched movie. `now` is injectable.
+export function leftLine(item, now) {
+  if (!item || !item.viewOffset || !(item.duration > item.viewOffset)) return '';
+  const left = item.duration - item.viewOffset;
+  const d = new Date((now == null ? Date.now() : now) + left);
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return duration(Math.max(60000, left)) + ' left · ends at ' + hh + ':' + mm;
+}
+
 // The line under a title: "2019 · PG-13 · 2h 4m" style.
 // 4K / HDR / 5.1 from a listing that already carries Media. Empty when it doesn't.
 export function techChips(item) {

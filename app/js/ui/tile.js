@@ -3,7 +3,7 @@
 import { h, setText, show, setTransform, toggleClass } from '../util/dom.js';
 import { load, prefetch } from './images.js';
 import { session } from '../session.js';
-import { progress, episodeLabel, duration } from '../util/format.js';
+import { progress, episodeLabel, episodeStatus, duration } from '../util/format.js';
 
 export const KINDS = {
   poster: { w: 220, h: 330 },
@@ -85,8 +85,33 @@ export function prefetchTile(kind, item) {
   if (path) prefetch(server.image(path, KINDS[kind].w, KINDS[kind].h));
 }
 
+function paintCaption(tile, item) {
+  if (!tile.cap) return;
+  const kind = tile.kind;
+  if (kind === 'episode' && item.type === 'episode') {
+    const n = item.index != null && item.index !== '' ? item.index + ' · ' + (item.title || '') : (item.title || '');
+    setText(tile.cap, n);
+    setText(tile.sub, episodeStatus(item));
+    return;
+  }
+  if (kind === 'episode') {
+    const mins = item.duration ? Math.round(item.duration / 60000) + 'm' : '';
+    setText(tile.cap, item.title || item.extraLabel || '');
+    setText(tile.sub, [item.extraLabel, mins].filter(Boolean).join('  ·  '));
+    return;
+  }
+  setText(tile.cap, titleFor(item, kind));
+  setText(tile.sub, subFor(item, kind));
+}
+
 export function fillTile(tile, item) {
-  if (tile.item === item) return;
+  // Same item still refreshes the caption: the focused episode's one-line
+  // summary is written onto the subtitle after this, and must not stick
+  // once the tile is no longer current.
+  if (tile.item === item) {
+    if (item && tile.kind === 'episode') paintCaption(tile, item);
+    return;
+  }
   tile.item = item;
   if (!item) {
     load(tile.img, '');
@@ -104,7 +129,9 @@ export function fillTile(tile, item) {
   load(tile.img, server ? server.image(path, tile.size.w, tile.size.h) : '');
   setText(tile.ph, item.type === 'person' ? initials(item.title) : titleFor(item, kind));
 
-  const p = progress(item);
+  let p = progress(item);
+  // Watched episode stills carry a full bar; the check moves into the subtitle.
+  if (kind === 'episode' && item.type === 'episode' && item.viewCount && !item.viewOffset) p = 1;
   show(tile.bar, p > 0.01);
   if (p > 0.01) setTransform(tile.fill, 'scaleX(' + p.toFixed(3) + ')');
   if (tile.note) setText(tile.note, item.download || item.upcoming ? '' : noteFor(item));
@@ -114,18 +141,12 @@ export function fillTile(tile, item) {
   if ((item.type === 'show' || item.type === 'season') && item.leafCount) {
     const left = item.leafCount - (item.viewedLeafCount || 0);
     badge = left > 0 ? String(left) : '✓';
-  } else if (item.viewCount && !item.viewOffset && item.type !== 'show') {
+  } else if (item.viewCount && !item.viewOffset && item.type !== 'show' && kind !== 'episode') {
     badge = '✓';
   }
   show(tile.badge, !!badge);
   setText(tile.badge, badge);
   toggleClass(tile.badge, 'done', badge === '✓');
 
-  if (tile.cap) {
-    setText(tile.cap, kind === 'episode' ? item.title : titleFor(item, kind));
-    const mins = item.duration ? Math.round(item.duration / 60000) + 'm' : '';
-    setText(tile.sub, kind !== 'episode' ? subFor(item, kind)
-      : item.type === 'episode' ? episodeLabel(item) + (mins ? '  ·  ' + mins : '')
-      : [item.extraLabel, mins].filter(Boolean).join('  ·  '));   // extras: "Deleted scene · 3m"
-  }
+  paintCaption(tile, item);
 }

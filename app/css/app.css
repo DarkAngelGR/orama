@@ -105,15 +105,13 @@ html.playing .ambience { display: none; }
 
 .detail-art {
   left: 0; top: 0; width: 1920px; height: 1080px;
-  -webkit-mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.18) 0%, #000 62%), linear-gradient(to top, rgba(0, 0, 0, 0.1) 0%, #000 55%);
-  -webkit-mask-composite: source-in;
   transition: opacity 400ms ease; will-change: opacity;
 }
 .detail-art .hero-fade {
-  background: linear-gradient(90deg, rgba(11, 11, 18, 0.82) 0%, rgba(11, 11, 18, 0.55) 38%, transparent 70%),
-    linear-gradient(0deg, rgba(11, 11, 18, 0.7) 0%, transparent 40%);
+  background: linear-gradient(90deg, #07080a 0, rgba(7, 8, 10, 0.9) 38%, rgba(7, 8, 10, 0.2) 70%),
+    linear-gradient(0deg, #07080a 0, rgba(7, 8, 10, 0.95) 40%, rgba(7, 8, 10, 0) 70%);
 }
-.detail.shifted .detail-art { opacity: 0.35; }
+.detail.shifted .detail-art { opacity: 0.55; }
 
 /* ---------- left rail ---------- */
 /* Width snaps open (a width animation is layout). Only the fade and labels
@@ -277,6 +275,11 @@ html.playing .ambience { display: none; }
 .tile.hot .tile-frame { transform: scale(1.07); will-change: transform; }
 .tile-land .tile-frame { border-radius: 14px; }
 .tile-land .tile-bar { left: 16px; right: 16px; bottom: 14px; height: 5px; background: rgba(255, 255, 255, 0.22); }
+.tile-episode .tile-frame { border-radius: 14px; }
+.tile-episode .tile-bar { left: 0; right: 0; bottom: 0; height: 5px; border-radius: 0; background: rgba(255, 255, 255, 0.22); }
+.tile-episode .tile-cap { margin-top: 14px; font: 700 24px/1.2 var(--body); }
+.tile-episode .tile-sub { margin-top: 4px; font: 500 20px/1.2 var(--body); color: rgba(255, 255, 255, 0.55); }
+.tile-episode.cur .tile-sub { color: rgba(255, 255, 255, 0.72); }
 .tile-ph {
   position: absolute; top: 0; left: 0; right: 0; bottom: 0;
   display: flex; align-items: flex-end; padding: 18px;
@@ -318,7 +321,7 @@ html.playing .ambience { display: none; }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
-html.fast .row-track, html.fast .rows-track, html.fast .grid-track, html.fast .ring, html.fast .rail-list {
+html.fast .row-track, html.fast .rows-track, html.fast .grid-track, html.fast .ring, html.fast .rail-list, html.fast .detail-body {
   transition-duration: 110ms;
 }
 html.fast .tile-frame, html.fast .rail-bg, html.fast .rail-label, html.fast .rail-foot { transition: none; }
@@ -364,19 +367,45 @@ html.fast .row-clip, html.no-motion .row-clip { transition: none; }
 /* ---------- detail ---------- */
 
 .detail-body {
-  position: absolute; left: 96px; top: 140px; width: 1728px;
+  position: absolute; left: 120px; top: 110px; width: 1680px;
   will-change: transform; transition: transform 380ms var(--ease);
 }
-.detail-logo { display: block; max-width: 640px; max-height: 210px; object-fit: contain; object-position: left bottom; }
-.detail-title { font: 600 96px/1 var(--display); letter-spacing: -0.025em; max-width: 1150px; }
-.detail-sub { margin-top: 18px; font: 600 30px var(--body); min-height: 36px; }
-.detail-meta { margin-top: 12px; font: 500 26px var(--body); color: var(--dim); }
-.detail-tags { margin-top: 10px; font: 400 22px var(--body); color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 1100px; }
-.detail-summary {
-  margin-top: 22px; max-width: 980px; height: 156px;
-  font: 400 26px/1.5 var(--body); color: rgba(244, 243, 255, 0.82);
-  display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
+.detail-eyebrow {
+  height: 28px; font: 700 22px/28px var(--body); letter-spacing: 0.18em;
+  color: var(--accent); text-transform: uppercase;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+.detail-logo { display: block; max-width: 720px; max-height: 180px; margin-top: 12px; object-fit: contain; object-position: left bottom; }
+.detail-title { font: 800 104px/0.95 var(--display); letter-spacing: -0.04em; max-width: 1100px; }
+.detail-sub { margin-top: 12px; min-height: 0; font: 600 26px var(--body); color: rgba(255, 255, 255, 0.72); }
+.detail-sub:empty { display: none; }
+.detail-meta {
+  display: flex; align-items: center; gap: 14px; margin-top: 16px; height: 36px; overflow: hidden;
+  font: 600 26px/36px var(--body); color: rgba(255, 255, 255, 0.75); white-space: nowrap;
+}
+.detail-credits {
+  margin-top: 14px; max-width: 1000px; height: 28px;
+  font: 500 22px/28px var(--body); color: rgba(255, 255, 255, 0.55);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.detail-credits:empty { display: none; }
+.detail-summary {
+  margin-top: 18px; max-width: 900px; max-height: 126px;
+  font: 400 28px/1.5 var(--body); color: rgba(255, 255, 255, 0.72);
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.detail.show-like .detail-summary,
+.detail.show-like .detail-credits,
+.detail.show-like .detail-sub { display: none; }
+.detail-progress { margin-top: 22px; width: 520px; }
+.detail-progress-bar { height: 5px; border-radius: 3px; background: rgba(255, 255, 255, 0.2); overflow: hidden; }
+.detail-progress-bar i { display: block; height: 100%; width: 100%; background: var(--accent); transform-origin: 0 0; }
+.detail-progress-text { margin-top: 10px; font: 600 20px/1 var(--body); color: rgba(255, 255, 255, 0.6); }
+.detail-down {
+  position: absolute; left: 120px; bottom: 36px; z-index: 2;
+  font: 700 28px/1 var(--body); color: rgba(255, 255, 255, 0.55); opacity: 0;
+}
+.detail-down.on { opacity: 1; }
 .detail-buttons { margin-top: 34px; height: 80px; white-space: nowrap; }
 
 /* A catalog title (not on your server) on the detail layout */
@@ -396,19 +425,19 @@ html.fast .row-clip, html.no-motion .row-clip { transition: none; }
 .btn.primary { background: #fff; color: var(--bg); }
 .btn svg { width: 28px; height: 28px; margin-right: 14px; }
 .btn.focus { background: #fff; color: var(--bg); box-shadow: 0 0 0 4px #fff; }
-.btn.icon { width: 72px; padding: 0; justify-content: center; }
+.btn.icon { width: 72px; padding: 0; justify-content: center; font-size: 34px; letter-spacing: 0.08em; }
 
 /* Quality / audio / subtitle choices under the Play buttons */
-.detail-options { margin-top: 18px; height: 64px; white-space: nowrap; }
+.detail-options { margin-top: 18px; height: 54px; white-space: nowrap; }
 .opt {
   display: inline-flex; align-items: center; vertical-align: top;
-  height: 64px; padding: 0 26px; margin-right: 12px; border-radius: 32px;
-  background: var(--faint); color: var(--dim); font: 500 26px var(--body);
+  height: 54px; padding: 0 24px; margin-right: 14px; border-radius: 27px;
+  background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.65); font: 600 22px var(--body);
 }
-.opt svg { width: 26px; height: 26px; margin-right: 10px; flex: none; }
+.opt svg { width: 22px; height: 22px; margin-right: 10px; flex: none; }
 .opt-name { margin-right: 10px; }
-.opt-value { color: var(--cream); font-weight: 600; max-width: 460px; overflow: hidden; text-overflow: ellipsis; }
-.opt.focus { background: var(--cream); color: rgba(11, 11, 18, 0.65); }
+.opt-value { color: #fff; font-weight: 700; max-width: 420px; overflow: hidden; text-overflow: ellipsis; }
+.opt.focus { background: #fff; color: var(--bg); }
 .opt.focus .opt-value { color: var(--bg); }
 
 .choice-picker {
@@ -420,25 +449,20 @@ html.fast .row-clip, html.no-motion .row-clip { transition: none; }
 .choice-track { will-change: transform; transition: transform 200ms var(--ease); }
 .choice-picker .tracks-opt { height: 62px; line-height: 62px; padding: 0 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-.detail-seasons { position: relative; margin-top: 60px; height: 56px; width: 1728px; overflow: hidden; }
+.detail-seasons { position: relative; margin-top: 28px; height: 52px; width: 1680px; overflow: hidden; }
 .detail-seasons-track {
   position: absolute; left: 0; top: 0; white-space: nowrap;
   will-change: transform; transition: transform 260ms var(--ease);
 }
 .pill {
-  display: inline-block; height: 56px; line-height: 56px; padding: 0 28px; margin-right: 12px;
-  border-radius: 28px; font: 600 24px/56px var(--body); color: var(--dim);
+  display: inline-block; height: auto; padding: 0 0 10px; margin-right: 40px;
+  border-radius: 0; background: none;
+  font: 700 28px/1.2 var(--body); color: rgba(255, 255, 255, 0.5);
 }
-.pill.current { color: var(--cream); background: var(--faint); }
-.pill.focus { background: var(--cream); color: var(--bg); }
-.detail-episodes { position: relative; margin: 24px 0 0 -96px; width: 1920px; height: 330px; }
-.detail-epinfo { margin-top: 64px; width: 1300px; height: 160px; opacity: 0; transition: opacity 260ms var(--ease); }
-.detail.shifted .detail-epinfo { opacity: 1; }
-.detail-epinfo-head { font: 600 26px var(--body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.detail-epinfo-summary {
-  margin-top: 10px; font: 400 24px/1.45 var(--body); color: rgba(244, 243, 255, 0.8);
-  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
-}
+.pill.current { color: #fff; box-shadow: inset 0 -4px 0 var(--accent); }
+.pill.focus { color: #fff; }
+.detail-episodes { position: relative; margin: 16px 0 0 -120px; width: 1920px; height: 360px; }
+.detail-cast { position: relative; margin: 40px 0 0 -120px; width: 1920px; }
 
 /* ---------- player ---------- */
 
@@ -749,7 +773,6 @@ html.subs-bg .subs-text {
 .tile-person .tile-ph { align-items: center; justify-content: center; padding: 0; font: 600 44px var(--display); letter-spacing: 0.02em; }
 .tile-person .tile-cap, .tile-person .tile-sub { text-align: center; }
 .row-person .ring { border-radius: 50%; }
-.detail-cast { position: relative; margin: 40px 0 0 -96px; width: 1920px; }
 
 /* Actor page */
 .person-head { position: absolute; left: 96px; top: 96px; display: flex; align-items: center; }
@@ -819,7 +842,8 @@ html.no-motion .btn { animation: none !important; }
 html.no-motion .btn, html.no-motion .opt, html.no-motion .rail-ic, html.no-motion .lib-sort,
 html.no-motion .tracks-opt, html.no-motion .setting, html.no-motion .pill,
 html.no-motion .ring, html.no-motion .tile-frame, html.no-motion .rail-bg,
-html.no-motion .rail-label, html.no-motion .rail-foot, html.no-motion .rail-list { transition: none; }
+html.no-motion .rail-label, html.no-motion .rail-foot, html.no-motion .rail-list,
+html.no-motion .detail-body, html.no-motion .detail-art { transition: none; }
 
 /* ---------- Watch Together (player) ---------- */
 .together-chip {
