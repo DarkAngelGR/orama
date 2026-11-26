@@ -489,38 +489,45 @@ html.fast .row-clip, html.no-motion .row-clip { transition: none; }
 
 .osd { position: absolute; top: 0; left: 0; width: 1920px; height: 1080px; opacity: 0; transition: opacity 250ms ease; will-change: opacity; }
 .osd-on .osd { opacity: 1; }
+html.fast .osd, html.no-motion .osd { transition: none; }
 .osd-top {
-  position: absolute; top: 0; left: 0; width: 1920px; height: 280px; padding: 64px 96px 0;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.78), transparent);
+  position: absolute; top: 0; left: 0; width: 1920px; height: 260px; padding: 56px 96px 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.62), transparent);
 }
-.osd-title { max-width: 1400px; font: 600 56px/1.05 var(--display); letter-spacing: -0.02em; }   /* clear of the pause clock */
-.osd-sub { margin-top: 12px; font: 500 28px var(--body); color: var(--dim); }
+.osd-logo { display: none; max-width: 520px; max-height: 84px; object-fit: contain; object-position: left center; }
+.osd-title { max-width: 1100px; font: 800 48px/1.05 var(--display); letter-spacing: -0.03em; }
+.osd-sub { margin-top: 10px; max-width: 1100px; font: 500 26px var(--body); color: var(--dim); }
+.osd-when {
+  position: absolute; right: 96px; top: 68px; font: 600 28px/1 var(--body);
+  color: rgba(255, 255, 255, 0.85); font-variant-numeric: tabular-nums; white-space: nowrap;
+}
 .osd-bottom {
-  position: absolute; bottom: 0; left: 0; width: 1920px; height: 320px;
-  background: linear-gradient(0deg, rgba(0, 0, 0, 0.85), transparent);
+  position: absolute; bottom: 0; left: 0; width: 1920px; height: 480px;
+  background: linear-gradient(0deg, rgba(0, 0, 0, 0.92) 0%, rgba(0, 0, 0, 0.5) 46%, transparent);
 }
-.osd-bar { position: absolute; left: 96px; width: 1728px; bottom: 150px; height: 16px; border-radius: 8px; background: rgba(244, 243, 255, 0.3); }
-.osd-chapters { position: absolute; left: 0; top: 0; width: 1728px; height: 16px; }
-.osd-chap { position: absolute; left: 0; top: 0; width: 3px; height: 16px; background: var(--cream); opacity: 0.9; }
+/* 1728px matches OSD_BAR_W in player.js */
+.osd-bar { position: absolute; left: 96px; width: 1728px; bottom: 210px; height: 10px; border-radius: 5px; background: rgba(255, 255, 255, 0.22); }
+.osd-chapters { position: absolute; left: 0; top: 0; width: 1728px; height: 10px; }
+.osd-chap { position: absolute; left: 0; top: -6px; width: 3px; height: 22px; background: rgba(255, 255, 255, 0.75); }
 .osd-fill {
   position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-  border-radius: 8px; background: var(--accent); transform-origin: 0 0; will-change: transform;
+  border-radius: 5px; background: var(--accent); transform-origin: 0 0; will-change: transform;
 }
 .osd-knob {
-  position: absolute; left: -18px; top: -10px; width: 36px; height: 36px; border-radius: 18px;
-  background: var(--cream); box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5); will-change: transform;
+  position: absolute; left: -13px; top: -8px; width: 26px; height: 26px; border-radius: 13px;
+  background: #fff; will-change: transform;
 }
 .osd-seek {
-  display: none; position: absolute; bottom: 52px; left: 18px;
-  transform: translateX(-50%); padding: 8px 16px; border-radius: 10px;
-  background: var(--cream); color: var(--bg); font: 700 28px var(--body); white-space: nowrap;
+  display: none; position: absolute; bottom: 40px; left: 13px;
+  transform: translateX(-50%); padding: 4px 12px; border-radius: 8px;
+  background: #fff; color: var(--bg); font: 700 24px var(--body); white-space: nowrap;
 }
 .seeking .osd-seek { display: block; }
 /* Preview picture of the seek target, above the time label */
 .osd-thumb {
-  display: none; position: absolute; left: 0; bottom: 240px; width: 320px; height: 180px;
-  border-radius: 12px; overflow: hidden; background: #000;
-  box-shadow: 0 0 0 3px var(--cream), 0 8px 30px rgba(0, 0, 0, 0.6); will-change: transform;
+  display: none; position: absolute; left: 0; bottom: 300px; width: 320px; height: 180px;
+  border-radius: 10px; overflow: hidden; background: #000;
+  box-shadow: 0 0 0 3px #fff; will-change: transform;
 }
 .osd-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .osd-sprite { display: none; width: 100%; height: 100%; background-repeat: no-repeat; }
@@ -528,11 +535,32 @@ html.fast .row-clip, html.no-motion .row-clip { transition: none; }
 .osd-thumb.sprite .osd-sprite { display: block; }
 .seeking .osd-thumb.has { display: block; }
 .osd-times {
-  position: absolute; left: 96px; width: 1728px; bottom: 104px;
-  display: flex; justify-content: space-between; font: 500 28px/1 var(--body);
+  position: absolute; left: 96px; width: 1728px; bottom: 164px;
+  display: flex; justify-content: space-between; align-items: baseline;
+  font: 600 24px/1 var(--body); color: rgba(255, 255, 255, 0.8);
 }
-.osd-info { color: var(--dim); }
-.osd-hint { position: absolute; left: 96px; bottom: 64px; font: 500 28px/1 var(--body); color: var(--dim); }
+.osd-now, .osd-left { flex: none; font-variant-numeric: tabular-nums; }
+.osd-info {
+  flex: 1; padding: 0 24px; text-align: center; color: rgba(255, 255, 255, 0.8);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.osd-actions {
+  position: absolute; left: 96px; right: 360px; bottom: 48px; height: 64px;
+  white-space: nowrap;
+}
+.osd-pp { height: 64px; margin-right: 14px; padding: 0 26px; font-size: 24px; }
+.osd-pp svg { width: 26px; height: 26px; }
+.osd-pill {
+  display: inline-flex; align-items: center; vertical-align: top; height: 64px; margin-right: 12px;
+  padding: 0 22px; border-radius: 32px; background: rgba(255, 255, 255, 0.14); color: #fff;
+  font: 600 22px/1 var(--body); white-space: nowrap;
+}
+.osd-pill b {
+  display: inline-block; max-width: 200px; margin-left: 10px; overflow: hidden;
+  text-overflow: ellipsis; font-weight: 700;
+}
+.osd-pill.focus { background: #fff; color: var(--bg); box-shadow: 0 0 0 4px #fff; }
+.osd-pill.focus b { color: var(--bg); }
 
 .pause-big {
   position: absolute; left: 880px; top: 380px; width: 160px; height: 160px; padding: 36px;
@@ -548,7 +576,10 @@ html.fast .row-clip, html.no-motion .row-clip { transition: none; }
   opacity: 0; transition: opacity 200ms ease; will-change: opacity;
 }
 .paused .pause-clock { opacity: 1; }
+/* The small OSD clock takes this corner while the controls are up. */
+.osd-on .pause-clock { opacity: 0; }
 .paused .together-chip { top: 140px; }
+.osd-on .together-chip { top: 124px; }
 
 .spinner {
   display: none; position: absolute; left: 912px; top: 492px; width: 96px; height: 96px;
@@ -564,7 +595,7 @@ html.fast .row-clip, html.no-motion .row-clip { transition: none; }
   font: 600 46px/1.25 var(--body); color: #fff;
   text-shadow: 0 2px 6px #000, 0 0 3px #000, 0 0 3px #000;
 }
-.osd-on .subs { bottom: 340px; }
+.osd-on .subs { bottom: 500px; }
 /* Translated signs (anime) sit at the top, clear of the OSD title */
 .subs.subs-top, .osd-on .subs.subs-top { top: 70px; bottom: auto; }
 .osd-on .subs.subs-top { top: 290px; }
@@ -584,12 +615,11 @@ html.subs-bg .subs-text {
 }
 .subs-text:empty { display: none; }
 
-/* Skip intro / credits: takes OK while visible */
+/* Skip intro / credits: takes OK while visible, and while the pill row is not focused. */
 .skip {
-  position: absolute; right: 96px; bottom: 140px; height: 72px; padding: 0 36px; border-radius: 36px;
-  background: var(--cream); color: var(--bg); font: 700 28px/72px var(--body); white-space: nowrap;
+  position: absolute; z-index: 4; right: 96px; bottom: 48px; height: 64px; padding: 0 28px; border-radius: 32px;
+  background: var(--accent); color: var(--bg); font: 700 24px/64px var(--body); white-space: nowrap;
 }
-.osd-on .skip { bottom: 300px; }
 
 /* Short confirmations, e.g. "Subtitles off" */
 .toast {
@@ -784,7 +814,7 @@ html.subs-bg .subs-text {
   flex-shrink: 0; height: 36px; padding: 0 16px; margin-right: 16px; border-radius: 18px;
   font: 600 20px/36px var(--body); background: var(--faint); color: var(--cream);
 }
-.osd-play.direct .osd-play-mode { background: var(--accent); color: #fff; }
+.osd-play.direct .osd-play-mode { background: var(--accent); color: var(--bg); }
 .osd-play.stream .osd-play-mode { background: rgba(244, 243, 255, 0.16); }
 .osd-play.transcode .osd-play-mode { background: #F2B544; color: #1A1306; }
 .osd-play-info { overflow: hidden; text-overflow: ellipsis; max-width: 1400px; color: rgba(244, 243, 255, 0.88); text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7); }

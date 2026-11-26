@@ -10,6 +10,7 @@ import { session } from '../session.js';
 import { playbackBlocked } from '../util/kids.js';
 import { clock, episodeLabel, uuid } from '../util/format.js';
 import * as icons from '../ui/icons.js';
+import { showLogo } from '../ui/logo.js';
 import * as router from '../router.js';
 import { log, warn, error } from '../util/log.js';
 import { request } from '../plex/client.js';
@@ -50,6 +51,8 @@ const SUB_OFFSET_STEP = 250;
 const SUB_OFFSET_MAX = 10000;
 const THUMBS_AFTER_MS = 3000;   // fetch seek previews once playback has settled
 const THUMB_W = 320;
+const OSD_BAR_X = 96;    // .osd-bar left
+const OSD_BAR_W = 1728;  // .osd-bar width; the knob, ticks and preview share it
 
 // Language of a stream, for carrying the user's track choice to the next episode.
 function langOf(s) {
@@ -82,12 +85,15 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   const spinner = h('div', 'spinner', el);
   const pauseBig = h('div', 'pause-big', el);
   pauseBig.innerHTML = icons.pause;
-  const clockEl = h('div', 'pause-clock', el);   // the time of day, while paused
+  const clockEl = h('div', 'pause-clock', el);   // big clock while paused, once the controls have gone
 
   const osd = h('div', 'osd', el);
   const osdTop = h('div', 'osd-top', osd);
+  const osdLogo = h('img', 'osd-logo', osdTop);
+  osdLogo.alt = '';
   const osdTitle = h('div', 'osd-title', osdTop);
   const osdSub = h('div', 'osd-sub', osdTop);
+  const osdWhen = h('div', 'osd-when', osdTop);   // time of day, and when this film ends
   // How it's playing: Direct Play / Direct Stream / Transcoding, and the details.
   const osdPlay = h('div', 'osd-play', osdTop);
   const osdPlayMode = h('span', 'osd-play-mode', osdPlay);
@@ -106,7 +112,25 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   const tNow = h('span', 'osd-now', times);
   const tInfo = h('span', 'osd-info', times);
   const tLeft = h('span', 'osd-left', times);
-  const hintEl = h('div', 'osd-hint', osdBottom);   // filled by renderTitles()
+  // Down from the bar lands here. Left and right still seek until then.
+  const actions = h('div', 'osd-actions', osdBottom);
+  const ppBtn = h('div', 'btn primary osd-pp', actions);
+  const audioPill = h('div', 'osd-pill', actions);
+  h('span', '', audioPill).textContent = 'Audio';
+  const audioB = h('b', '', audioPill);
+  const subPill = h('div', 'osd-pill', actions);
+  h('span', '', subPill).textContent = 'Subtitles';
+  const subB = h('b', '', subPill);
+  const qualPill = h('div', 'osd-pill', actions);
+  const qualName = h('span', '', qualPill);
+  qualName.textContent = 'Quality';
+  const qualB = h('b', '', qualPill);
+  const chapPill = h('div', 'osd-pill', actions);
+  h('span', '', chapPill).textContent = 'Chapters';
+  const togetherPill = h('div', 'osd-pill', actions);
+  h('span', '', togetherPill).textContent = 'Watch together';
+  const osdBtns = [ppBtn, audioPill, subPill, qualPill, chapPill, togetherPill];
+  let osdCol = -1;   // -1: the bar (seek). Otherwise an index into osdBtns.
 
   const skipBtn = h('div', 'skip hidden', el);
   const toastEl = h('div', 'toast', el);
@@ -224,21 +248,27 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   function renderProgress(ms) {
     const p = duration ? Math.max(0, Math.min(1, ms / duration)) : 0;
     setTransform(barFill, 'scaleX(' + p.toFixed(4) + ')');
-    setTransform(knob, 'translateX(' + Math.round(p * 1728) + 'px)');
+    setTransform(knob, 'translateX(' + Math.round(p * OSD_BAR_W) + 'px)');
+    paintReadout(ms, false);
+  }
+
+  // The labels only change about once a second, so they stay off the per-frame path.
+  function paintReadout(ms, force) {
     const now = Date.now();
-    if (now - lastText > 900 || seekTarget != null) {
-      lastText = now;
-      setText(tNow, clock(ms));
-      setText(tLeft, '−' + clock(duration - ms));
-      setText(tInfo, 'Ends at ' + timeOfDay(new Date(now + (duration - ms))));
-    }
+    if (!force && seekTarget == null && now - lastText < 900) return;
+    lastText = now;
+    setText(tNow, clock(ms));
+    setText(tLeft, '−' + clock(Math.max(0, duration - ms)));
+    const ci = chapterIndex(chapters, ms);
+    setText(tInfo, ci >= 0 ? chapters[ci].title : '');
+    setText(osdWhen, timeOfDay(new Date(now)) + '  ·  ends ' + timeOfDay(new Date(now + Math.max(0, duration - ms))));
   }
 
   // Ticks only. A chapter at the start sits under the bar's rounded cap.
   function renderChapterMarks() {
     chapLayer.innerHTML = '';
     chapterMarks(chapters, duration).forEach(m => {
-      setTransform(h('div', 'osd-chap', chapLayer), 'translateX(' + Math.round(m.at * 1728) + 'px)');
+      setTransform(h('div', 'osd-chap', chapLayer), 'translateX(' + Math.round(m.at * OSD_BAR_W) + 'px)');
     });
   }
 
@@ -253,6 +283,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   }
   function markPaused(on) {
     toggleClass(el, 'paused', on);
+    paintTransport();
     clearInterval(clockTimer);
     clockTimer = 0;
     if (!on) return;
@@ -262,13 +293,39 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
 
   function showOsd(sticky) {
     toggleClass(el, 'osd-on', true);
+    paintReadout(seekTarget != null ? seekTarget : position, true);
     clearTimeout(osdTimer);
-    if (!sticky && !paused) osdTimer = setTimeout(() => toggleClass(el, 'osd-on', false), OSD_HIDE_MS);
+    // A focused pill must not vanish while it is being used.
+    if (osdCol >= 0) sticky = true;
+    if (!sticky && !paused) osdTimer = setTimeout(hideOsd, OSD_HIDE_MS);
   }
 
   function hideOsd() {
     clearTimeout(osdTimer);
     toggleClass(el, 'osd-on', false);
+    if (osdCol >= 0) { osdCol = -1; paintOsdFocus(); }
+  }
+
+  function paintOsdFocus() {
+    osdBtns.forEach((b, i) => toggleClass(b, 'focus', i === osdCol));
+  }
+
+  function paintTransport() {
+    ppBtn.innerHTML = (paused ? icons.play : icons.pause) + '<span>' + (paused ? 'Play' : 'Pause') + '</span>';
+  }
+
+  function clipPill(s) {
+    s = s || '';
+    return s.length > 24 ? s.slice(0, 23) + '…' : s;
+  }
+
+  function paintPills() {
+    setText(audioB, clipPill(audioStream ? audioLabel(audioStream) : ''));
+    setText(subB, clipPill(subStream ? subtitleLabel(subStream) : 'Off'));
+    const versions = (item.Media || []).length > 1;
+    setText(qualName, versions ? 'Version' : 'Quality');
+    setText(qualB, clipPill(versions && media ? versionTitle(media) : (quality && quality.label) || ''));
+    paintTransport();
   }
 
   // --- Seek previews ------------------------------------------------------
@@ -328,7 +385,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     }
     // Centred over the knob, kept on screen at both ends.
     const p = duration ? Math.max(0, Math.min(1, ms / duration)) : 0;
-    const x = Math.max(24, Math.min(1920 - THUMB_W - 24, Math.round(96 + p * 1728 - THUMB_W / 2)));
+    const x = Math.max(24, Math.min(1920 - THUMB_W - 24, Math.round(OSD_BAR_X + p * OSD_BAR_W - THUMB_W / 2)));
     setTransform(thumbEl, 'translateX(' + x + 'px)');
     toggleClass(thumbEl, 'has', true);
   }
@@ -411,14 +468,15 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     ['direct', 'stream', 'transcode'].forEach(k => toggleClass(osdPlay, k, k === kind));
     // HDR is much brighter than the UI expects (a conversion is tone-mapped).
     toggleClass(el, 'hdr', !!hdr && kind !== 'transcode');
+    paintPills();
   }
 
   function renderTitles() {
-    hintEl.innerHTML = '▼ Audio, subtitles, quality' + (item.type === 'episode' ? ' &amp; episodes' : '') +
-      ' &nbsp;&nbsp; ⏪ ⏩ Jump 30 s &nbsp;&nbsp; CH ▲▼ Subtitles on/off';
     const sub = item.type === 'episode' ? episodeLabel(item) + '   ' + item.title : String(item.year || '');
     setText(osdTitle, item.type === 'episode' ? item.grandparentTitle : item.title);
     setText(osdSub, [sub, versionNote()].filter(Boolean).join('   ·   '));
+    if (session.server) showLogo(osdLogo, osdTitle, item, p => session.server.image(p, 560, 140, { format: 'png' }));
+    paintPills();
   }
 
   // Which file is playing, when there's more than one:
@@ -804,6 +862,7 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
   // ◀ ▶ step 10 s, ⏪ ⏩ 30 s; held or pressed quickly, the steps grow.
   function seekBy(dir, big) {
     if (!started) return;
+    if (osdCol >= 0) { osdCol = -1; paintOsdFocus(); }
     player.setRate(1);
     const now = Date.now();
     seekCount = nextSeekCount(seekCount, lastSeekAt, now);
@@ -1008,6 +1067,22 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
     renderPanel();
     panel.classList.remove('hidden');
     hideOsd();
+  }
+
+  // A pill opens the panel on its own column. There is no Watch Together
+  // column: that session is started from the title page, before playback.
+  function openOsdCol(col) {
+    if (!part) return;
+    if (col <= 0) { openPanel(); return; }
+    if (col === 5) {
+      toast(link ? 'Already watching together' : 'Watch together starts from the title page');
+      return;
+    }
+    if (col === 4 && !chapters.length) { toast('No chapters'); return; }
+    const want = ['', 'Audio', 'Subtitles', 'Quality', 'Chapters'][col];
+    openPanel();
+    const i = panelCols.findIndex(c => c.name === want || (want === 'Quality' && c.name === 'Version'));
+    if (i > 0) { panelCol = i; renderPanel(); }
   }
 
   // Long lists (30 subtitle tracks...) scroll so the focused or chosen row is
@@ -1506,8 +1581,10 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
       switch (action) {
         case 'enter':
           if (seekTarget != null) commitSeek();
+          else if (osdCol === 0) togglePause();
+          else if (osdCol > 0) openOsdCol(osdCol);
           // The skip button takes OK while it's showing, like other players
-          // (Play/Pause still pauses).
+          // (Play/Pause still pauses). A focused pill takes OK instead.
           else if (activeMarker && !paused) skipMarker();
           else if (el.classList.contains('osd-on') || paused) togglePause();
           else showOsd();
@@ -1515,8 +1592,12 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
         case 'playpause': if (seekTarget != null) commitSeek(); else togglePause(); return true;
         case 'play': if (paused) togglePause(); return true;
         case 'pause': if (!paused) togglePause(); return true;
-        case 'left': seekBy(-1); return true;
-        case 'right': seekBy(1); return true;
+        case 'left':
+          if (osdCol >= 0) { osdCol = Math.max(0, osdCol - 1); paintOsdFocus(); showOsd(true); return true; }
+          seekBy(-1); return true;
+        case 'right':
+          if (osdCol >= 0) { osdCol = Math.min(osdBtns.length - 1, osdCol + 1); paintOsdFocus(); showOsd(true); return true; }
+          seekBy(1); return true;
         case 'rw': seekBy(-1, true); return true;
         case 'ff': seekBy(1, true); return true;
         case 'prev': if (link) toast('Not while watching together'); else if (neighbors.prev) playEpisode(neighbors.prev); else toast('This is the first episode'); return true;
@@ -1528,13 +1609,21 @@ export function PlayerScreen(initial, { offset = null, quality: qualityId, media
           else if (neighbors.next) playEpisode(neighbors.next);
           else toast('This is the last episode');
           return true;
-        case 'up': case 'info': showOsd(); return true;
-        case 'down': if (part) openPanel(); return true;
+        case 'info': showOsd(); return true;
+        case 'up':
+          if (osdCol >= 0) { osdCol = -1; paintOsdFocus(); showOsd(); return true; }
+          showOsd(); return true;
+        case 'down':
+          if (!part) return true;
+          if (osdCol < 0) { osdCol = 0; paintOsdFocus(); showOsd(true); return true; }
+          if (osdCol === 0) { openPanel(); return true; }
+          openOsdCol(osdCol); return true;
         // Green on remotes that have colour keys; CH ▲/▼ on the ones that don't.
         case 'green': case 'pageup': case 'pagedown': if (part) toggleSubtitles(); return true;
         case 'stop': exit(); return true;
         case 'back':
           if (seekTarget != null) { seekTarget = null; toggleClass(el, 'seeking', false); renderProgress(position); showOsd(); return true; }
+          if (osdCol >= 0) { osdCol = -1; paintOsdFocus(); showOsd(); return true; }
           if (el.classList.contains('osd-on') && !paused) { hideOsd(); return true; }
           exit();
           return true;
