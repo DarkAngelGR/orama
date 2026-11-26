@@ -96,6 +96,15 @@ export function back() {
   reveal(stack[stack.length - 1], 'back');
 }
 
+// Drop every screen above the one named `name` (the rail's Home).
+export function popTo(name) {
+  const at = stack.findIndex(s => s.name === name);
+  if (at < 0 || at === stack.length - 1) return false;
+  while (stack.length - 1 > at) destroy(stack.pop());
+  reveal(stack[at], 'back');
+  return true;
+}
+
 export function top() {
   return stack[stack.length - 1];
 }

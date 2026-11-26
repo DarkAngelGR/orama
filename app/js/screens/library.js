@@ -4,6 +4,8 @@
 // one). All three are remembered per library and profile. CH▲/CH▼ jump by letter
 // (title sort) or by page. Hold OK opens the title menu.
 import { h, setText, setTransform, toggleClass } from '../util/dom.js';
+import { Rail, mountClock } from '../ui/rail.js';
+import { activateRail } from '../nav.js';
 import * as store from '../util/store.js';
 import { Grid } from '../ui/grid.js';
 import { KINDS } from '../ui/tile.js';
@@ -14,19 +16,18 @@ import { session, isJellyfin } from '../session.js';
 import { enabled as kidsOn, filterItems, listingFilter } from '../util/kids.js';
 import { openItem, playItem } from '../nav.js';
 import { error } from '../util/log.js';
-import { metaLine } from '../util/format.js';
 import { lettersIfCurrent } from '../util/shape.js';
 import { notice } from '../ui/notice.js';
-import { plexLetterParams, jellyfinListingParams, hasActiveFilters, filterButtonLabel, filterBits } from '../plex/filters.js';
+import { plexLetterParams, jellyfinListingParams, hasActiveFilters, filterBits } from '../plex/filters.js';
 
 const PAGE = 140;
 // Same geometry as the Grid below (.grid left 80 + .grid-track left/top 16/12).
-const GRID_TOP = 200;
+const GRID_TOP = 168;
 const GRID_H = 880;
 const GRID_COLS = 7;
-const GRID_GAP_X = 41;
-const GRID_GAP_Y = 28;
-const GRID_CAP = 70;
+const GRID_GAP_X = 28;
+const GRID_GAP_Y = 18;
+const GRID_CAP = 58; // title + year under the focused poster only; the slot stays fixed
 const SORTS = [
   { id: 'titleSort', label: 'A–Z' },
   { id: 'addedAt:desc', label: 'Recently added' },
@@ -63,6 +64,8 @@ function saveView(section, view) {
 
 export function LibraryScreen(section) {
   const el = h('div', 'screen library');
+  const stopClock = mountClock(el);
+  const rail = Rail(el, { current: String(section.key), onActivate: activateRail });
   const ambience = useAmbience();
   const head = h('header', 'lib-head', el);
   h('h1', 'lib-title', head).textContent = section.title;
@@ -76,8 +79,8 @@ export function LibraryScreen(section) {
     badge.textContent = 'Kids';
   }
   const focusInfo = h('div', 'lib-focus', el);
-  const hint = h('div', 'lib-hint', el);
-  hint.textContent = '▲ Sort & filter   ·   CH ▲▼ Jump';
+  const lettersEl = h('div', 'lib-letters', el);
+  let letterNodes = [];
 
   const saved = savedView(section);
   let sortIndex = Math.max(0, SORTS.findIndex(s => s.id === saved.sort));
@@ -101,11 +104,10 @@ export function LibraryScreen(section) {
     cols: GRID_COLS, gapX: GRID_GAP_X, gapY: GRID_GAP_Y, captionH: GRID_CAP,
     top: GRID_TOP, height: GRID_H, total: 0,
     getItem: i => items[i],
-    onFocus: (item, index) => {
+    onFocus: item => {
       if (!grid) return;
-      if (!item) { setText(focusInfo, ''); return; }
-      setText(focusInfo, item.title + '   ' + metaLine(item));
-      ambience.set(item.UltraBlurColors);
+      markLetter();
+      if (item) ambience.set(item.UltraBlurColors);
     },
     onSelect: item => openItem(item),
     onNeed: (start, end) => {
@@ -178,8 +180,7 @@ export function LibraryScreen(section) {
       }
       if (grid.total !== total) {
         grid.setTotal(total);
-        const bits = filterBits(filters);
-        setText(count, total + (unwatched ? ' unwatched' : '') + (section.type === 'show' ? ' show' : ' movie') + (total === 1 ? '' : 's') + (bits.length ? ' · ' + bits.join(' · ') : ''));
+        setText(count, String(total));
       } else {
         grid.refresh();
       }
@@ -210,6 +211,7 @@ export function LibraryScreen(section) {
     // Drop the previous index immediately. A reply for the old sort can still
     // be in flight, and applying it would jump by the wrong titles.
     letters = [];
+    paintLetters();
     if (SORTS[sortIndex].id !== 'titleSort') return;
     try {
       const kind = isJellyfin() ? 'jellyfin' : 'plex';
@@ -220,7 +222,32 @@ export function LibraryScreen(section) {
       const mc = await session.server.get('/library/sections/' + section.key + '/firstCharacter', params);
       const next = lettersIfCurrent(gen, generation, mc && mc.Directory);
       if (next) letters = next;
+      if (gen === generation) paintLetters();
     } catch (e) { /* letter jump just won't work */ }
+  }
+
+  function paintLetters() {
+    lettersEl.textContent = '';
+    letterNodes = letters.map(l => {
+      const s = h('span', '', lettersEl);
+      s.textContent = l.title;
+      return s;
+    });
+    markLetter();
+  }
+
+  function markLetter() {
+    if (!letterNodes.length || !grid) return;
+    const i = grid.index;
+    let li = letters.findIndex((l, k) => i >= l.start && (k === letters.length - 1 || i < letters[k + 1].start));
+    if (li < 0) li = 0;
+    letterNodes.forEach((n, k) => toggleClass(n, 'on', k === li));
+  }
+
+  function paintPill(el, name, value) {
+    el.textContent = '';
+    h('span', '', el).textContent = name;
+    if (value) h('b', '', el).textContent = value;
   }
 
   function reload() {
@@ -229,9 +256,10 @@ export function LibraryScreen(section) {
     clearTimeout(retryTimer);
     pages = new Map();
     items = [];
-    setText(sortEl, 'Sort: ' + SORTS[sortIndex].label);
-    setText(filterEl, 'Show: ' + (unwatched ? 'Unwatched' : 'All'));
-    setText(moreEl, filterButtonLabel(filters));
+    paintPill(sortEl, 'Sort', SORTS[sortIndex].label);
+    paintPill(filterEl, 'Unwatched', '');
+    toggleClass(filterEl, 'on', unwatched);
+    paintPill(moreEl, 'Filter', filterBits(filters).join(' · '));
     setText(count, '');
     grid.total = 0;
     grid.index = 0;
@@ -240,6 +268,10 @@ export function LibraryScreen(section) {
     loadLetters();
   }
   reload();
+  if (session.server && session.server.sections) {
+    const railGen = generation;
+    session.server.sections().then(list => { if (railGen === generation) rail.setSections(list || []); }, () => {});
+  }
 
   function currentView() {
     return Object.assign({ sort: SORTS[sortIndex].id, unwatched }, filters);
@@ -251,6 +283,12 @@ export function LibraryScreen(section) {
     toggleClass(filterEl, 'focus', on && headIndex === 1);
     toggleClass(moreEl, 'focus', on && headIndex === 2);
     toggleClass(grid.ring, 'on', !on);
+    grid.setActive(!on);
+  }
+
+  function openRail() {
+    rail.openRail();
+    toggleClass(el, 'rail-open', true);
   }
 
   function cycleSort(dir) {
@@ -360,7 +398,7 @@ export function LibraryScreen(section) {
       let li = letters.findIndex((l, k) => i >= l.start && (k === letters.length - 1 || i < letters[k + 1].start));
       li = Math.max(0, Math.min(letters.length - 1, li + dir));
       grid.focusIndex(letters[li].start);
-      setText(focusInfo, letters[li].title);
+      markLetter();
     } else {
       grid.focusIndex(grid.index + dir * grid.cols * 3);
     }
@@ -369,13 +407,18 @@ export function LibraryScreen(section) {
   return {
     el,
     name: 'library',
-    onShow() { ambience.restore(); },
-    destroy() { generation++; clearTimeout(retryTimer); },
+    onShow() { ambience.restore(); rail.paintWho(); },
+    destroy() { generation++; clearTimeout(retryTimer); stopClock(); },
     wantsHold() {
       return !onSort && !picker.isOpen && libraryItem(grid.current());
     },
     onKey(action) {
       if (picker.isOpen) return picker.onKey(action);
+      if (rail.isOpen()) {
+        const handled = rail.onKey(action);
+        toggleClass(el, 'rail-open', rail.isOpen());
+        return handled !== false;
+      }
       if (action === 'hold') { openGridMenu(); return true; }
       if (onSort) {
         switch (action) {
@@ -384,7 +427,10 @@ export function LibraryScreen(section) {
             else if (headIndex === 1) toggleUnwatched();
             else openFilters();
             return true;
-          case 'left': headIndex = Math.max(0, headIndex - 1); setSortFocus(true); return true;
+          case 'left':
+            if (headIndex === 0) openRail();
+            else { headIndex -= 1; setSortFocus(true); }
+            return true;
           case 'right': headIndex = Math.min(2, headIndex + 1); setSortFocus(true); return true;
           case 'yellow': cycleSort(1); return true;
           case 'down': case 'back': setSortFocus(false); return true;
@@ -393,7 +439,7 @@ export function LibraryScreen(section) {
         return false;
       }
       switch (action) {
-        case 'left': grid.move(-1, 0); return true;
+        case 'left': if (!grid.move(-1, 0)) openRail(); return true;
         case 'right': grid.move(1, 0); return true;
         case 'up':
           if (grid.index < grid.cols) setSortFocus(true);

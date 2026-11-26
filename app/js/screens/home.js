@@ -7,7 +7,7 @@ import { session, isJellyfin } from '../session.js';
 import { metaParts, heroEyebrow } from '../util/format.js';
 import { isFast } from '../input.js';
 import * as store from '../util/store.js';
-import { openItem, playItem, openLibrary, openSearch, openSettings, openCatalogLookup, openCatalog } from '../nav.js';
+import { openItem, playItem, activateRail, openCatalogLookup, openCatalog } from '../nav.js';
 import { error, log } from '../util/log.js';
 import * as updates from '../plex/updates.js';
 import * as notifications from '../plex/notifications.js';
@@ -151,13 +151,7 @@ export function HomeScreen() {
   let loadGen = 0;
   let worthSignature = '';
 
-  function activateNav(n) {
-    if (n.id === 'section') openLibrary(n.section);
-    else if (n.id === 'search') openSearch();
-    else if (n.id === 'settings') openSettings();
-  }
-
-  const rail = Rail(el, { current: 'home', onActivate: activateNav });
+  const rail = Rail(el, { current: 'home', onActivate: activateRail });
 
   function paintMeta(parts) {
     heroMeta.textContent = '';

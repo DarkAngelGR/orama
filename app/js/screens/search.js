@@ -1,6 +1,8 @@
 // Search across the server. Focusing the input brings up the TV keyboard
 // (Samsung IME or the webOS virtual keyboard); results update as you type.
-import { h, setText, setTransform } from '../util/dom.js';
+import { h, setText, setTransform, toggleClass } from '../util/dom.js';
+import { Rail } from '../ui/rail.js';
+import { activateRail } from '../nav.js';
 import { Row } from '../ui/row.js';
 import { session, isJellyfin } from '../session.js';
 import { openItem, playItem, openCatalog } from '../nav.js';
@@ -19,8 +21,11 @@ const CATALOG_MAX = 20;
 const IME_DONE = 65376;
 const IME_CANCEL = 65385;
 
+const ROW_INSET = 64; // row sits at x=112, so the focused poster lands at 176
+
 export function SearchScreen() {
   const el = h('div', 'screen search');
+  const rail = Rail(el, { current: 'search', onActivate: activateRail });
   const ambience = useAmbience();
   const bar = h('div', 'search-bar', el);
   const icon = h('div', 'search-icon', bar);
@@ -158,7 +163,7 @@ export function SearchScreen() {
   function makeRow(hub, y) {
     const row = new Row({
       title: hub.title, kind: hub.type === 'episode' ? 'episode' : 'poster',
-      caption: true, items: hub.Metadata, onSelect: hub.onSelect || (item => openItem(item)),
+      caption: true, inset: ROW_INSET, items: hub.Metadata, onSelect: hub.onSelect || (item => openItem(item)),
     });
     setTransform(row.el, 'translateY(' + y + 'px)');
     row.y = y;
@@ -229,12 +234,19 @@ export function SearchScreen() {
 
   // The library's genres, for smart search, fetched while you type.
   if (session.server && session.server.genreNames) session.server.genreNames().then(g => { genreList = g; }, () => {});
+  if (session.server && session.server.sections) session.server.sections().then(list => rail.setSections(list || []), () => {});
+
+  function openRail() {
+    rail.openRail();
+    toggleClass(el, 'rail-open', true);
+  }
 
   return {
     el,
     name: 'search',
     onShow() {
       ambience.restore();
+      rail.paintWho();
       clearTimeout(focusTimer);
       // After this screen is covered, the timer must not pull focus back.
       if (rowIndex < 0) focusTimer = setTimeout(focusInput, 50);
@@ -245,8 +257,14 @@ export function SearchScreen() {
     },
     onKey(action) {
       if (picker.isOpen) return picker.onKey(action);
+      if (rail.isOpen()) {
+        const handled = rail.onKey(action);
+        toggleClass(el, 'rail-open', rail.isOpen());
+        return handled !== false;
+      }
       if (action === 'hold') { openResultMenu(); return true; }
       if (rowIndex < 0) {
+        if (action === 'left') { openRail(); return true; }
         if (action === 'down' && rows.length) { clearTimeout(focusTimer); input.blur(); rowIndex = 0; render(); return true; }
         if (action === 'enter') { input.focus(); return true; }
         if (action === 'back') { input.blur(); return false; }
@@ -254,7 +272,7 @@ export function SearchScreen() {
       }
       const row = rows[rowIndex];
       switch (action) {
-        case 'left': row.move(-1); return true;
+        case 'left': if (!row.move(-1)) openRail(); return true;
         case 'right': row.move(1); return true;
         case 'up': if (rowIndex === 0) focusInput(); else { rowIndex--; render(); } return true;
         case 'down': if (rowIndex < rows.length - 1) { rowIndex++; render(); } return true;

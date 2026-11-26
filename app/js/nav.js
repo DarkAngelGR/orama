@@ -35,6 +35,15 @@ export function openLibrary(section) {
   router.push(LibraryScreen(section));
 }
 
+// Rail OK. Home pops back to the screen already underneath; the others push.
+export function activateRail(n) {
+  if (!n) return;
+  if (n.id === 'home') { router.popTo('home'); return; }
+  if (n.id === 'search') { openSearch(); return; }
+  if (n.id === 'settings') { openSettings(); return; }
+  if (n.id === 'section') openLibrary(n.section);
+}
+
 export function openSearch() {
   router.pushAsync(() => import('./screens/search.js').then(m => m.SearchScreen()));
 }

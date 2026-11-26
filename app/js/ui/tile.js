@@ -88,6 +88,14 @@ export function prefetchTile(kind, item) {
 function paintCaption(tile, item) {
   if (!tile.cap) return;
   const kind = tile.kind;
+  if (kind === 'grid') {
+    setText(tile.cap, item.title || '');
+    const bits = [];
+    if (item.year) bits.push(String(item.year));
+    if (item.duration) bits.push(duration(item.duration));
+    setText(tile.sub, bits.join(' · '));
+    return;
+  }
   if (kind === 'episode' && item.type === 'episode') {
     const n = item.index != null && item.index !== '' ? item.index + ' · ' + (item.title || '') : (item.title || '');
     setText(tile.cap, n);

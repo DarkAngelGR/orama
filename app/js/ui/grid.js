@@ -19,6 +19,7 @@ export class Grid {
     this.onNeed = onNeed;
     this.index = 0;
     this.lastRow = 0;
+    this.active = true;
     this.kind = kind;
     this.scrollRow = 0;
 
@@ -98,6 +99,21 @@ export class Grid {
     if (item && this.onSelect) this.onSelect(item, this.index);
   }
 
+  // Header focus hides the poster caption. The ring is shown separately.
+  setActive(on) {
+    this.active = !!on;
+    this.markHot();
+  }
+
+  markHot() {
+    for (const slot of this.rows) {
+      if (slot.row < 0) continue;
+      for (let c = 0; c < this.cols; c++) {
+        toggleClass(slot.tiles[c].el, 'hot', this.active && slot.row * this.cols + c === this.index);
+      }
+    }
+  }
+
   render() {
     const focusRow = Math.floor(this.index / this.cols);
     // Keep the focused row second from the top (first row at the very top).
@@ -109,7 +125,7 @@ export class Grid {
       const slot = this.rows[r % this.poolRows];
       const same = slot.row === r;
       if (same) {
-        for (let c = 0; c < this.cols; c++) toggleClass(slot.tiles[c].el, 'hot', r * this.cols + c === this.index);
+        for (let c = 0; c < this.cols; c++) toggleClass(slot.tiles[c].el, 'hot', this.active && r * this.cols + c === this.index);
         continue;
       }
       slot.row = r;
@@ -121,7 +137,7 @@ export class Grid {
         if (i < this.total) {
           tile.el.style.visibility = '';
           fillTile(tile, this.getItem(i) || null);
-          toggleClass(tile.el, 'hot', i === this.index);
+          toggleClass(tile.el, 'hot', this.active && i === this.index);
         } else {
           tile.el.style.visibility = 'hidden';
           toggleClass(tile.el, 'hot', false);
