@@ -5,6 +5,7 @@ import { Row } from '../ui/row.js';
 import { Picker } from '../ui/picker.js';
 import { session } from '../session.js';
 import { metaParts, episodeLabel, episodeStatus, detailEyebrow, playLabel, leftLine } from '../util/format.js';
+import { byRating, ratingLabel } from '../util/rated.js';
 
 import { showLogo } from '../ui/logo.js';
 import * as icons from '../ui/icons.js';
@@ -124,10 +125,16 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
 
   function target() {
     // What Play acts on: the item itself, or for a show the next episode.
+    // Top rated is sorted for browsing. Play still follows season and episode order.
     if (!isShowLike()) return item;
     if (item.onDeck) return item.onDeck;
     if (!episodes) return null;
-    const eps = episodes.items;
+    let eps = episodes.items;
+    if (seasons[seasonIndex] && seasons[seasonIndex].topRated) {
+      eps = eps.slice().sort((a, b) =>
+        (Number(a.parentIndex) || 0) - (Number(b.parentIndex) || 0) ||
+        (Number(a.index) || 0) - (Number(b.index) || 0));
+    }
     return eps.find(e => e.viewOffset) || eps.find(e => !e.viewCount) || eps[0] || null;
   }
 
@@ -275,7 +282,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
 
   function openSeasonMenu() {
     const season = seasons[seasonIndex];
-    if (!season) return;
+    if (!season || !season.ratingKey) return;
     const done = season.leafCount > 0 && season.viewedLeafCount >= season.leafCount;
     picker.open(season.title || 'Season', [
       { label: done ? 'Mark season unwatched' : 'Mark season watched', value: done ? 'unwatched' : 'watched' },
@@ -570,7 +577,10 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
 
   function renderSeasons() {
     seasonsTrack.innerHTML = '';
-    seasons.forEach(s => { s.el = h('div', 'pill', seasonsTrack); s.el.textContent = s.title; });
+    seasons.forEach(s => {
+      s.el = h('div', 'pill', seasonsTrack);
+      s.el.textContent = s.topRated ? '★ ' + s.title : s.title;
+    });
     seasonsOffset = -1;
     renderFocus();
   }
@@ -817,8 +827,10 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     const sub = episodesWrap.querySelector('.tile.cur .tile-sub');
     if (!sub || !ep) return;
     const status = episodeStatus(ep);
+    const star = ep.showRating ? ratingLabel(ep) : '';
+    const head = [star, status].filter(Boolean).join(' · ');
     const line = String(summary || '').replace(/\s+/g, ' ').trim();
-    setText(sub, line ? (status ? status + ' · ' + line : line) : status);
+    setText(sub, line ? (head ? head + ' · ' + line : line) : head);
   }
 
   function showEpisode(ep) {
@@ -836,16 +848,20 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
   }
 
   // focus: { key, next } lands on that episode (or the one after it); without
-  // it, on the first unwatched one. Returns 'past-end' when the one after is
-  // in the next season.
+  // it, on the first unwatched one. Top rated lands on the first item.
+  // Returns 'past-end' when the one after is in the next season.
   async function loadEpisodes(season, focus) {
     const gen = ++epGen;
-    let eps = await session.server.children(season.ratingKey);
+    const top = !!season.topRated;
+    let eps = top
+      ? await session.server.episodes(item.ratingKey)
+      : await session.server.children(season.ratingKey);
     if (!alive || gen !== epGen) return;
     if (kidsOn()) {
       if (item.librarySectionID) eps.forEach(ep => { if (!ep.librarySectionID) ep.librarySectionID = item.librarySectionID; });
       eps = eps.filter(ep => ratingAllows(ep, kidsState()));
     }
+    if (top) eps = byRating(eps).map(ep => Object.assign({}, ep, { showRating: true }));
     if (!episodes) {
       const row = new Row({
         kind: 'episode', caption: true, inset: PAGE_X, items: eps,
@@ -859,19 +875,22 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
       episodes.row.setItems(eps);
     }
     const at = focus && focus.key ? eps.findIndex(k => k.ratingKey === focus.key) : -1;
-    if (at >= 0 && focus.next && at === eps.length - 1) {
+    // Top rated has no following season, so finishing its last row stays put.
+    if (at >= 0 && focus.next && at === eps.length - 1 && season.ratingKey) {
       episodes.row.focusIndex(at);
-      renderFocus();
+      renderButtons();
       return 'past-end';
     }
     if (at >= 0) {
       episodes.row.focusIndex(focus.next ? at + 1 : at);
+    } else if (top) {
+      episodes.row.focusIndex(0);
     } else {
       // Land on the first unwatched episode.
       const next = eps.findIndex(k => !k.viewCount || k.viewOffset);
       episodes.row.focusIndex(next >= 0 ? next : 0);
     }
-    renderFocus();
+    renderButtons();
     return '';
   }
 
@@ -924,7 +943,10 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
       // Coming back (from the player, an episode's page…): keep your place in
       // the seasons and episodes instead of starting over at season 1.
       const reloading = loadedOnce;
-      const keepSeason = reloading && seasons[seasonIndex] ? seasons[seasonIndex].ratingKey : null;
+      const kept = reloading ? seasons[seasonIndex] : null;
+      // Top rated has no ratingKey, so remember the pill itself.
+      const keepTop = !!(kept && kept.topRated);
+      const keepSeason = kept && kept.ratingKey ? kept.ratingKey : null;
       const keepEp = reloading && episodes && episodes.row.current() ? episodes.row.current().ratingKey : null;
       let key = item.ratingKey;
       let preferSeason = null;
@@ -946,7 +968,9 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
       if (isShowLike()) {
         const nextSeasons = (await session.server.children(item.ratingKey)).filter(s => s.type === 'season');
         if (!alive || gen !== viewGen) return;
-        seasons = nextSeasons;
+        seasons = nextSeasons.length
+          ? nextSeasons.concat({ title: 'Top rated', topRated: true })
+          : nextSeasons;
         const deckSeason = item.onDeck ? seasons.findIndex(s => s.ratingKey === item.onDeck.parentRatingKey) : -1;
         const pref = preferSeason ? seasons.findIndex(s => s.ratingKey === preferSeason) : -1;
         // Back from playing an episode of this show: that episode (or the next
@@ -956,14 +980,20 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
         if (fromPlayer) session.lastPlayed = null;
         const placeSeason = fromPlayer ? fromPlayer.season : keepSeason;
         const place = placeSeason ? seasons.findIndex(s => s.ratingKey === placeSeason) : -1;
-        seasonIndex = place >= 0 ? place : pref >= 0 ? pref : (deckSeason >= 0 ? deckSeason : 0);
+        const topAt = seasons.findIndex(s => s.topRated);
+        // Top rated has no ratingKey. Stay on it across reloads, including the player.
+        const onTop = keepTop && topAt >= 0;
+        if (onTop) seasonIndex = topAt;
+        else seasonIndex = place >= 0 ? place : pref >= 0 ? pref : (deckSeason >= 0 ? deckSeason : 0);
         renderSeasons();
         if (seasons[seasonIndex]) {
-          const focus = place < 0 ? null : fromPlayer ? { key: fromPlayer.key, next: fromPlayer.finished } : { key: keepEp };
+          const focus = fromPlayer
+            ? (onTop || place >= 0 ? { key: fromPlayer.key, next: fromPlayer.finished } : null)
+            : (place >= 0 || onTop ? { key: keepEp } : null);
           const landed = await loadEpisodes(seasons[seasonIndex], focus);
           if (!alive || gen !== viewGen) return;
-          if (landed === 'past-end' && seasons[seasonIndex + 1]) {
-            // Finished a season's last episode: on to the next season.
+          // Top rated is not a season: finishing the last real season stays there.
+          if (landed === 'past-end' && seasons[seasonIndex + 1] && seasons[seasonIndex + 1].ratingKey) {
             seasonIndex++;
             renderSeasons();
             await loadEpisodes(seasons[seasonIndex]);
@@ -1027,7 +1057,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     wantsHold() {
       if (picker.isOpen) return false;
       if (zone === 'episodes' && episodes && libraryItem(episodes.row.current())) return true;
-      if (zone === 'seasons' && seasons[seasonIndex]) return true;
+      if (zone === 'seasons' && seasons[seasonIndex] && seasons[seasonIndex].ratingKey) return true;
       return false;
     },
     onShow() {

@@ -482,6 +482,20 @@ export class JellyfinServer {
     return plexList(r && r.Items);
   }
 
+  // Every episode of a show, in season order. The detail screen sorts them.
+  // shortcut: one page of 2000 — page with StartIndex if a show can pass that
+  async episodes(id) {
+    const kid = listingFilter('jellyfin');
+    const r = await this.req(this.u('/Items'), { params: {
+      ParentId: id, Recursive: true, IncludeItemTypes: 'Episode',
+      SortBy: 'ParentIndexNumber,IndexNumber', SortOrder: 'Ascending',
+      Fields: 'Overview,CommunityRating,CriticRating,PremiereDate' + (kid ? ',OfficialRating' : ''),
+      Limit: 2000,
+      MaxOfficialRating: kid ? kid.MaxOfficialRating : undefined,
+    } });
+    return plexList(r && r.Items);
+  }
+
   async search(q) {
     const kid = listingFilter('jellyfin');
     const r = await this.req(this.u('/Items'), { params: {

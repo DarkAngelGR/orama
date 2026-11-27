@@ -135,6 +135,26 @@ location.href='/index.html';
   if (p === `/Users/${U}/Items/Latest`) return json(res, q.get('ParentId') === 'lib-s' ? shows : movies.slice(6, 20));
   if (p === `/Users/${U}/Items`) {
     const pid = q.get('ParentId') || '';
+    // Detail → Top rated: every episode of the show, with a few scores.
+    if (q.get('IncludeItemTypes') === 'Episode' && q.get('Recursive') === 'true' && /^s\d+$/.test(pid)) {
+      const s = all.get(pid);
+      if (!s) return json(res, { Items: [], TotalRecordCount: 0 });
+      const items = [];
+      for (let season = 1; season <= 3; season++) {
+        for (let n = 1; n <= 8; n++) {
+          const ep = episode(s, n);
+          ep.Id = 'e' + pid + 's' + season + 'e' + n;
+          ep.ParentIndexNumber = season;
+          ep.IndexNumber = n;
+          ep.SeasonId = pid + 'x' + season;
+          ep.SeasonName = 'Season ' + season;
+          if (n === 5) ep.CriticRating = 62 + season * 10;
+          else if (n !== 8) ep.CommunityRating = Math.round((6 + ((season + n) % 4) * 0.8) * 10) / 10;
+          items.push(ep);
+        }
+      }
+      return json(res, { Items: items, TotalRecordCount: items.length });
+    }
     if (/^s\d+$/.test(pid)) return json(res, { Items: [1, 2, 3].map(n => ({ Id: pid + 'x' + n, Name: 'Season ' + n, Type: 'Season', IndexNumber: n, SeriesId: pid, RecursiveItemCount: 8, ImageTags: { Primary: 'p' }, UserData: { UnplayedItemCount: 8 } })) });
     if (/x\d+$/.test(pid)) {
       const s = all.get(pid.split('x')[0]);

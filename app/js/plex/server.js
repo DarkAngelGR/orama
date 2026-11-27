@@ -214,6 +214,29 @@ export class Server {
     return mc.Metadata || [];
   }
 
+  // Every episode of a show, in library order. The detail screen sorts them.
+  // shortcut: 2000 episodes, page larger if a library can exceed that
+  async episodes(showKey) {
+    const limit = 200;
+    const cap = 2000;
+    const all = [];
+    let start = 0;
+    while (start < cap) {
+      const size = Math.min(limit, cap - start);
+      const leaves = await this.get('/library/metadata/' + showKey + '/allLeaves', {
+        'X-Plex-Container-Start': start, 'X-Plex-Container-Size': size,
+      });
+      const page = leaves.Metadata || [];
+      for (const ep of page) {
+        if (all.length >= cap) break;
+        all.push(ep);
+      }
+      start += page.length;
+      if (!page.length || (leaves.totalSize != null ? start >= leaves.totalSize : page.length < size)) break;
+    }
+    return all;
+  }
+
   async search(q) {
     const mc = await this.get('/hubs/search', { query: q, limit: 30, includeCollections: 0 });
     return (mc.Hub || []).filter(h => h.size > 0 && SUPPORTED_HUB_TYPES[h.type] && h.Metadata);

@@ -4,6 +4,7 @@ import { h, setText, show, setTransform, toggleClass } from '../util/dom.js';
 import { load, prefetch } from './images.js';
 import { session } from '../session.js';
 import { progress, episodeLabel, episodeStatus, duration } from '../util/format.js';
+import { ratingLabel } from '../util/rated.js';
 
 export const KINDS = {
   poster: { w: 220, h: 330 },
@@ -97,9 +98,14 @@ function paintCaption(tile, item) {
     return;
   }
   if (kind === 'episode' && item.type === 'episode') {
-    const n = item.index != null && item.index !== '' ? item.index + ' · ' + (item.title || '') : (item.title || '');
+    const name = item.title || '';
+    // Top rated mixes seasons, so the caption names the season. Normal seasons stay "4 · Title".
+    const n = item.showRating
+      ? [episodeLabel(item), name].filter(Boolean).join(' · ')
+      : (item.index != null && item.index !== '' ? item.index + ' · ' + name : name);
     setText(tile.cap, n);
-    setText(tile.sub, episodeStatus(item));
+    const star = item.showRating ? ratingLabel(item) : '';
+    setText(tile.sub, [star, episodeStatus(item)].filter(Boolean).join(' · '));
     return;
   }
   if (kind === 'episode') {
