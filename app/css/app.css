@@ -226,7 +226,7 @@ html.playing .ambience { display: none; }
 .home.rail-open .hero-info, .home.rail-open .home-rows { opacity: 0.35; }
 .home-rows { position: absolute; left: 0; width: 1920px; bottom: 0; overflow: hidden; }
 .home-hint {
-  position: absolute; right: 72px; top: 680px; font: 500 24px/1 var(--body); color: var(--dim);
+  position: absolute; right: 72px; top: 668px; font: 500 24px/1 var(--body); color: var(--dim);
   opacity: 0; transition: opacity 200ms var(--ease);
 }
 .home-hint.on { opacity: 1; }
@@ -259,7 +259,7 @@ html.playing .ambience { display: none; }
   will-change: opacity; transition: opacity 250ms ease;
 }
 .row-track {
-  position: absolute; top: 12px; left: 96px;
+  position: absolute; top: 22px; left: 96px;
   will-change: transform; transition: transform 260ms var(--ease);
 }
 
@@ -863,8 +863,8 @@ html.subs-bg .subs-text {
    Opacity and transform only, short, and never in the way of a key press:
    off while a key is held (html.fast) and with Settings › Animations off. */
 
-@keyframes screen-fwd { from { opacity: 0; transform: translate3d(0, 26px, 0) scale(0.985); } to { opacity: 1; transform: none; } }
-@keyframes screen-back { from { opacity: 0; transform: scale(1.012); } to { opacity: 1; transform: none; } }
+@keyframes screen-fwd { from { opacity: 0; transform: translate3d(0, 26px, 0); } to { opacity: 1; transform: none; } }
+@keyframes screen-back { from { opacity: 0; } to { opacity: 1; } }
 .screen.enter-fwd { animation: screen-fwd 260ms var(--ease); }
 .screen.enter-back { animation: screen-back 200ms var(--ease); }
 .screen.player { animation: none; }       /* the video plane sits under it */

@@ -44,7 +44,7 @@ function checkForUpdate() {
   }, 6000);
 }
 
-const ROWS_TOP = 720;   // the first row ends ~70px above the bottom: TVs overscan the edges
+const ROWS_TOP = 710;   // the first row ends ~70px above the bottom: TVs overscan the edges
 // Home rows are clipped at the rail (112). 64 more puts the focused tile at x=176.
 const ROW_INSET = 64;
 const TASTE_ROW = 'orama.for-you';

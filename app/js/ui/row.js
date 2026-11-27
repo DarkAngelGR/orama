@@ -31,15 +31,16 @@ export class Row {
     this.track = h('div', 'row-track', clip);
     this.track.style.left = inset + 'px';
     this.ring = h('div', 'ring', clip);
-    // Track sits 12px down. An 8px outset (4px ring + 4px gap) starts the ring at 4.
-    this.ring.style.top = '4px';
+    // Track sits 22px down. An 8px outset (4px ring + 4px gap) starts the ring at 14,
+    // which leaves room for the focused ring's 7% scale inside the clip.
+    this.ring.style.top = '14px';
     this.ring.style.left = (inset - 8) + 'px';
     this.ring.style.width = (this.size.w + 16) + 'px';
     this.ring.style.height = (this.size.h + 16) + 'px';
 
     this.captionH = caption ? 70 : 0;
-    clip.style.height = (this.size.h + this.captionH + 24) + 'px';
-    this.height = (title ? 64 : 0) + this.size.h + this.captionH + 24;
+    clip.style.height = (this.size.h + this.captionH + 44) + 'px';
+    this.height = (title ? 64 : 0) + this.size.h + this.captionH + 44;
 
     const visible = Math.ceil((1920 - LEFT) / this.step);
     this.poolSize = visible + BEHIND + 2;
