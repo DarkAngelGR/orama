@@ -226,11 +226,11 @@ html.playing .ambience { display: none; }
 .home.rail-open .hero-info, .home.rail-open .home-rows { opacity: 0.35; }
 .home-rows { position: absolute; left: 0; width: 1920px; bottom: 0; overflow: hidden; }
 .home-hint {
-  position: absolute; right: 72px; top: 748px; font: 500 24px/1 var(--body); color: var(--dim);
+  position: absolute; right: 72px; top: 680px; font: 500 24px/1 var(--body); color: var(--dim);
   opacity: 0; transition: opacity 200ms var(--ease);
 }
 .home-hint.on { opacity: 1; }
-.home-empty { position: absolute; left: 176px; top: 660px; font: 500 28px var(--body); color: var(--dim); }
+.home-empty { position: absolute; left: 176px; top: 620px; font: 500 28px var(--body); color: var(--dim); }
 /* The clip starts at the rail so tiles sliding off the left don't paint over the icons. */
 .home .row { left: 112px; width: 1808px; }
 .home .row-clip { width: 1808px; overflow: hidden; }
