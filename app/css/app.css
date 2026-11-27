@@ -720,6 +720,16 @@ html.subs-bg .subs-text {
 .settings-foot { position: absolute; left: 160px; bottom: 64px; font: 500 20px var(--body); color: var(--dim); }
 .settings-clip { height: 676px; overflow: hidden; }
 .settings-track { will-change: transform; transition: transform 220ms var(--ease); }
+/* Two panes. Seven categories fit; the right pane fits five rows and slides if a sixth appears. */
+.settings-cats { position: absolute; left: 160px; top: 220px; width: 420px; }
+.settings-cat { position: relative; height: 84px; margin-bottom: 12px; padding: 0 22px 0 28px; font-size: 26px; }
+.settings-cat .setting-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.settings-cat.selected { background: rgba(244, 243, 255, 0.14); }
+.settings-cat.selected::before {
+  content: ''; position: absolute; left: 0; top: 22px; bottom: 22px; width: 5px;
+  border-radius: 0 3px 3px 0; background: var(--accent);
+}
+.settings-pane { position: absolute; left: 640px; top: 220px; width: 1160px; height: 550px; overflow: hidden; }
 .downloads-foot { right: 160px; line-height: 1.5; }
 .prompt-bar { top: 230px; left: 160px; right: 160px; }
 .confirm-title { max-width: 1600px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

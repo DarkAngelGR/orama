@@ -104,7 +104,7 @@ else
   # Plain modules: preload the ones start-up needs so the TV fetches them in
   # parallel instead of discovering the import graph one level at a time.
   # (Screens that load on first use are left out.)
-  LAZY='screens/(search|settings|person|catalog|info|users|downloads|updates|jellyfin-login)\.js|util/smart\.js|vendor/qrcode\.js|dev/'
+  LAZY='screens/(search|settings|settings-groups|person|catalog|info|users|downloads|updates|jellyfin-login)\.js|util/smart\.js|vendor/qrcode\.js|dev/'
   PRELOADS=$(cd "$OUT" && find js -name '*.js' | grep -Ev "$LAZY" | sort | sed 's|.*|<link rel="modulepreload" href="&">|' | tr '\n' ' ')
 fi
 sed -i.bak "s|</head>|$PRELOADS</head>|" "$OUT/index.html" && rm "$OUT/index.html.bak"

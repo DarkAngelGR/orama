@@ -73,6 +73,46 @@ async function press(page, key) {
   }));
 }
 
+// The focused ring is scaled. Its painted box (getBoundingClientRect includes
+// that scale) has to sit inside the clip and the 1920×1080 screen, or
+// overflow:hidden cuts the border. 1px slack absorbs the subpixel. The row
+// slide is a transition, so finish it first: the rect at rest is the one the
+// screenshot (animations disabled) will show.
+async function assertRingFits(page, ringSel, clipSel) {
+  const message = await page.evaluate(({ ringSel, clipSel }) => {
+    const ring = document.querySelector(ringSel);
+    const clip = ring && ring.closest(clipSel);
+    if (!ring || !clip) return 'focus ring missing';
+    for (let el = ring; el; el = el.parentElement) {
+      for (const anim of el.getAnimations()) {
+        try { anim.finish(); } catch (e) { /* an infinite animation has no end */ }
+      }
+    }
+    const r = ring.getBoundingClientRect();
+    const c = clip.getBoundingClientRect();
+    const boxes = [
+      ['clip', c],
+      ['viewport', { top: 0, left: 0, right: 1920, bottom: 1080 }],
+    ];
+    const slack = 1;
+    for (const [name, box] of boxes) {
+      const edges = [
+        ['top', r.top, box.top, r.top < box.top - slack],
+        ['left', r.left, box.left, r.left < box.left - slack],
+        ['bottom', r.bottom, box.bottom, r.bottom > box.bottom + slack],
+        ['right', r.right, box.right, r.right > box.right + slack],
+      ];
+      for (const [edge, got, limit, bad] of edges) {
+        if (!bad) continue;
+        const cmp = edge === 'top' || edge === 'left' ? '<' : '>';
+        return 'focus ring clipped: ring ' + edge + ' ' + Math.round(got) + ' ' + cmp + ' ' + name + ' ' + edge + ' ' + Math.round(limit);
+      }
+    }
+    return '';
+  }, { ringSel, clipSel });
+  if (message) throw new Error(message);
+}
+
 async function saveFailure(page, err) {
   mkdirSync(DIFF, { recursive: true });
   try {
@@ -100,12 +140,14 @@ async function shoot(page) {
       && !!mark;
   });
   const shots = new Map();
+  await assertRingFits(page, '.screen.home:not(.hidden) .row.active .ring', '.row-clip');
   shots.set('1-home', await png());
   await press(page, 'ArrowDown');
   await page.waitForFunction(() => {
     const rows = document.querySelectorAll('.screen.home:not(.hidden) .row');
     return rows[1] && rows[1].classList.contains('active');
   });
+  await assertRingFits(page, '.screen.home:not(.hidden) .row.active .ring', '.row-clip');
   shots.set('2-home-next-row', await png());
   // Back to the first row, open the rail, and pick the first library (Movies).
   await press(page, 'ArrowUp');
@@ -119,6 +161,7 @@ async function shoot(page) {
     const imgs = [...lib.querySelectorAll('.tile-img')].filter(i => i.getAttribute('src'));
     return imgs.length >= 7 && imgs.every(i => i.complete && i.naturalWidth > 0);
   });
+  await assertRingFits(page, '.screen.library:not(.hidden) .grid .ring', '.grid');
   shots.set('3-library', await png());
   for (let i = 0; i < 6; i++) await press(page, 'ArrowRight');
   await page.waitForFunction(() => {
@@ -126,6 +169,7 @@ async function shoot(page) {
     const m = ring && /translate\(([-\d.]+)px/.exec(ring.style.transform || '');
     return m && Number(m[1]) > 1400;
   });
+  await assertRingFits(page, '.screen.library:not(.hidden) .grid .ring', '.grid');
   shots.set('4-library-last-column', await png());
   await press(page, 'Escape');
   await page.waitForFunction(() => {

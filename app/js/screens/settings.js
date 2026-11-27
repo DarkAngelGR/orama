@@ -1,4 +1,5 @@
-// Account, server and diagnostics.
+// Account, server and diagnostics. Two panes: categories on the left, the
+// highlighted category's rows on the right.
 import { DEV, VERSION } from '../config.js';
 import { h, toggleClass, setTransform } from '../util/dom.js';
 import { session, signOut, useServer, isJellyfin } from '../session.js';
@@ -26,9 +27,10 @@ import { resetTaste } from '../util/taste.js';
 import { ConfirmScreen } from './confirm.js';
 import { KidsScreen, confirmPin } from './kids.js';
 import { enabled as kidsOn, read as kidsState, setOn as setKids, levelById } from '../util/kids.js';
+import { groupSettings } from './settings-groups.js';
 
-const ROW = 110;     // .setting height + margin
-const VISIBLE = 6;   // rows that fit above the footer
+const ROW = 110;    // .setting height + margin
+const VISIBLE = 5;  // rows that fit in the right pane; more than this scrolls
 
 // Cycles through the qualities; files smaller than the pick still play as Original.
 function nextDefaultQuality() {
@@ -40,18 +42,21 @@ export function SettingsScreen() {
   const el = h('div', 'screen settings');
   const ambience = useAmbience();
   h('h1', 'settings-title', el).textContent = 'Settings';
-  // A clip with a sliding track, so the list can outgrow the screen.
-  const clip = h('div', 'settings-list settings-clip', el);
-  const list = h('div', 'settings-track', clip);
+  const catsEl = h('div', 'settings-cats', el);
+  // The right pane clips; its track slides if a category ever grows past the pane.
+  const pane = h('div', 'settings-pane', el);
+  const list = h('div', 'settings-track', pane);
   const foot = h('div', 'settings-foot', el);
   foot.textContent = 'Orama ' + VERSION + (DEV ? ' (dev)' : '') + ' by Aggelos (DarkAngelGR) · ' + (session.server ? session.server.uri.replace(/X-Plex-Token=.*/, '') : '');
 
-  let index = 0;
-  let items = [];
+  let focus = 'cats'; // 'cats' | 'rows'
+  let cat = 0;
+  let row = 0;
+  let groups = [];
+  let current = [];
   let alive = true;
 
-  function build() {
-    list.innerHTML = '';
+  function makeRows() {
     const tasteKey = activeTasteKey();
     const kidsRow = {
       label: 'Kids mode',
@@ -59,14 +64,15 @@ export function SettingsScreen() {
       run: () => router.push(KidsScreen()),
     };
     if (kidsOn()) {
-      items = [
+      return [
         kidsRow,
         isJellyfin()
           ? { label: 'User', value: session.user ? session.user.title : '—', run: () => router.push(UsersScreen()), action: 'Switch' }
           : { label: 'Profile', value: session.user ? session.user.title : '—', run: () => router.push(UsersScreen()), action: 'Switch' },
         { label: 'Sign out', value: isJellyfin() ? 'To switch server' : '', run: doSignOut },
       ];
-    } else items = [kidsRow].concat(isJellyfin() ? [
+    }
+    return [kidsRow].concat(isJellyfin() ? [
       { label: 'Server', value: session.server.name + ' (Jellyfin)', run: () => {} },
       { label: 'User', value: session.user ? session.user.title : '—', run: () => router.push(UsersScreen()), action: 'Switch' },
       { label: 'Who\'s watching at start', value: store.get('askProfile') ? 'Ask' : 'Last user', run: () => { store.set('askProfile', store.get('askProfile') ? undefined : true); build(); } },
@@ -92,7 +98,6 @@ export function SettingsScreen() {
       { label: 'Downloads (watchlist-sync)', value: watchlist.mode() === 'off' ? 'Off' : watchlist.baseUrl() ? watchlist.baseUrl().replace(/^https?:\/\//, '') : 'Not set',
         run: () => router.push(DownloadsScreen()) },
       { label: 'Performance overlay', value: hudEnabled() ? 'On' : 'Off', run: () => { setHud(!hudEnabled()); build(); } },
-      // For before/after recordings: brings back the full-screen gradients that took ~2s per repaint.
       { label: 'Discover rows on Home', value: watchlist.discoverEnabled() ? 'On · trending and recommended to request' : 'Off', run: () => { watchlist.setDiscoverEnabled(!watchlist.discoverEnabled()); build(); } },
       ...(tasteKey ? [
         { label: 'AI recommendations', value: aiTasteEnabled(tasteKey) ? 'On · shares titles and genres with your model provider' : 'Off · enabling shares titles and genres with your model provider',
@@ -108,10 +113,29 @@ export function SettingsScreen() {
       ] : []),
       { label: 'Animations', value: motion.enabled() ? 'On' : 'Off · everything appears at once', run: () => { motion.setEnabled(!motion.enabled()); build(); } },
       { label: 'Seasonal theme', value: seasonLabel(seasonPref()), run: () => { cycleSeason(); build(); } },
+      // For before/after recordings: brings back the full-screen gradients that took ~2s per repaint.
       { label: 'Demo: original slow renderer', value: legacyGradients() ? 'On' : 'Off', run: () => { setLegacyGradients(!legacyGradients()); build(); } },
     ]);
-    if (index >= items.length) index = Math.max(0, items.length - 1);
-    items.forEach(it => {
+  }
+
+  function build() {
+    const keep = groups[cat] && groups[cat].id;
+    groups = groupSettings(makeRows());
+    const again = keep ? groups.findIndex(g => g.id === keep) : 0;
+    cat = again >= 0 ? again : 0;
+    if (row >= groups[cat].items.length) row = Math.max(0, groups[cat].items.length - 1);
+    catsEl.innerHTML = '';
+    groups.forEach(g => {
+      g.el = h('div', 'setting settings-cat', catsEl);
+      h('span', 'setting-label', g.el).textContent = g.title;
+    });
+    fillRows();
+  }
+
+  function fillRows() {
+    current = groups[cat].items;
+    list.innerHTML = '';
+    current.forEach(it => {
       it.el = h('div', 'setting', list);
       h('span', 'setting-label', it.el).textContent = it.label;
       h('span', 'setting-value', it.el).textContent = it.value + (it.action ? '  ·  ' + it.action : '');
@@ -120,9 +144,23 @@ export function SettingsScreen() {
   }
 
   function render() {
-    items.forEach((it, i) => toggleClass(it.el, 'focus', i === index));
-    const first = Math.max(0, Math.min(index - (VISIBLE - 2), items.length - VISIBLE));
+    groups.forEach((g, i) => {
+      toggleClass(g.el, 'focus', focus === 'cats' && i === cat);
+      toggleClass(g.el, 'selected', focus === 'rows' && i === cat);
+    });
+    current.forEach((it, i) => toggleClass(it.el, 'focus', focus === 'rows' && i === row));
+    const first = focus === 'rows'
+      ? Math.max(0, Math.min(row - (VISIBLE - 2), current.length - VISIBLE))
+      : 0;
     setTransform(list, 'translateY(' + (-first * ROW) + 'px)');
+  }
+
+  function moveCat(delta) {
+    const next = Math.max(0, Math.min(groups.length - 1, cat + delta));
+    if (next === cat) return;
+    cat = next;
+    row = 0;
+    fillRows();
   }
 
   async function switchServer() {
@@ -165,9 +203,17 @@ export function SettingsScreen() {
     onShow() { ambience.restore(); build(); }, // Downloads may have changed
     destroy() { alive = false; },
     onKey(action) {
-      if (action === 'up') { index = Math.max(0, index - 1); render(); return true; }
-      if (action === 'down') { index = Math.min(items.length - 1, index + 1); render(); return true; }
-      if (action === 'enter') { items[index].run(); return true; }
+      if (focus === 'cats') {
+        if (action === 'up') { moveCat(-1); return true; }
+        if (action === 'down') { moveCat(1); return true; }
+        // Right or OK enters the category on its first row. Back is left to the router.
+        if (action === 'right' || action === 'enter') { focus = 'rows'; row = 0; render(); return true; }
+        return false;
+      }
+      if (action === 'up') { row = Math.max(0, row - 1); render(); return true; }
+      if (action === 'down') { row = Math.min(current.length - 1, row + 1); render(); return true; }
+      if (action === 'enter') { current[row].run(); return true; }
+      if (action === 'left') { focus = 'cats'; render(); return true; }
       return false;
     },
   };
